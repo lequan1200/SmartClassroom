@@ -97,7 +97,6 @@ def luu_sensor_data(sensor_id, value):
             """,
             (sensor_id, value)
         )
-
         conn.commit()
 
         cursor.close()
@@ -279,7 +278,165 @@ def luu_device_log(device_id, action):
         conn.close()
 
         return False
+# =====================================================
+# LAY SENSOR HIEN TAI CUA MOT PHONG
+# =====================================================
 
+def lay_sensor_hien_tai(room_id):
+    conn = ket_noi()
+
+    if conn is None:
+        return None
+
+    try:
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT
+                sensors.sensor_name,
+                sensors.unit,
+                sensor_current.value,
+                sensor_current.updated_at
+            FROM sensors
+            JOIN rooms
+                ON sensors.room_id = rooms.id
+            LEFT JOIN sensor_current
+                ON sensors.id = sensor_current.sensor_id
+            WHERE rooms.room_id = ?
+            ORDER BY sensors.id
+            """,
+            (room_id,)
+        )
+
+        rows = cursor.fetchall()
+
+        cursor.close()
+        conn.close()
+
+        danh_sach_sensor = []
+
+        for row in rows:
+            danh_sach_sensor.append({
+                "sensor_name": row[0],
+                "unit": row[1],
+                "value": float(row[2]) if row[2] is not None else None,
+                "updated_at": row[3].isoformat()
+                if row[3] else None
+            })
+
+        return danh_sach_sensor
+
+    except mariadb.Error as e:
+        print(f"DB ERROR: {e}")
+
+        if conn:
+            conn.close()
+
+        return None
+# =====================================================
+# LAY DEVICE HIEN TAI CUA MOT PHONG
+# =====================================================
+
+def lay_device_hien_tai(room_id):
+    conn = ket_noi()
+
+    if conn is None:
+        return None
+
+    try:
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT
+                devices.device_name,
+                devices.device_type,
+                device_current.state,
+                device_current.updated_at
+            FROM devices
+            JOIN rooms
+                ON devices.room_id = rooms.id
+            LEFT JOIN device_current
+                ON devices.id = device_current.device_id
+            WHERE rooms.room_id = ?
+            ORDER BY devices.id
+            """,
+            (room_id,)
+        )
+
+        rows = cursor.fetchall()
+
+        cursor.close()
+        conn.close()
+
+        danh_sach_device = []
+
+        for row in rows:
+            danh_sach_device.append({
+                "device_name": row[0],
+                "device_type": row[1],
+                "state": row[2],
+                "updated_at": row[3].isoformat()
+                if row[3] else None
+            })
+
+        return danh_sach_device
+
+    except mariadb.Error as e:
+        print(f"DB ERROR: {e}")
+
+        if conn:
+            conn.close()
+
+        return None
+
+# =====================================================
+# L?Y DANH SÁCH PHÒNG
+# =====================================================
+
+def lay_danh_sach_phong():
+    conn = ket_noi()
+
+    if conn is None:
+        return None
+
+    try:
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT id, room_id, name, created_at
+            FROM rooms
+            ORDER BY id
+            """
+        )
+
+        rows = cursor.fetchall()
+
+        cursor.close()
+        conn.close()
+
+        danh_sach_phong = []
+
+        for row in rows:
+            danh_sach_phong.append({
+                "id": row[0],
+                "room_id": row[1],
+                "name": row[2],
+                "created_at": row[3].isoformat()
+                if row[3] else None
+            })
+
+        return danh_sach_phong
+
+    except mariadb.Error as e:
+        print(f"DB ERROR: {e}")
+
+        if conn:
+            conn.close()
+
+        return None
 
 # =====================================================
 # TEST DATABASE
@@ -344,3 +501,4 @@ if __name__ == "__main__":
     print("================================")
     print("       TEST HOAN TAT")
     print("================================")
+
