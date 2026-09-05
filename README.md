@@ -29,16 +29,16 @@ Protocol: MQTT
 Ví dụ điều khiển đèn:
 
 ```bash
-mosquitto_pub -h 127.0.0.1 -p 1883 \
--t "classroom/room01/device/light1/set" \
+mosquitto_pub -h 127.0.0.1 -p 1883 
+-t "classroom/room01/device/light1/set" 
 -m '{"command":"ON"}'
 ```
 
 Ví dụ gửi dữ liệu nhiệt độ:
 
 ```bash
-mosquitto_pub -h 127.0.0.1 -p 1883 \
--t "classroom/room01/sensor/temperature" \
+mosquitto_pub -h 127.0.0.1 -p 1883 
+-t "classroom/room01/sensor/temperature" 
 -m '{"room_id":"room01","value":32.5,"unit":"C","time":"2026-09-06 00:00:00"}'
 ```
 
@@ -49,21 +49,21 @@ mosquitto_pub -h 127.0.0.1 -p 1883 \
 Theo dõi toàn bộ dữ liệu của phòng:
 
 ```bash
-mosquitto_sub -h 127.0.0.1 -p 1883 \
+mosquitto_sub -h 127.0.0.1 -p 1883 
 -t "classroom/room01/#" -v
 ```
 
 Theo dõi trạng thái tất cả thiết bị:
 
 ```bash
-mosquitto_sub -h 127.0.0.1 -p 1883 \
+mosquitto_sub -h 127.0.0.1 -p 1883 
 -t "classroom/room01/device/+/status" -v
 ```
 
 Theo dõi dữ liệu cảm biến:
 
 ```bash
-mosquitto_sub -h 127.0.0.1 -p 1883 \
+mosquitto_sub -h 127.0.0.1 -p 1883 
 -t "classroom/room01/sensor/#" -v
 ```
 
