@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Smart Classroom</title>
+
+    <!-- CSS của Dashboard -->
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/dashboard.css') }}"
+    >
+</head>
+
+<body>
+
+    <!-- =====================================================
+         CONTAINER CHÍNH
+         ===================================================== -->
+
+    <div class="container">
+
+        <!-- =================================================
+             HEADER
+             ================================================= -->
+
+        <header class="header">
+
+            <div class="header-left">
+
+                <h1>Smart Classroom</h1>
+
+                <p id="room-name">
+                    Đang tải phòng học...
+                </p>
+
+            </div>
+
+
+            <!-- Trạng thái Flask Server -->
+
+            <div class="server-status">
+
+                <span
+                    id="server-dot"
+                    class="status-dot offline"
+                ></span>
+
+                <span id="server-status">
+                    Server Offline
+                </span>
+
+            </div>
+
+        </header>
+
+
+        <!-- =================================================
+             CHỌN PHÒNG
+             ================================================= -->
+
+        <section class="room-section">
+
+            <label for="room-select">
+                Phòng học:
+            </label>
+
+            <select id="room-select">
+
+                <option value="">
+                    Đang tải...
+                </option>
+
+            </select>
+
+        </section>
+
+
+        <!-- =================================================
+             CẢM BIẾN
+             ================================================= -->
+
+        <section class="section">
+
+            <h2>Cảm biến</h2>
+
+            <div
+                id="sensor-container"
+                class="card-grid"
+            >
+
+                <div class="loading">
+                    Đang tải dữ liệu cảm biến...
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             THIẾT BỊ
+             ================================================= -->
+
+        <section class="section">
+
+            <h2>Thiết bị</h2>
+
+            <div
+                id="device-container"
+                class="card-grid"
+            >
+
+                <div class="loading">
+                    Đang tải thiết bị...
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             BIỂU ĐỒ NHIỆT ĐỘ
+             ================================================= -->
+
+        <section class="section">
+
+            <h2>Lịch sử nhiệt độ</h2>
+
+            <div class="chart-card">
+
+                <div class="chart-container">
+
+                    <canvas
+                        id="temperature-chart"
+                    ></canvas>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             THÔNG BÁO
+             ================================================= -->
+
+        <div
+            id="message"
+            class="message hidden"
+        ></div>
+
+    </div>
+
+
+    <!-- =====================================================
+         CHART.JS
+         =====================================================
+
+         Dùng để vẽ biểu đồ lịch sử cảm biến.
+         -->
+
+    <script
+        src="https://cdn.jsdelivr.net/npm/chart.js"
+    ></script>
+
+
+    <!-- =====================================================
+         JAVASCRIPT DASHBOARD
+         ===================================================== -->
+
+    <script
+        src="{{ url_for('static', filename='js/dashboard.js') }}"
+    ></script>
+
+</body>
+
+</html>
