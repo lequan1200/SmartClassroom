@@ -1,186 +1,931 @@
 <!DOCTYPE html>
 <html lang="vi">
-
 <head>
     <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart Classroom</title>
 
-    <!-- CSS của Dashboard -->
-    <link
-        rel="stylesheet"
-        href="{{ url_for('static', filename='css/dashboard.css') }}"
-    >
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
 
-    <!-- =====================================================
-         CONTAINER CHÍNH
-         ===================================================== -->
+<div class="app">
 
-    <div class="container">
+    <!-- ================= SIDEBAR ================= -->
+    <aside class="sidebar">
 
-        <!-- =================================================
-             HEADER
-             ================================================= -->
+        <div class="brand">
+            <div class="brand-icon">
+                <span>⌂</span>
+            </div>
 
-        <header class="header">
+            <div>
+                <h1>SmartClass</h1>
+                <p>IoT Classroom</p>
+            </div>
+        </div>
 
-            <div class="header-left">
+        <nav class="sidebar-nav">
 
-                <h1>Smart Classroom</h1>
+            <a href="#dashboard" class="nav-item active">
+                <span class="nav-icon">▦</span>
+                <span>Dashboard</span>
+            </a>
 
-                <p id="room-name">
-                    Đang tải phòng học...
-                </p>
+            <a href="#sensors-section" class="nav-item">
+                <span class="nav-icon">◉</span>
+                <span>Cảm biến</span>
+            </a>
+
+            <a href="#devices-section" class="nav-item">
+                <span class="nav-icon">⚡</span>
+                <span>Thiết bị</span>
+            </a>
+
+            <a href="#chart-section" class="nav-item">
+                <span class="nav-icon">⌁</span>
+                <span>Lịch sử</span>
+            </a>
+
+            <a href="#alerts-section" class="nav-item">
+                <span class="nav-icon">!</span>
+                <span>Cảnh báo</span>
+            </a>
+
+        </nav>
+
+        <div class="sidebar-bottom">
+
+            <div class="system-card">
+                <div class="system-card-header">
+                    <span class="system-dot"></span>
+                    <span>Server</span>
+                </div>
+
+                <strong id="sidebar-server-status">
+                    Connecting...
+                </strong>
+
+                <small>Raspberry Pi Backend</small>
+            </div>
+
+            <div class="sidebar-footer">
+                <span>Smart Classroom</span>
+                <span>v1.0</span>
+            </div>
+
+        </div>
+
+    </aside>
+
+
+    <!-- ================= MAIN ================= -->
+    <main class="main">
+
+        <!-- HEADER -->
+        <header class="topbar">
+
+            <div class="topbar-left">
+
+                <button class="mobile-menu" id="mobile-menu">
+                    ☰
+                </button>
+
+                <div>
+                    <p class="eyebrow">SMART CLASSROOM SYSTEM</p>
+                    <h2>Phòng học thông minh</h2>
+                </div>
 
             </div>
 
+            <div class="topbar-right">
 
-            <!-- Trạng thái Flask Server -->
+                <div class="server-status" id="server-status">
 
-            <div class="server-status">
+                    <span class="status-indicator"></span>
 
-                <span
-                    id="server-dot"
-                    class="status-dot offline"
-                ></span>
+                    <div>
+                        <strong id="server-status-text">
+                            Connecting...
+                        </strong>
 
-                <span id="server-status">
-                    Server Offline
-                </span>
+                        <small id="server-status-time">
+                            Đang kiểm tra server
+                        </small>
+                    </div>
+
+                </div>
 
             </div>
 
         </header>
 
 
-        <!-- =================================================
-             CHỌN PHÒNG
-             ================================================= -->
+        <!-- ================= CONTENT ================= -->
+        <div class="content" id="dashboard">
 
-        <section class="room-section">
+            <!-- ROOM HEADER -->
+            <section class="room-header">
 
-            <label for="room-select">
-                Phòng học:
-            </label>
+                <div class="room-info">
 
-            <select id="room-select">
+                    <div class="room-icon">
+                        🏫
+                    </div>
 
-                <option value="">
-                    Đang tải...
-                </option>
+                    <div>
+                        <span class="section-label">
+                            PHÒNG HIỆN TẠI
+                        </span>
 
-            </select>
+                        <h3 id="room-name">
+                            Đang tải...
+                        </h3>
 
-        </section>
-
-
-        <!-- =================================================
-             CẢM BIẾN
-             ================================================= -->
-
-        <section class="section">
-
-            <h2>Cảm biến</h2>
-
-            <div
-                id="sensor-container"
-                class="card-grid"
-            >
-
-                <div class="loading">
-                    Đang tải dữ liệu cảm biến...
-                </div>
-
-            </div>
-
-        </section>
-
-
-        <!-- =================================================
-             THIẾT BỊ
-             ================================================= -->
-
-        <section class="section">
-
-            <h2>Thiết bị</h2>
-
-            <div
-                id="device-container"
-                class="card-grid"
-            >
-
-                <div class="loading">
-                    Đang tải thiết bị...
-                </div>
-
-            </div>
-
-        </section>
-
-
-        <!-- =================================================
-             BIỂU ĐỒ NHIỆT ĐỘ
-             ================================================= -->
-
-        <section class="section">
-
-            <h2>Lịch sử nhiệt độ</h2>
-
-            <div class="chart-card">
-
-                <div class="chart-container">
-
-                    <canvas
-                        id="temperature-chart"
-                    ></canvas>
+                        <p id="room-id">
+                            ---
+                        </p>
+                    </div>
 
                 </div>
 
-            </div>
 
-        </section>
+                <div class="room-selector">
+
+                    <label for="room-select">
+                        Phòng học
+                    </label>
+
+                    <select id="room-select">
+                        <option value="">
+                            Đang tải...
+                        </option>
+                    </select>
+
+                </div>
+
+            </section>
 
 
-        <!-- =================================================
-             THÔNG BÁO
-             ================================================= -->
+            <!-- ================= QUICK SUMMARY ================= -->
+            <section class="summary-grid">
 
-        <div
-            id="message"
-            class="message hidden"
-        ></div>
+                <div class="summary-card">
+
+                    <div class="summary-icon temperature">
+                        🌡
+                    </div>
+
+                    <div>
+                        <span>Nhiệt độ</span>
+                        <strong id="summary-temperature">
+                            -- °C
+                        </strong>
+                    </div>
+
+                </div>
+
+
+                <div class="summary-card">
+
+                    <div class="summary-icon humidity">
+                        💧
+                    </div>
+
+                    <div>
+                        <span>Độ ẩm</span>
+                        <strong id="summary-humidity">
+                            -- %
+                        </strong>
+                    </div>
+
+                </div>
+
+
+                <div class="summary-card">
+
+                    <div class="summary-icon gas">
+                        ◌
+                    </div>
+
+                    <div>
+                        <span>Khí gas</span>
+                        <strong id="summary-gas">
+                            -- ADC
+                        </strong>
+                    </div>
+
+                </div>
+
+
+                <div class="summary-card">
+
+                    <div class="summary-icon people">
+                        ●
+                    </div>
+
+                    <div>
+                        <span>Cửa phòng</span>
+                        <strong id="summary-door">
+                            ---
+                        </strong>
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <!-- ================= SENSOR SECTION ================= -->
+            <section class="section" id="sensors-section">
+
+                <div class="section-heading">
+
+                    <div>
+                        <span class="section-label">
+                            MONITORING
+                        </span>
+
+                        <h3>
+                            Môi trường phòng học
+                        </h3>
+                    </div>
+
+                    <span class="live-badge">
+                        <span></span>
+                        LIVE
+                    </span>
+
+                </div>
+
+
+                <div class="sensor-grid">
+
+                    <!-- TEMPERATURE -->
+                    <article class="sensor-card temperature-card">
+
+                        <div class="card-top">
+
+                            <div class="card-title">
+
+                                <div class="sensor-icon">
+                                    🌡
+                                </div>
+
+                                <div>
+                                    <h4>Nhiệt độ</h4>
+                                    <span>Temperature</span>
+                                </div>
+
+                            </div>
+
+                            <span class="sensor-status normal" id="temperature-status">
+                                NORMAL
+                            </span>
+
+                        </div>
+
+
+                        <div class="sensor-value">
+                            <strong id="temperature-value">
+                                --
+                            </strong>
+
+                            <span>°C</span>
+                        </div>
+
+
+                        <div class="sensor-footer">
+
+                            <span>
+                                Cập nhật:
+                            </span>
+
+                            <strong id="temperature-time">
+                                --
+                            </strong>
+
+                        </div>
+
+                    </article>
+
+
+                    <!-- HUMIDITY -->
+                    <article class="sensor-card humidity-card">
+
+                        <div class="card-top">
+
+                            <div class="card-title">
+
+                                <div class="sensor-icon">
+                                    💧
+                                </div>
+
+                                <div>
+                                    <h4>Độ ẩm</h4>
+                                    <span>Humidity</span>
+                                </div>
+
+                            </div>
+
+                            <span class="sensor-status normal" id="humidity-status">
+                                NORMAL
+                            </span>
+
+                        </div>
+
+
+                        <div class="sensor-value">
+
+                            <strong id="humidity-value">
+                                --
+                            </strong>
+
+                            <span>%</span>
+
+                        </div>
+
+
+                        <div class="progress">
+
+                            <div
+                                class="progress-bar"
+                                id="humidity-progress"
+                                style="width: 0%">
+                            </div>
+
+                        </div>
+
+
+                        <div class="sensor-footer">
+
+                            <span>
+                                Cập nhật:
+                            </span>
+
+                            <strong id="humidity-time">
+                                --
+                            </strong>
+
+                        </div>
+
+                    </article>
+
+
+                    <!-- GAS -->
+                    <article class="sensor-card gas-card">
+
+                        <div class="card-top">
+
+                            <div class="card-title">
+
+                                <div class="sensor-icon">
+                                    ◌
+                                </div>
+
+                                <div>
+                                    <h4>Khí gas</h4>
+                                    <span>Gas Sensor</span>
+                                </div>
+
+                            </div>
+
+                            <span class="sensor-status normal" id="gas-status">
+                                NORMAL
+                            </span>
+
+                        </div>
+
+
+                        <div class="sensor-value">
+
+                            <strong id="gas-value">
+                                --
+                            </strong>
+
+                            <span>ADC</span>
+
+                        </div>
+
+
+                        <div class="gas-meter">
+
+                            <div class="gas-meter-track">
+
+                                <div
+                                    id="gas-progress"
+                                    class="gas-meter-fill"
+                                    style="width: 0%">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <div class="sensor-footer">
+
+                            <span>
+                                Ngưỡng cảnh báo:
+                            </span>
+
+                            <strong>
+                                1500 ADC
+                            </strong>
+
+                        </div>
+
+                    </article>
+
+
+                    <!-- DOOR -->
+                    <article class="sensor-card door-card">
+
+                        <div class="card-top">
+
+                            <div class="card-title">
+
+                                <div class="sensor-icon">
+                                    🚪
+                                </div>
+
+                                <div>
+                                    <h4>Cửa phòng</h4>
+                                    <span>Door Sensor</span>
+                                </div>
+
+                            </div>
+
+                            <span class="sensor-status normal" id="door-status">
+                                NORMAL
+                            </span>
+
+                        </div>
+
+
+                        <div class="door-display">
+
+                            <div
+                                class="door-visual"
+                                id="door-visual">
+                                🔒
+                            </div>
+
+                            <div>
+
+                                <strong id="door-value">
+                                    Đóng
+                                </strong>
+
+                                <span>
+                                    Trạng thái cửa
+                                </span>
+
+                            </div>
+
+                        </div>
+
+
+                        <div class="sensor-footer">
+
+                            <span>
+                                Cập nhật:
+                            </span>
+
+                            <strong id="door-time">
+                                --
+                            </strong>
+
+                        </div>
+
+                    </article>
+
+                </div>
+
+            </section>
+
+
+            <!-- ================= DEVICE SECTION ================= -->
+            <section class="section" id="devices-section">
+
+                <div class="section-heading">
+
+                    <div>
+                        <span class="section-label">
+                            CONTROL
+                        </span>
+
+                        <h3>
+                            Điều khiển thiết bị
+                        </h3>
+                    </div>
+
+                    <div class="control-mode">
+                        <span class="mode-dot"></span>
+                        MANUAL
+                    </div>
+
+                </div>
+
+
+                <div class="device-grid">
+
+                    <!-- LIGHT 1 -->
+                    <article class="device-card" id="device-card-light1">
+
+                        <div class="device-header">
+
+                            <div class="device-icon light">
+                                💡
+                            </div>
+
+                            <div>
+
+                                <h4>Đèn 1</h4>
+
+                                <span>
+                                    light1
+                                </span>
+
+                            </div>
+
+                            <div
+                                class="device-state"
+                                id="light1-state">
+                                OFF
+                            </div>
+
+                        </div>
+
+
+                        <div class="device-control">
+
+                            <div class="device-current">
+
+                                <span>
+                                    Trạng thái
+                                </span>
+
+                                <strong id="light1-text">
+                                    Đang tắt
+                                </strong>
+
+                            </div>
+
+                            <div class="device-buttons">
+
+                                <button
+                                    class="device-btn on"
+                                    onclick="sendCommand('light1', 'ON')">
+                                    BẬT
+                                </button>
+
+                                <button
+                                    class="device-btn off"
+                                    onclick="sendCommand('light1', 'OFF')">
+                                    TẮT
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </article>
+
+
+                    <!-- LIGHT 2 -->
+                    <article class="device-card" id="device-card-light2">
+
+                        <div class="device-header">
+
+                            <div class="device-icon light">
+                                💡
+                            </div>
+
+                            <div>
+
+                                <h4>Đèn 2</h4>
+
+                                <span>
+                                    light2
+                                </span>
+
+                            </div>
+
+                            <div
+                                class="device-state"
+                                id="light2-state">
+                                OFF
+                            </div>
+
+                        </div>
+
+
+                        <div class="device-control">
+
+                            <div class="device-current">
+
+                                <span>
+                                    Trạng thái
+                                </span>
+
+                                <strong id="light2-text">
+                                    Đang tắt
+                                </strong>
+
+                            </div>
+
+                            <div class="device-buttons">
+
+                                <button
+                                    class="device-btn on"
+                                    onclick="sendCommand('light2', 'ON')">
+                                    BẬT
+                                </button>
+
+                                <button
+                                    class="device-btn off"
+                                    onclick="sendCommand('light2', 'OFF')">
+                                    TẮT
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </article>
+
+
+                    <!-- FAN -->
+                    <article class="device-card" id="device-card-fan">
+
+                        <div class="device-header">
+
+                            <div class="device-icon fan">
+                                🌀
+                            </div>
+
+                            <div>
+
+                                <h4>Quạt</h4>
+
+                                <span>
+                                    fan
+                                </span>
+
+                            </div>
+
+                            <div
+                                class="device-state"
+                                id="fan-state">
+                                OFF
+                            </div>
+
+                        </div>
+
+
+                        <div class="device-control">
+
+                            <div class="device-current">
+
+                                <span>
+                                    Trạng thái
+                                </span>
+
+                                <strong id="fan-text">
+                                    Đang tắt
+                                </strong>
+
+                            </div>
+
+                            <div class="device-buttons">
+
+                                <button
+                                    class="device-btn on"
+                                    onclick="sendCommand('fan', 'ON')">
+                                    BẬT
+                                </button>
+
+                                <button
+                                    class="device-btn off"
+                                    onclick="sendCommand('fan', 'OFF')">
+                                    TẮT
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </article>
+
+
+                    <!-- AC -->
+                    <article class="device-card" id="device-card-ac">
+
+                        <div class="device-header">
+
+                            <div class="device-icon ac">
+                                ❄
+                            </div>
+
+                            <div>
+
+                                <h4>Điều hòa</h4>
+
+                                <span>
+                                    ac
+                                </span>
+
+                            </div>
+
+                            <div
+                                class="device-state"
+                                id="ac-state">
+                                OFF
+                            </div>
+
+                        </div>
+
+
+                        <div class="device-control">
+
+                            <div class="device-current">
+
+                                <span>
+                                    Trạng thái
+                                </span>
+
+                                <strong id="ac-text">
+                                    Đang tắt
+                                </strong>
+
+                            </div>
+
+                            <div class="device-buttons">
+
+                                <button
+                                    class="device-btn on"
+                                    onclick="sendCommand('ac', 'ON')">
+                                    BẬT
+                                </button>
+
+                                <button
+                                    class="device-btn off"
+                                    onclick="sendCommand('ac', 'OFF')">
+                                    TẮT
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </article>
+
+                </div>
+
+            </section>
+
+
+            <!-- ================= CHART + ALERT ================= -->
+            <section class="bottom-grid">
+
+                <!-- CHART -->
+                <div class="panel chart-panel" id="chart-section">
+
+                    <div class="panel-header">
+
+                        <div>
+                            <span class="section-label">
+                                HISTORY
+                            </span>
+
+                            <h3>
+                                Lịch sử nhiệt độ
+                            </h3>
+                        </div>
+
+                        <span class="chart-unit">
+                            °C
+                        </span>
+
+                    </div>
+
+                    <div class="chart-wrapper">
+
+                        <canvas id="temperature-chart"></canvas>
+
+                        <div
+                            class="chart-empty"
+                            id="chart-empty">
+                            Chưa có dữ liệu lịch sử
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- ALERT -->
+                <div class="panel alert-panel" id="alerts-section">
+
+                    <div class="panel-header">
+
+                        <div>
+                            <span class="section-label">
+                                SYSTEM
+                            </span>
+
+                            <h3>
+                                Cảnh báo
+                            </h3>
+                        </div>
+
+                        <span class="alert-count" id="alert-count">
+                            0
+                        </span>
+
+                    </div>
+
+
+                    <div class="alert-list" id="alert-list">
+
+                        <div class="no-alert">
+
+                            <div class="no-alert-icon">
+                                ✓
+                            </div>
+
+                            <div>
+                                <strong>
+                                    Hệ thống bình thường
+                                </strong>
+
+                                <span>
+                                    Chưa có cảnh báo mới
+                                </span>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <!-- ================= FOOTER ================= -->
+            <footer class="footer">
+
+                <div>
+                    Smart Classroom IoT System
+                </div>
+
+                <div>
+                    Raspberry Pi 5 · Flask · MQTT · MariaDB
+                </div>
+
+            </footer>
+
+        </div>
+
+    </main>
+
+</div>
+
+
+<!-- TOAST -->
+<div
+    class="toast"
+    id="toast">
+
+    <div class="toast-icon" id="toast-icon">
+        ✓
+    </div>
+
+    <div>
+
+        <strong id="toast-title">
+            Thành công
+        </strong>
+
+        <span id="toast-message">
+            Thao tác thành công
+        </span>
 
     </div>
 
-
-    <!-- =====================================================
-         CHART.JS
-         =====================================================
-
-         Dùng để vẽ biểu đồ lịch sử cảm biến.
-         -->
-
-    <script
-        src="https://cdn.jsdelivr.net/npm/chart.js"
-    ></script>
+</div>
 
 
-    <!-- =====================================================
-         JAVASCRIPT DASHBOARD
-         ===================================================== -->
-
-    <script
-        src="{{ url_for('static', filename='js/dashboard.js') }}"
-    ></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 
 </body>
-
 </html>
