@@ -28,13 +28,14 @@ CREATE TABLE IF NOT EXISTS `device_current` (
   CONSTRAINT `fk_device_current_device` FOREIGN KEY (`device_id`) REFERENCES `devices` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.device_current: ~4 rows (xấp xỉ)
+-- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.device_current: ~5 rows (xấp xỉ)
 DELETE FROM `device_current`;
 INSERT INTO `device_current` (`device_id`, `state`, `updated_at`) VALUES
 	(1, 'ON', '2026-09-06 00:02:20'),
 	(2, 'OFF', '2026-09-06 00:02:29'),
 	(3, 'ON', '2026-09-06 00:02:33'),
-	(4, 'OFF', '2026-09-06 00:02:36');
+	(4, 'OFF', '2026-09-06 00:02:36'),
+	(5, 'OFF', '2026-09-06 11:10:00');
 
 -- Đang kết xuất đổ cấu trúc cho bảng smartclassroom.device_logs
 CREATE TABLE IF NOT EXISTS `device_logs` (
@@ -69,13 +70,14 @@ CREATE TABLE IF NOT EXISTS `devices` (
   CONSTRAINT `1` FOREIGN KEY (`room_id`) REFERENCES `rooms` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.devices: ~4 rows (xấp xỉ)
+-- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.devices: ~5 rows (xấp xỉ)
 DELETE FROM `devices`;
 INSERT INTO `devices` (`id`, `room_id`, `device_name`, `device_type`, `created_at`) VALUES
 	(1, 1, 'light1', 'LED', '2026-09-01 03:28:04'),
 	(2, 1, 'light2', 'LED', '2026-09-05 16:47:14'),
 	(3, 1, 'fan', 'FAN', '2026-09-05 16:47:14'),
-	(4, 1, 'ac', 'AC', '2026-09-05 16:47:14');
+	(4, 1, 'ac', 'AC', '2026-09-05 16:47:14'),
+	(5, 1, 'light', 'LED', '2026-09-06 11:10:00');
 
 -- Đang kết xuất đổ cấu trúc cho bảng smartclassroom.rooms
 CREATE TABLE IF NOT EXISTS `rooms` (
@@ -101,13 +103,14 @@ CREATE TABLE IF NOT EXISTS `sensor_current` (
   CONSTRAINT `1` FOREIGN KEY (`sensor_id`) REFERENCES `sensors` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.sensor_current: ~3 rows (xấp xỉ)
+-- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.sensor_current: ~5 rows (xấp xỉ)
 DELETE FROM `sensor_current`;
 INSERT INTO `sensor_current` (`sensor_id`, `value`, `updated_at`) VALUES
 	(1, 32.5, '2026-09-05 23:59:01'),
 	(2, 62.2, '2026-09-06 00:00:20'),
 	(3, 500, '2026-09-06 00:00:24'),
-	(4, 0, '2026-09-06 00:00:27');
+	(4, 0, '2026-09-06 00:00:27'),
+	(5, 0, '2026-09-06 10:50:00');
 
 -- Đang kết xuất đổ cấu trúc cho bảng smartclassroom.sensor_data
 CREATE TABLE IF NOT EXISTS `sensor_data` (
@@ -562,15 +565,62 @@ CREATE TABLE IF NOT EXISTS `sensors` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `room_id` (`room_id`,`sensor_name`),
   CONSTRAINT `1` FOREIGN KEY (`room_id`) REFERENCES `rooms` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.sensors: ~4 rows (xấp xỉ)
+-- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.sensors: ~5 rows (xấp xỉ)
 DELETE FROM `sensors`;
 INSERT INTO `sensors` (`id`, `room_id`, `sensor_name`, `sensor_type`, `unit`, `created_at`) VALUES
 	(1, 1, 'temperature', 'DHT11', 'C', '2026-09-01 03:28:09'),
 	(2, 1, 'humidity', 'DHT11', '%', '2026-09-01 03:28:16'),
-	(3, 1, 'gas', 'GAS', 'ADC', '2026-09-05 16:46:27'),
-	(4, 1, 'door', 'DOOR', 'bool', '2026-09-05 16:46:27');
+	(3, 1, 'gas', 'GAS', 'ppm', '2026-09-05 16:46:27'),
+	(4, 1, 'RFID', 'RC522', 'card', '2026-09-05 16:46:27'),
+	(5, 1, 'light', 'LDR', 'lux', '2026-09-06 10:50:00');
+
+-- Đang kết xuất đổ cấu trúc cho bảng smartclassroom.students
+CREATE TABLE IF NOT EXISTS `students` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `student_code` varchar(50) NOT NULL,
+  `full_name` varchar(100) NOT NULL,
+  `card_uid` varchar(50) DEFAULT NULL,
+  `class_name` varchar(50) DEFAULT NULL,
+  `email` varchar(100) DEFAULT NULL,
+  `phone` varchar(20) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `student_code` (`student_code`),
+  UNIQUE KEY `card_uid` (`card_uid`)
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.students: ~4 rows (xấp xỉ)
+DELETE FROM `students`;
+INSERT INTO `students` (`id`, `student_code`, `full_name`, `card_uid`, `class_name`, `email`, `phone`, `created_at`) VALUES
+	(1, 'HV001', 'Nguyễn Văn An', 'A1B2C3D4', 'IoT-01', 'an.nguyen@smartclass.edu.vn', '0901234567', '2026-09-06 14:00:00'),
+	(2, 'HV002', 'Trần Thị Bình', 'B2C3D4E5', 'IoT-01', 'binh.tran@smartclass.edu.vn', '0902345678', '2026-09-06 14:00:00'),
+	(3, 'HV003', 'Lê Văn Cường', 'C3D4E5F6', 'IoT-01', 'cuong.le@smartclass.edu.vn', '0903456789', '2026-09-06 14:00:00'),
+	(4, 'HV004', 'Phạm Minh Đức', 'D4E5F601', 'IoT-01', 'duc.pham@smartclass.edu.vn', '0904567890', '2026-09-06 14:00:00');
+
+-- Đang kết xuất đổ cấu trúc cho bảng smartclassroom.attendance_logs
+CREATE TABLE IF NOT EXISTS `attendance_logs` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `room_id` int(11) NOT NULL,
+  `student_id` int(11) DEFAULT NULL,
+  `card_uid` varchar(50) NOT NULL,
+  `event_type` varchar(20) NOT NULL,
+  `status` varchar(20) DEFAULT NULL,
+  `recorded_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_card_time` (`card_uid`,`recorded_at`),
+  KEY `idx_student_time` (`student_id`,`recorded_at`),
+  KEY `idx_room_time` (`room_id`,`recorded_at`),
+  CONSTRAINT `fk_att_room` FOREIGN KEY (`room_id`) REFERENCES `rooms` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_att_student` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.attendance_logs: ~2 rows (xấp xỉ)
+DELETE FROM `attendance_logs`;
+INSERT INTO `attendance_logs` (`id`, `room_id`, `student_id`, `card_uid`, `event_type`, `status`, `recorded_at`) VALUES
+	(1, 1, 1, 'A1B2C3D4', 'CHECK_IN', 'DUNG_GIO', '2026-09-06 06:55:12'),
+	(2, 1, 2, 'B2C3D4E5', 'CHECK_IN', 'DI_MUON', '2026-09-06 07:08:45');
 
 /*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
 /*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;

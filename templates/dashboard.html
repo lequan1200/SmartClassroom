@@ -24,11 +24,12 @@
         </div>
 
         <nav class="sidebar-nav">
-            <a href="#dashboard" class="nav-item active"><span class="nav-icon">▦</span><span>Dashboard</span></a>
-            <a href="#sensors-section" class="nav-item"><span class="nav-icon">◉</span><span>Cảm biến</span></a>
-            <a href="#devices-section" class="nav-item"><span class="nav-icon">⚡</span><span>Thiết bị</span></a>
-            <a href="#chart-section" class="nav-item"><span class="nav-icon">⌁</span><span>Lịch sử</span></a>
-            <a href="#alerts-section" class="nav-item"><span class="nav-icon">!</span><span>Cảnh báo</span></a>
+            <a href="#dashboard" class="nav-item active" data-tab="dashboard"><span class="nav-icon">▦</span><span>Dashboard</span></a>
+            <a href="#attendance" class="nav-item" data-tab="attendance"><span class="nav-icon">🪪</span><span>Điểm danh</span></a>
+            <a href="#sensors-section" class="nav-item" data-tab="dashboard"><span class="nav-icon">◉</span><span>Cảm biến</span></a>
+            <a href="#devices-section" class="nav-item" data-tab="dashboard"><span class="nav-icon">⚡</span><span>Thiết bị</span></a>
+            <a href="#chart-section" class="nav-item" data-tab="dashboard"><span class="nav-icon">⌁</span><span>Lịch sử</span></a>
+            <a href="#alerts-section" class="nav-item" data-tab="dashboard"><span class="nav-icon">!</span><span>Cảnh báo</span></a>
         </nav>
 
         <div class="sidebar-bottom">
@@ -70,7 +71,7 @@
         </header>
 
 
-        <div class="content" id="dashboard">
+        <div class="content content-view active" id="dashboard-view">
 
             <section class="room-header">
                 <div class="room-info">
@@ -115,8 +116,8 @@
                 <div class="summary-card">
                     <div class="summary-icon people">●</div>
                     <div>
-                        <span>Cửa phòng</span>
-                        <strong id="summary-door">---</strong>
+                        <span>Thẻ RFID</span>
+                        <strong id="summary-door">Sẵn sàng</strong>
                     </div>
                 </div>
             </section>
@@ -207,19 +208,19 @@
                     <article class="sensor-card door-card">
                         <div class="card-top">
                             <div class="card-title">
-                                <div class="sensor-icon">🚪</div>
+                                <div class="sensor-icon">🪪</div>
                                 <div>
-                                    <h4>Cửa phòng</h4>
-                                    <span>Door Sensor</span>
+                                    <h4>Thẻ RFID</h4>
+                                    <span>RFID Sensor</span>
                                 </div>
                             </div>
-                            <span class="sensor-status normal" id="door-status">NORMAL</span>
+                            <span class="sensor-status normal" id="door-status">READY</span>
                         </div>
                         <div class="door-display">
-                            <div class="door-visual" id="door-visual">🔒</div>
+                            <div class="door-visual" id="door-visual">💳</div>
                             <div>
-                                <strong id="door-value">Đóng</strong>
-                                <span>Trạng thái cửa</span>
+                                <strong id="door-value">Sẵn sàng</strong>
+                                <span>Trạng thái quẹt thẻ</span>
                             </div>
                         </div>
                         <div class="sensor-footer">
@@ -376,8 +377,207 @@
 
         </div>
 
+
+        <!-- TAB: ATTENDANCE (PHÂN HỆ ĐIỂM DANH) -->
+        <div class="content content-view" id="attendance-view" style="display: none;">
+
+            <section class="room-header">
+                <div class="room-info">
+                    <div class="room-icon">🪪</div>
+                    <div>
+                        <span class="section-label">HỆ THỐNG ĐIỂM DANH THÔNG MINH</span>
+                        <h3>Điểm danh & Quản lý Thẻ RFID</h3>
+                        <p id="attendance-subtitle">Gán thẻ RFID học viên và theo dõi điểm danh thời gian thực</p>
+                    </div>
+                </div>
+                <div class="attendance-top-actions">
+                    <div class="filter-item">
+                        <label for="attendance-date-filter">Ngày điểm danh:</label>
+                        <input type="date" id="attendance-date-filter" class="custom-input date-input">
+                    </div>
+                    <button class="btn btn-primary" onclick="openAddStudentModal()">
+                        <span class="btn-icon">+</span> Thêm học viên
+                    </button>
+                    <button class="btn btn-secondary" onclick="loadAttendanceData()" title="Làm mới dữ liệu">
+                        <span>🔄</span> Làm mới
+                    </button>
+                </div>
+            </section>
+
+            <!-- STATS SUMMARY -->
+            <section class="summary-grid">
+                <div class="summary-card">
+                    <div class="summary-icon people">👥</div>
+                    <div>
+                        <span>Tổng số học viên</span>
+                        <strong id="stat-total-students">0</strong>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon" style="background: rgba(34,197,94,0.12); color: var(--success);">✓</div>
+                    <div>
+                        <span>Đã có mặt</span>
+                        <strong id="stat-present-students" style="color: var(--success);">0</strong>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon" style="background: rgba(245,158,11,0.12); color: var(--warning);">⏰</div>
+                    <div>
+                        <span>Đi muộn</span>
+                        <strong id="stat-late-students" style="color: var(--warning);">0</strong>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon" style="background: rgba(239,68,68,0.12); color: var(--danger);">✕</div>
+                    <div>
+                        <span>Chưa điểm danh</span>
+                        <strong id="stat-absent-students" style="color: var(--danger);">0</strong>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: QUẢN LÝ HỌC VIÊN & GÁN THẺ RFID -->
+            <section class="section" id="students-manage-section">
+                <div class="section-heading">
+                    <div>
+                        <span class="section-label">STUDENT DIRECTORY</span>
+                        <h3>Danh sách học viên & Gán thẻ RFID</h3>
+                    </div>
+                    <div class="table-tools">
+                        <div class="search-box">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="student-search-input" placeholder="Tìm theo tên, mã HV, thẻ RFID..." oninput="filterStudents()">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-wrapper">
+                    <table class="data-table" id="students-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;">STT</th>
+                                <th>Mã học viên</th>
+                                <th>Họ và tên</th>
+                                <th>Lớp</th>
+                                <th>Thẻ RFID UID</th>
+                                <th>Trạng thái thẻ</th>
+                                <th>Liên hệ</th>
+                                <th style="text-align: center; width: 150px;">Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody id="students-table-body">
+                            <tr><td colspan="8" class="table-empty">Đang tải danh sách học viên...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- SECTION: NHẬT KÝ ĐIỂM DANH -->
+            <section class="section" id="attendance-log-section">
+                <div class="section-heading">
+                    <div>
+                        <span class="section-label">ATTENDANCE LOGS</span>
+                        <h3>Nhật ký điểm danh thời gian thực</h3>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span class="live-badge"><span></span>LIVE AUTO-REFRESH</span>
+                    </div>
+                </div>
+
+                <div class="table-wrapper">
+                    <table class="data-table" id="attendance-log-table">
+                        <thead>
+                            <tr>
+                                <th>Thời gian</th>
+                                <th>Phòng học</th>
+                                <th>Học viên</th>
+                                <th>Mã HV</th>
+                                <th>Lớp</th>
+                                <th>Mã thẻ UID</th>
+                                <th>Sự kiện</th>
+                                <th>Trạng thái</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attendance-log-body">
+                            <tr><td colspan="8" class="table-empty">Đang tải nhật ký điểm danh...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <footer class="footer">
+                <div>Smart Classroom Attendance Subsystem</div>
+                <div>Phân hệ Điểm danh RFID thông minh · Tích hợp ESP32 & MariaDB</div>
+            </footer>
+
+        </div>
+
     </main>
 
+</div>
+
+
+<!-- MODAL: THÊM / SỬA HỌC VIÊN & GÁN THẺ RFID -->
+<div class="modal-backdrop" id="student-modal" style="display: none;">
+    <div class="modal-container">
+        <div class="modal-header">
+            <div class="modal-title-group">
+                <div class="modal-icon">🪪</div>
+                <div>
+                    <h3 id="modal-title">Thêm học viên mới</h3>
+                    <p id="modal-subtitle">Điền thông tin và gán mã thẻ RFID</p>
+                </div>
+            </div>
+            <button class="modal-close" onclick="closeStudentModal()">&times;</button>
+        </div>
+
+        <form id="student-form" onsubmit="handleSaveStudent(event)">
+            <input type="hidden" id="student-id-input">
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="student-code-input">Mã học viên <span class="text-danger">*</span></label>
+                    <input type="text" id="student-code-input" class="custom-input" placeholder="VD: HV005" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="student-name-input">Họ và tên <span class="text-danger">*</span></label>
+                    <input type="text" id="student-name-input" class="custom-input" placeholder="VD: Nguyễn Văn Nam" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="student-class-input">Lớp học</label>
+                    <input type="text" id="student-class-input" class="custom-input" placeholder="VD: 12A1 / IoT-K20">
+                </div>
+
+                <div class="form-group">
+                    <label for="student-phone-input">Số điện thoại</label>
+                    <input type="tel" id="student-phone-input" class="custom-input" placeholder="VD: 0901234567">
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 14px;">
+                <label for="student-email-input">Email</label>
+                <input type="email" id="student-email-input" class="custom-input" placeholder="VD: nam.nv@smartclass.edu.vn">
+            </div>
+
+            <div class="form-group" style="margin-top: 14px;">
+                <label for="student-card-input">Mã thẻ RFID UID</label>
+                <div class="input-action-group">
+                    <input type="text" id="student-card-input" class="custom-input" placeholder="VD: A1B2C3D4 (Để trống nếu chưa cấp thẻ)">
+                    <button type="button" class="btn btn-accent" onclick="fetchLatestCardUid()" title="Lấy mã thẻ RFID vừa quẹt gần nhất">
+                        ⚡ Lấy UID vừa quẹt
+                    </button>
+                </div>
+                <p class="form-help">💡 <strong>Mẹo gán thẻ nhanh:</strong> Quẹt thẻ vào đầu đọc RFID tại phòng học, sau đó bấm <strong>"⚡ Lấy UID vừa quẹt"</strong> để hệ thống tự điền mã thẻ!</p>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeStudentModal()">Hủy bỏ</button>
+                <button type="submit" class="btn btn-primary" id="btn-save-student">Lưu học viên</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 

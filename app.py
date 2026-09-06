@@ -8,7 +8,15 @@ from database import (
     lay_sensor,
     lay_sensor_history,
     lay_device_hien_tai,
-    lay_device
+    lay_device,
+    lay_danh_sach_hoc_vien,
+    them_hoc_vien,
+    sua_hoc_vien,
+    xoa_hoc_vien,
+    gan_the_hoc_vien,
+    tim_hoc_vien_theo_card,
+    lay_danh_sach_diem_danh,
+    lay_thong_ke_diem_danh
 )
 
 from mqtt_client import (
@@ -179,6 +187,144 @@ def api_device_command(room_id, device_name):
         "device_name": device_name,
         "command": command
     }), 202
+
+
+# ============================================================
+# API HỌC VIÊN (STUDENTS)
+# ============================================================
+
+@app.route("/api/students", methods=["GET"])
+def api_students():
+    students = lay_danh_sach_hoc_vien()
+    if students is None:
+        return jsonify({"success": False, "message": "Khong the lay danh sach hoc vien"}), 500
+    return jsonify({"success": True, "data": students}), 200
+
+
+@app.route("/api/students", methods=["POST"])
+def api_add_student():
+    if not request.is_json:
+        return jsonify({"success": False, "message": "Content-Type phai la application/json"}), 400
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "message": "JSON khong hop le"}), 400
+
+    student_code = (data.get("student_code") or "").strip()
+    full_name = (data.get("full_name") or "").strip()
+    card_uid = (data.get("card_uid") or "").strip() or None
+    class_name = (data.get("class_name") or "").strip() or None
+    email = (data.get("email") or "").strip() or None
+    phone = (data.get("phone") or "").strip() or None
+
+    if not student_code or not full_name:
+        return jsonify({"success": False, "message": "Ma hoc vien va ho ten la bat buoc"}), 400
+
+    success, result = them_hoc_vien(student_code, full_name, card_uid, class_name, email, phone)
+    if not success:
+        return jsonify({"success": False, "message": result}), 400
+
+    return jsonify({
+        "success": True,
+        "message": "Them hoc vien thanh cong",
+        "student_id": result
+    }), 201
+
+
+@app.route("/api/students/<int:student_id>", methods=["PUT"])
+def api_update_student(student_id):
+    if not request.is_json:
+        return jsonify({"success": False, "message": "Content-Type phai la application/json"}), 400
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "message": "JSON khong hop le"}), 400
+
+    student_code = (data.get("student_code") or "").strip()
+    full_name = (data.get("full_name") or "").strip()
+    card_uid = (data.get("card_uid") or "").strip() or None
+    class_name = (data.get("class_name") or "").strip() or None
+    email = (data.get("email") or "").strip() or None
+    phone = (data.get("phone") or "").strip() or None
+
+    if not student_code or not full_name:
+        return jsonify({"success": False, "message": "Ma hoc vien va ho ten la bat buoc"}), 400
+
+    success, message = sua_hoc_vien(student_id, student_code, full_name, class_name, card_uid, email, phone)
+    if not success:
+        return jsonify({"success": False, "message": message}), 400
+
+    return jsonify({"success": True, "message": message}), 200
+
+
+@app.route("/api/students/<int:student_id>", methods=["DELETE"])
+def api_delete_student(student_id):
+    success, message = xoa_hoc_vien(student_id)
+    if not success:
+        return jsonify({"success": False, "message": message}), 500
+
+    return jsonify({"success": True, "message": message}), 200
+
+
+@app.route("/api/students/<int:student_id>/assign-card", methods=["POST"])
+def api_assign_card(student_id):
+    if not request.is_json:
+        return jsonify({"success": False, "message": "Content-Type phai la application/json"}), 400
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "message": "JSON khong hop le"}), 400
+
+    card_uid = (data.get("card_uid") or "").strip() or None
+    success, message = gan_the_hoc_vien(student_id, card_uid)
+    if not success:
+        return jsonify({"success": False, "message": message}), 400
+
+    return jsonify({"success": True, "message": message, "card_uid": card_uid}), 200
+
+
+# ============================================================
+# API ĐIỂM DANH (ATTENDANCE)
+# ============================================================
+
+@app.route("/api/attendance", methods=["GET"])
+def api_attendance():
+    room_id = request.args.get("room_id")
+    date_filter = request.args.get("date")
+    limit = request.args.get("limit", default=50, type=int)
+
+    if limit < 1:
+        limit = 50
+    if limit > 500:
+        limit = 500
+
+    logs = lay_danh_sach_diem_danh(room_id=room_id, limit=limit, ngay=date_filter)
+    if logs is None:
+        return jsonify({"success": False, "message": "Khong the truy van diem danh"}), 500
+
+    return jsonify({"success": True, "data": logs}), 200
+
+
+@app.route("/api/attendance/stats", methods=["GET"])
+def api_attendance_stats():
+    room_id = request.args.get("room_id")
+    date_filter = request.args.get("date")
+
+    stats = lay_thong_ke_diem_danh(room_id=room_id, ngay=date_filter)
+    if stats is None:
+        return jsonify({"success": False, "message": "Khong the tinh thong ke diem danh"}), 500
+
+    return jsonify({"success": True, "data": stats}), 200
+
+
+@app.route("/api/attendance/latest-scan", methods=["GET"])
+def api_latest_scan():
+    # Lấy bản ghi quẹt thẻ mới nhất để hỗ trợ gán thẻ nhanh trên giao diện
+    logs = lay_danh_sach_diem_danh(limit=1)
+    if not logs:
+        return jsonify({"success": True, "data": None}), 200
+    return jsonify({"success": True, "data": logs[0]}), 200
+
 
 
 @app.errorhandler(404)

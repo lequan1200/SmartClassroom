@@ -9,7 +9,9 @@ from database import (
     cap_nhat_sensor_current,
     tim_device_id,
     cap_nhat_device_current,
-    luu_device_log
+    luu_device_log,
+    luu_attendance_log,
+    tim_hoc_vien_theo_card
 )
 
 
@@ -314,6 +316,14 @@ def xu_ly_sensor(
     data
 ):
 
+    room_id = thong_tin[
+        "room_id"
+    ]
+
+    sensor_name = thong_tin[
+        "ten"
+    ]
+
     value = data.get(
         "value"
     )
@@ -322,6 +332,19 @@ def xu_ly_sensor(
         "unit"
     )
 
+    # --------------------------------------------------------
+    # Xu ly linh hoat cho RFID hoac cac sensor so/chuoi
+    # --------------------------------------------------------
+    if value is None and ("card_uid" in data or "event_type" in data):
+        value = 1.0
+        if not unit:
+            unit = "card"
+
+    if isinstance(value, str):
+        try:
+            value = float(value)
+        except ValueError:
+            value = 1.0 if value.upper() in ["1", "ON", "OPEN", "TRUE", "CHECK_IN"] else 0.0
 
     # --------------------------------------------------------
     # Kiểm tra value
@@ -338,16 +361,6 @@ def xu_ly_sensor(
 
         return
 
-
-    room_id = thong_tin[
-        "room_id"
-    ]
-
-    sensor_name = thong_tin[
-        "ten"
-    ]
-
-
     # --------------------------------------------------------
     # Tìm sensor ID
     # --------------------------------------------------------
@@ -357,7 +370,6 @@ def xu_ly_sensor(
         sensor_name
     )
 
-
     if sensor_id is None:
 
         print(
@@ -366,7 +378,6 @@ def xu_ly_sensor(
         )
 
         return
-
 
     # --------------------------------------------------------
     # Lưu lịch sử
@@ -383,7 +394,6 @@ def xu_ly_sensor(
 
         return
 
-
     # --------------------------------------------------------
     # Cập nhật current
     # --------------------------------------------------------
@@ -399,13 +409,16 @@ def xu_ly_sensor(
 
         return
 
-
     print(
         f"SENSOR DB OK | "
         f"{room_id} | "
         f"{sensor_name} | "
         f"{value} {unit or ''}"
     )
+
+    # Neu payload chua du lieu quet the RFID / diem danh, dong thoi goi xu_ly_attendance
+    if "card_uid" in data or "event_type" in data:
+        xu_ly_attendance(thong_tin, data)
 
 
 # ============================================================
@@ -567,20 +580,43 @@ def xu_ly_attendance(
         "room_id"
     ]
 
+    card_uid = data.get("card_uid") or data.get("uid") or data.get("card")
+    event_type = data.get("event_type", "CHECK_IN")
+    status = data.get("status", "DUNG_GIO")
+    timestamp = data.get("timestamp")
 
     print(
         f"ATTENDANCE | "
-        f"{room_id} | "
-        f"{data}"
+        f"Room: {room_id} | "
+        f"Card: {card_uid} | "
+        f"Event: {event_type} | "
+        f"Status: {status}"
     )
 
+    if not card_uid:
+        print("ATTENDANCE ERROR: Missing card_uid")
+        return
 
-    # --------------------------------------------------------
-    # Hiện tại chỉ nhận dữ liệu.
-    #
-    # Chưa ghi MariaDB vì database.py hiện tại
-    # chưa có hàm attendance.
-    # --------------------------------------------------------
+    # Tra cứu học viên đã được gán thẻ chưa
+    student = tim_hoc_vien_theo_card(card_uid)
+    student_name = student["full_name"] if student else "Chưa gán học viên"
+    student_code = student["student_code"] if student else "N/A"
+
+    # Lưu log điểm danh vào CSDL
+    log_id = luu_attendance_log(
+        room_id=room_id,
+        card_uid=card_uid,
+        event_type=event_type,
+        status=status,
+        recorded_at=timestamp
+    )
+
+    if log_id:
+        print(
+            f"ATTENDANCE DB OK | LogID: {log_id} | Student: {student_name} ({student_code})"
+        )
+    else:
+        print("ATTENDANCE DB ERROR: Failed to save attendance log")
 
 
 # ============================================================
