@@ -116,17 +116,57 @@ SELECT 'D20CQCN02-AI', id, 'TS. Trần Thị B', '2025-2026_HK1'
 FROM `subjects` WHERE `subject_code` = 'AI202'
 ON DUPLICATE KEY UPDATE `teacher_name` = VALUES(`teacher_name`);
 
--- Gán sinh viên hiện có vào lớp học phần D20CQCN01-IOT
+-- Gán sinh viên hiện có vào cả 2 lớp học phần mẫu
 INSERT IGNORE INTO `class_enrollments` (`class_id`, `student_id`)
 SELECT c.id, s.id
 FROM `course_classes` c
-CROSS JOIN `students` s
+CROSS JOIN `students` s;
+
+-- Thêm thời khóa biểu mẫu cho tất cả các ngày trong tuần (Thứ 2 đến Chủ Nhật, 0-6)
+-- Cho cả room01 và room02, gồm các ca:
+-- 1. Ca sáng: 07:00:00 - 11:30:00 (D20CQCN01-IOT)
+-- 2. Ca chiều: 12:30:00 - 17:30:00 (D20CQCN02-AI)
+-- 3. Ca tối / Test: 18:00:00 - 23:59:59 (D20CQCN01-IOT)
+INSERT IGNORE INTO `schedules` (`class_id`, `room_id`, `day_of_week`, `start_time`, `end_time`, `late_grace_period_mins`)
+SELECT c.id, r.id, days.d, '07:00:00', '11:30:00', 15
+FROM `course_classes` c
+JOIN `rooms` r ON r.room_id = 'room01'
+CROSS JOIN (SELECT 0 AS d UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6) days
 WHERE c.class_code = 'D20CQCN01-IOT';
 
--- Thêm thời khóa biểu mẫu cho Phòng 01 (room_id = 1)
--- Ca sáng: 07:00 - 11:15 (Tất cả các ngày trong tuần từ Thứ 2 đến Thứ 7)
-INSERT INTO `schedules` (`class_id`, `room_id`, `day_of_week`, `start_time`, `end_time`, `late_grace_period_mins`)
-SELECT c.id, r.id, 0, '07:00:00', '11:15:00', 15
-FROM `course_classes` c, `rooms` r
-WHERE c.class_code = 'D20CQCN01-IOT' AND r.room_id = 'room01'
-LIMIT 1;
+INSERT IGNORE INTO `schedules` (`class_id`, `room_id`, `day_of_week`, `start_time`, `end_time`, `late_grace_period_mins`)
+SELECT c.id, r.id, days.d, '12:30:00', '17:30:00', 15
+FROM `course_classes` c
+JOIN `rooms` r ON r.room_id = 'room01'
+CROSS JOIN (SELECT 0 AS d UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6) days
+WHERE c.class_code = 'D20CQCN02-AI';
+
+INSERT IGNORE INTO `schedules` (`class_id`, `room_id`, `day_of_week`, `start_time`, `end_time`, `late_grace_period_mins`)
+SELECT c.id, r.id, days.d, '18:00:00', '23:59:59', 15
+FROM `course_classes` c
+JOIN `rooms` r ON r.room_id = 'room01'
+CROSS JOIN (SELECT 0 AS d UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6) days
+WHERE c.class_code = 'D20CQCN01-IOT';
+
+-- Tương tự cho room02
+INSERT IGNORE INTO `schedules` (`class_id`, `room_id`, `day_of_week`, `start_time`, `end_time`, `late_grace_period_mins`)
+SELECT c.id, r.id, days.d, '07:00:00', '23:59:59', 15
+FROM `course_classes` c
+JOIN `rooms` r ON r.room_id = 'room02'
+CROSS JOIN (SELECT 0 AS d UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6) days
+WHERE c.class_code = 'D20CQCN01-IOT';
+
+-- Khởi tạo sẵn session mẫu cho Ngày hôm nay (CURRENT_DATE) tại room01
+INSERT INTO `attendance_sessions` (`schedule_id`, `class_id`, `room_id`, `session_date`, `start_time`, `end_time`, `status`)
+SELECT 1, 1, 1, CURRENT_DATE(), '07:00:00', '23:59:59', 'ACTIVE'
+WHERE NOT EXISTS (
+    SELECT 1 FROM `attendance_sessions` WHERE `room_id` = 1 AND `session_date` = CURRENT_DATE()
+);
+
+-- Khởi tạo danh sách sinh viên cho session hôm nay
+INSERT IGNORE INTO `attendance_records` (`session_id`, `student_id`, `status`, `method`)
+SELECT s.id, ce.student_id, 'ABSENT_UNEXCUSED', 'AUTO_ABSENT'
+FROM `attendance_sessions` s
+JOIN `class_enrollments` ce ON s.class_id = ce.class_id
+WHERE s.session_date = CURRENT_DATE();
+

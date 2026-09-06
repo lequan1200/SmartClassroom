@@ -26,7 +26,8 @@ from database import (
     dong_buoi_diem_danh,
     lay_danh_sach_lop_hoc_phan,
     lay_danh_sach_mon_hoc,
-    lay_thoi_khoa_bieu
+    lay_thoi_khoa_bieu,
+    tao_session_moi
 )
 
 from mqtt_client import (
@@ -406,6 +407,35 @@ def api_attendance_sessions():
 
     sessions = lay_danh_sach_sessions(room_id=room_id, session_date=date_filter, class_id=class_id)
     return jsonify({"success": True, "data": sessions}), 200
+
+
+@app.route("/api/attendance/sessions", methods=["POST"])
+def api_create_session():
+    if not request.is_json:
+        return jsonify({"success": False, "message": "Content-Type phải là application/json"}), 400
+
+    data = request.get_json(silent=True) or {}
+    room_id = data.get("room_id")
+    class_id = data.get("class_id")
+    session_date = data.get("session_date")
+    start_time = data.get("start_time")
+    end_time = data.get("end_time")
+
+    if not room_id or not class_id:
+        return jsonify({"success": False, "message": "Vui lòng cung cấp room_id và class_id"}), 400
+
+    success, session_id, message = tao_session_moi(
+        room_id=room_id,
+        class_id=int(class_id),
+        session_date=session_date,
+        start_time=start_time,
+        end_time=end_time
+    )
+
+    if not success:
+        return jsonify({"success": False, "message": message}), 400
+
+    return jsonify({"success": True, "message": message, "session_id": session_id}), 201
 
 
 @app.route("/api/attendance/sessions/<int:session_id>/records", methods=["GET"])

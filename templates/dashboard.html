@@ -500,11 +500,18 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="attendance-top-bar">
+                        <div class="attendance-top-bar" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                             <div class="filter-input-group">
                                 <label for="attendance-date-filter">📅 Ngày:</label>
                                 <input type="date" id="attendance-date-filter">
                             </div>
+                            <div class="filter-checkbox-group" style="display: flex; align-items: center; gap: 6px;">
+                                <input type="checkbox" id="attendance-all-dates" onchange="toggleAllDates(this.checked)" style="cursor: pointer;">
+                                <label for="attendance-all-dates" style="cursor: pointer; font-size: 13px; color: var(--text-dim); user-select: none;">Tất cả ngày</label>
+                            </div>
+                            <button class="btn btn-secondary" onclick="openCreateSessionModal()" title="Mở một buổi học mới tại phòng này để điểm danh">
+                                <span>📚</span> Mở ca học mới
+                            </button>
                             <button class="btn btn-primary" onclick="openAddStudentModal()">
                                 <span>+</span> Thêm học viên
                             </button>
@@ -795,6 +802,55 @@
             <div class="modal-footer-actions" style="display: flex; justify-content: flex-end; gap: 10px;">
                 <button type="button" class="btn btn-secondary" onclick="closeEditRecordModal()">Hủy bỏ</button>
                 <button type="submit" class="btn btn-primary"><span>💾</span> Lưu thay đổi</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- ============================================================
+     MODAL: MỞ CA HỌC MỚI (CREATE SESSION)
+     ============================================================ -->
+<div class="modal-backdrop" id="create-session-modal" style="display: none;">
+    <div class="modal-dialog" style="max-width: 480px;">
+        <div class="modal-top">
+            <div class="modal-title-group">
+                <div class="modal-avatar-icon" style="background: rgba(99, 102, 241, 0.15); border-color: rgba(99, 102, 241, 0.3); color: var(--primary);">📚</div>
+                <div>
+                    <h3>Mở ca học mới</h3>
+                    <p>Khởi tạo buổi học để sinh viên quẹt thẻ điểm danh</p>
+                </div>
+            </div>
+            <button class="modal-close-btn" onclick="closeCreateSessionModal()">&times;</button>
+        </div>
+
+        <form id="create-session-form" onsubmit="handleCreateSession(event)">
+            <div class="form-field" style="margin-bottom: 14px;">
+                <label for="new-session-class">Lớp học phần <span style="color: var(--danger);">*</span></label>
+                <select id="new-session-class" class="custom-select" required style="width: 100%; padding: 10px; border-radius: 8px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-pure);">
+                    <option value="">-- Đang tải lớp học phần --</option>
+                </select>
+            </div>
+
+            <div class="form-field" style="margin-bottom: 14px;">
+                <label for="new-session-date">Ngày diễn ra <span style="color: var(--danger);">*</span></label>
+                <input type="date" id="new-session-date" class="custom-input" required style="width: 100%;">
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px;">
+                <div class="form-field">
+                    <label for="new-session-start">Giờ bắt đầu <span style="color: var(--danger);">*</span></label>
+                    <input type="time" id="new-session-start" class="custom-input" required style="width: 100%;">
+                </div>
+                <div class="form-field">
+                    <label for="new-session-end">Giờ kết thúc <span style="color: var(--danger);">*</span></label>
+                    <input type="time" id="new-session-end" class="custom-input" required style="width: 100%;">
+                </div>
+            </div>
+
+            <div class="modal-footer-actions" style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" class="btn btn-secondary" onclick="closeCreateSessionModal()">Hủy bỏ</button>
+                <button type="submit" class="btn btn-primary"><span>🚀</span> Bắt đầu ca học</button>
             </div>
         </form>
     </div>

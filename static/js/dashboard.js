@@ -991,9 +991,20 @@ function renderAttendanceLogs(logs) {
 let currentAttendanceSessions = [];
 let selectedSessionId = null;
 
+function toggleAllDates(isAll) {
+    const dateInput = $("attendance-date-filter");
+    if (dateInput) {
+        dateInput.disabled = isAll;
+    }
+    loadAttendanceSessions();
+    loadAttendanceLogs();
+}
+
 async function loadAttendanceSessions() {
     const dateInput = $("attendance-date-filter");
-    const dateFilter = dateInput ? dateInput.value : "";
+    const allDatesCheckbox = $("attendance-all-dates");
+    const isAllDates = allDatesCheckbox ? allDatesCheckbox.checked : false;
+    const dateFilter = (dateInput && !isAllDates) ? dateInput.value : "";
     const sessionSelect = $("session-select");
     if (!sessionSelect) return;
 
@@ -1011,15 +1022,17 @@ async function loadAttendanceSessions() {
         if (currentAttendanceSessions.length === 0) {
             sessionSelect.innerHTML = `<option value="">-- Không có ca học nào --</option>`;
             selectedSessionId = null;
-            renderEmptyRollCallSheet("Không có ca học nào trong ngày / phòng học này.");
+            const dateMsg = dateFilter ? `trong ngày ${dateFilter}` : `tại phòng này`;
+            renderEmptyRollCallSheet(`Không có ca học nào ${dateMsg}. Bạn có thể tick "Tất cả ngày" hoặc bấm nút "📚 Mở ca học mới".`);
             updateSessionBanner(null);
             return;
         }
 
         sessionSelect.innerHTML = currentAttendanceSessions.map(s => {
             const statusIcon = s.status === "ACTIVE" ? "🟢" : (s.status === "CLOSED" ? "🔒" : "⏳");
+            const datePrefix = isAllDates ? `[${s.session_date}] ` : "";
             return `<option value="${s.id}">
-                ${statusIcon} ${escapeHtml(s.class_code)}: ${escapeHtml(s.subject_name)} (${s.start_time.slice(0,5)} - ${s.end_time.slice(0,5)})
+                ${statusIcon} ${datePrefix}${escapeHtml(s.class_code)}: ${escapeHtml(s.subject_name)} (${s.start_time.slice(0,5)} - ${s.end_time.slice(0,5)})
             </option>`;
         }).join("");
 
@@ -1267,6 +1280,100 @@ if (mobileMenu) {
     });
 }
 
+// ============================================================
+// CREATE SESSION MODAL
+// ============================================================
+async function openCreateSessionModal() {
+    const classSelect = $("new-session-class");
+    const dateInput = $("new-session-date");
+    const startInput = $("new-session-start");
+    const endInput = $("new-session-end");
+
+    // Điền mặc định ngày hôm nay
+    const todayStr = new Date().toISOString().split("T")[0];
+    if (dateInput) dateInput.value = todayStr;
+
+    // Giờ bắt đầu và kết thúc mặc định
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    if (startInput) startInput.value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+    // Kết thúc sau 3 tiếng
+    const endHour = Math.min(now.getHours() + 3, 23);
+    if (endInput) endInput.value = `${pad(endHour)}:${pad(now.getMinutes())}`;
+
+    // Tải danh sách lớp học phần
+    try {
+        const res = await fetch("/api/course-classes");
+        const json = await res.json();
+        const classes = json.data || [];
+        if (classSelect) {
+            if (classes.length === 0) {
+                classSelect.innerHTML = `<option value="">-- Chưa có lớp học phần nào --</option>`;
+            } else {
+                classSelect.innerHTML = classes.map(c => `
+                    <option value="${c.id}">${escapeHtml(c.class_code)}: ${escapeHtml(c.subject_name)} (${escapeHtml(c.teacher_name || 'Chưa phân công')})</option>
+                `).join("");
+            }
+        }
+    } catch (err) {
+        console.error("LOAD COURSE CLASSES ERROR:", err);
+    }
+
+    const modal = $("create-session-modal");
+    if (modal) modal.style.display = "flex";
+}
+
+function closeCreateSessionModal() {
+    const modal = $("create-session-modal");
+    if (modal) modal.style.display = "none";
+}
+
+async function handleCreateSession(e) {
+    e.preventDefault();
+    const classId = $("new-session-class").value;
+    const sessionDate = $("new-session-date").value;
+    const startTime = $("new-session-start").value;
+    const endTime = $("new-session-end").value;
+
+    if (!classId) {
+        showToast("Lỗi", "Vui lòng chọn lớp học phần", false);
+        return;
+    }
+
+    try {
+        const res = await fetch("/api/attendance/sessions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                room_id: currentRoom,
+                class_id: parseInt(classId, 10),
+                session_date: sessionDate,
+                start_time: startTime + ":00",
+                end_time: endTime + ":00"
+            })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || "Không thể tạo buổi học");
+
+        showToast("Thành công", "Đã mở ca học mới thành công", true);
+        closeCreateSessionModal();
+
+        // Tự động chọn ca học vừa tạo
+        if (data.session_id) {
+            selectedSessionId = data.session_id;
+        }
+
+        // Tải lại danh sách ca học
+        await loadAttendanceSessions();
+        await loadAttendanceData();
+
+    } catch (err) {
+        console.error("CREATE SESSION ERROR:", err);
+        showToast("Lỗi mở ca học", err.message, false);
+    }
+}
+
 // Close modal when clicking outside
 window.addEventListener("click", function (event) {
     const studentModal = $("student-modal");
@@ -1276,6 +1383,10 @@ window.addEventListener("click", function (event) {
     const editModal = $("edit-record-modal");
     if (editModal && event.target === editModal) {
         closeEditRecordModal();
+    }
+    const createModal = $("create-session-modal");
+    if (createModal && event.target === createModal) {
+        closeCreateSessionModal();
     }
 });
 

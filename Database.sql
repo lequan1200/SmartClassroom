@@ -21725,6 +21725,63 @@ CREATE TABLE IF NOT EXISTS `attendance_records` (
   CONSTRAINT `fk_rec_session` FOREIGN KEY (`session_id`) REFERENCES `attendance_sessions` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_rec_student` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+ 
+-- Dữ liệu mẫu các môn học và lớp học phần
+INSERT INTO `subjects` (`id`, `subject_code`, `name`, `credits`) VALUES
+  (1, 'IOT101', 'Lập trình Hệ thống IoT thông minh', 3),
+  (2, 'AI202', 'Trí tuệ nhân tạo và Ứng dụng', 3)
+ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
+
+INSERT INTO `course_classes` (`id`, `class_code`, `subject_id`, `teacher_name`, `semester`) VALUES
+  (1, 'D20CQCN01-IOT', 1, 'ThS. Nguyễn Văn A', '2025-2026_HK1'),
+  (2, 'D20CQCN02-AI', 2, 'TS. Trần Thị B', '2025-2026_HK1')
+ON DUPLICATE KEY UPDATE `teacher_name` = VALUES(`teacher_name`);
+
+INSERT IGNORE INTO `class_enrollments` (`class_id`, `student_id`)
+SELECT c.id, s.id
+FROM `course_classes` c
+CROSS JOIN `students` s;
+
+INSERT IGNORE INTO `schedules` (`class_id`, `room_id`, `day_of_week`, `start_time`, `end_time`, `late_grace_period_mins`)
+SELECT c.id, r.id, days.d, '07:00:00', '11:30:00', 15
+FROM `course_classes` c
+JOIN `rooms` r ON r.room_id = 'room01'
+CROSS JOIN (SELECT 0 AS d UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6) days
+WHERE c.class_code = 'D20CQCN01-IOT';
+
+INSERT IGNORE INTO `schedules` (`class_id`, `room_id`, `day_of_week`, `start_time`, `end_time`, `late_grace_period_mins`)
+SELECT c.id, r.id, days.d, '12:30:00', '17:30:00', 15
+FROM `course_classes` c
+JOIN `rooms` r ON r.room_id = 'room01'
+CROSS JOIN (SELECT 0 AS d UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6) days
+WHERE c.class_code = 'D20CQCN02-AI';
+
+INSERT IGNORE INTO `schedules` (`class_id`, `room_id`, `day_of_week`, `start_time`, `end_time`, `late_grace_period_mins`)
+SELECT c.id, r.id, days.d, '18:00:00', '23:59:59', 15
+FROM `course_classes` c
+JOIN `rooms` r ON r.room_id = 'room01'
+CROSS JOIN (SELECT 0 AS d UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6) days
+WHERE c.class_code = 'D20CQCN01-IOT';
+
+INSERT IGNORE INTO `schedules` (`class_id`, `room_id`, `day_of_week`, `start_time`, `end_time`, `late_grace_period_mins`)
+SELECT c.id, r.id, days.d, '07:00:00', '23:59:59', 15
+FROM `course_classes` c
+JOIN `rooms` r ON r.room_id = 'room02'
+CROSS JOIN (SELECT 0 AS d UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6) days
+WHERE c.class_code = 'D20CQCN01-IOT';
+
+-- Khởi tạo sẵn session mẫu cho Ngày hôm nay (CURRENT_DATE) tại room01
+INSERT INTO `attendance_sessions` (`schedule_id`, `class_id`, `room_id`, `session_date`, `start_time`, `end_time`, `status`)
+SELECT 1, 1, 1, CURRENT_DATE(), '07:00:00', '23:59:59', 'ACTIVE'
+WHERE NOT EXISTS (
+    SELECT 1 FROM `attendance_sessions` WHERE `room_id` = 1 AND `session_date` = CURRENT_DATE()
+);
+
+INSERT IGNORE INTO `attendance_records` (`session_id`, `student_id`, `status`, `method`)
+SELECT s.id, ce.student_id, 'ABSENT_UNEXCUSED', 'AUTO_ABSENT'
+FROM `attendance_sessions` s
+JOIN `class_enrollments` ce ON s.class_id = ce.class_id
+WHERE s.session_date = CURRENT_DATE();
 
 /*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
 /*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;

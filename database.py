@@ -1534,18 +1534,77 @@ def dong_tat_ca_session_qua_gio():
         conn.close()
         return count
     except mariadb.Error as e:
-        print(f"DB ERROR dong_tat_ca_session_qua_gio: {e}")
-        if conn:
-            conn.rollback()
-            conn.close()
         return 0
 
 
+def tao_session_moi(room_id, class_id, session_date=None, start_time=None, end_time=None):
+    """
+    Tạo một buổi học mới thủ công hoặc đột xuất, tự động nạp sinh viên của lớp vào sổ điểm danh.
+    """
+    conn = ket_noi()
+    if conn is None:
+        return False, None, "Không thể kết nối CSDL"
+
+    import datetime
+    if not session_date:
+        session_date = datetime.date.today()
+    
+    now = datetime.datetime.now()
+    if not start_time:
+        start_time = now.strftime("%H:%M:00")
+    if not end_time:
+        # Mặc định kết thúc sau 3 tiếng hoặc 23:59:59
+        end_dt = now + datetime.timedelta(hours=3)
+        end_time = end_dt.strftime("%H:%M:00")
+
+    try:
+        cur = conn.cursor()
+        # Tìm ID phòng
+        cur.execute("SELECT id FROM rooms WHERE room_id = ? OR id = ? LIMIT 1", (str(room_id), str(room_id)))
+        r_row = cur.fetchone()
+        if not r_row:
+            cur.close()
+            conn.close()
+            return False, None, "Phòng học không tồn tại"
+        room_db_id = r_row[0]
+
+        # Kiểm tra lớp học phần tồn tại
+        cur.execute("SELECT id FROM course_classes WHERE id = ?", (class_id,))
+        c_row = cur.fetchone()
+        if not c_row:
+            cur.close()
+            conn.close()
+            return False, None, "Lớp học phần không tồn tại"
+
+        # Tạo session mới
+        cur.execute("""
+            INSERT INTO attendance_sessions (class_id, room_id, session_date, start_time, end_time, status)
+            VALUES (?, ?, ?, ?, ?, 'ACTIVE')
+        """, (class_id, room_db_id, session_date, start_time, end_time))
+        session_id = cur.lastrowid
+
+        # Tự động nạp sinh viên vào attendance_records
+        cur.execute("""
+            INSERT IGNORE INTO attendance_records (session_id, student_id, status, method)
+            SELECT ?, student_id, 'ABSENT_UNEXCUSED', 'AUTO_ABSENT'
+            FROM class_enrollments
+            WHERE class_id = ?
+        """, (session_id, class_id))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+        return True, session_id, "Tạo buổi học thành công"
+
+    except mariadb.Error as e:
+        print(f"DB ERROR tao_session_moi: {e}")
+        if conn:
+            conn.rollback()
+            conn.close()
+        return False, None, f"Lỗi tạo buổi học: {e}"
+
 
 if __name__ == "__main__":
-    print("================================")
-    print("       DATABASE TEST")
-    print("================================")
 
     conn = ket_noi()
     if conn is None:
