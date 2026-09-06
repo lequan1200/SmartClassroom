@@ -1,5 +1,5 @@
 -- --------------------------------------------------------
--- Máy chủ:                      10.106.45.222
+-- Máy chủ:                      10.101.165.222
 -- Phiên bản máy chủ:            12.3.3-MariaDB - MariaDB Server
 -- HĐH máy chủ:                  Win64
 -- HeidiSQL Phiên bản:           12.20.0.7320
@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS `device_current` (
 -- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.device_current: ~5 rows (xấp xỉ)
 DELETE FROM `device_current`;
 INSERT INTO `device_current` (`device_id`, `state`, `updated_at`) VALUES
-	(1, 'ON', '2026-09-06 00:02:20'),
+	(1, 'ON', '2026-09-06 15:12:45'),
 	(2, 'OFF', '2026-09-06 00:02:29'),
 	(3, 'ON', '2026-09-06 00:02:33'),
 	(4, 'OFF', '2026-09-06 00:02:36'),
@@ -71,9 +71,9 @@ CREATE TABLE IF NOT EXISTS `device_logs` (
   PRIMARY KEY (`id`),
   KEY `idx_device_time` (`device_id`,`recorded_at`),
   CONSTRAINT `1` FOREIGN KEY (`device_id`) REFERENCES `devices` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.device_logs: ~7 rows (xấp xỉ)
+-- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.device_logs: ~10 rows (xấp xỉ)
 DELETE FROM `device_logs`;
 INSERT INTO `device_logs` (`id`, `device_id`, `action`, `recorded_at`) VALUES
 	(1, 1, 'ON', '2026-09-05 09:41:17'),
@@ -82,7 +82,10 @@ INSERT INTO `device_logs` (`id`, `device_id`, `action`, `recorded_at`) VALUES
 	(4, 2, 'OFF', '2026-09-06 00:02:29'),
 	(5, 3, 'ON', '2026-09-06 00:02:33'),
 	(6, 4, 'OFF', '2026-09-06 00:02:36'),
-	(7, 5, 'ONLINE', '2026-09-06 11:14:00');
+	(7, 5, 'ONLINE', '2026-09-06 11:14:00'),
+	(8, 1, 'ON', '2026-09-06 15:11:40'),
+	(9, 1, 'ON', '2026-09-06 15:12:29'),
+	(10, 1, 'ON', '2026-09-06 15:12:45');
 
 -- Đang kết xuất đổ cấu trúc cho bảng smartclassroom.devices
 CREATE TABLE IF NOT EXISTS `devices` (
@@ -130,14 +133,15 @@ CREATE TABLE IF NOT EXISTS `sensor_current` (
   CONSTRAINT `1` FOREIGN KEY (`sensor_id`) REFERENCES `sensors` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.sensor_current: ~4 rows (xấp xỉ)
+-- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.sensor_current: ~6 rows (xấp xỉ)
 DELETE FROM `sensor_current`;
 INSERT INTO `sensor_current` (`sensor_id`, `value`, `updated_at`) VALUES
 	(1, 32.5, '2026-09-05 23:59:01'),
 	(2, 62.2, '2026-09-06 00:00:20'),
 	(3, 500, '2026-09-06 00:00:24'),
-	(4, 1, '2026-09-06 14:02:26'),
-	(5, 0, '2026-09-06 11:13:22');
+	(4, 1, '2026-09-06 15:12:45'),
+	(5, 0, '2026-09-06 11:13:22'),
+	(6, 1, '2026-09-06 15:12:45');
 
 -- Đang kết xuất đổ cấu trúc cho bảng smartclassroom.sensor_data
 CREATE TABLE IF NOT EXISTS `sensor_data` (
@@ -148,9 +152,9 @@ CREATE TABLE IF NOT EXISTS `sensor_data` (
   PRIMARY KEY (`id`),
   KEY `idx_sensor_time` (`sensor_id`,`recorded_at`),
   CONSTRAINT `1` FOREIGN KEY (`sensor_id`) REFERENCES `sensors` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=432 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=438 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.sensor_data: ~411 rows (xấp xỉ)
+-- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.sensor_data: ~417 rows (xấp xỉ)
 DELETE FROM `sensor_data`;
 INSERT INTO `sensor_data` (`id`, `sensor_id`, `value`, `recorded_at`) VALUES
 	(1, 1, 28.5, '2026-09-01 10:33:44'),
@@ -583,7 +587,13 @@ INSERT INTO `sensor_data` (`id`, `sensor_id`, `value`, `recorded_at`) VALUES
 	(428, 4, 1, '2026-09-06 13:59:34'),
 	(429, 4, 0, '2026-09-06 13:59:34'),
 	(430, 4, 1, '2026-09-06 13:59:34'),
-	(431, 4, 1, '2026-09-06 14:02:26');
+	(431, 4, 1, '2026-09-06 14:02:26'),
+	(432, 6, 1, '2026-09-06 15:11:40'),
+	(433, 4, 1, '2026-09-06 15:11:40'),
+	(434, 6, 1, '2026-09-06 15:12:29'),
+	(435, 4, 1, '2026-09-06 15:12:29'),
+	(436, 6, 1, '2026-09-06 15:12:45'),
+	(437, 4, 1, '2026-09-06 15:12:45');
 
 -- Đang kết xuất đổ cấu trúc cho bảng smartclassroom.sensors
 CREATE TABLE IF NOT EXISTS `sensors` (
@@ -596,9 +606,9 @@ CREATE TABLE IF NOT EXISTS `sensors` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `room_id` (`room_id`,`sensor_name`),
   CONSTRAINT `1` FOREIGN KEY (`room_id`) REFERENCES `rooms` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.sensors: ~5 rows (xấp xỉ)
+-- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.sensors: ~6 rows (xấp xỉ)
 DELETE FROM `sensors`;
 INSERT INTO `sensors` (`id`, `room_id`, `sensor_name`, `sensor_type`, `unit`, `created_at`) VALUES
 	(1, 1, 'temperature', 'DHT11', 'C', '2026-09-01 03:28:09'),
@@ -606,7 +616,7 @@ INSERT INTO `sensors` (`id`, `room_id`, `sensor_name`, `sensor_type`, `unit`, `c
 	(3, 1, 'gas', 'GAS', 'ADC', '2026-09-05 16:46:27'),
 	(4, 1, 'RFID', 'RC522', 'card', '2026-09-05 16:46:27'),
 	(5, 1, 'light', 'LDR', 'lux', '2026-09-06 04:13:22'),
-	(6, 1, 'door', 'DOOR', 'state', '2026-09-06 15:00:00');
+	(6, 1, 'door', 'DOOR', 'state', '2026-09-06 08:07:46');
 
 -- Đang kết xuất đổ cấu trúc cho bảng smartclassroom.students
 CREATE TABLE IF NOT EXISTS `students` (
