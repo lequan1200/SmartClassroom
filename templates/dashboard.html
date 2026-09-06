@@ -3,595 +3,688 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Classroom</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <title>Smart Classroom - Quản Lý Phòng Học & Điểm Danh Thông Minh</title>
+    
+    <!-- Google Fonts: Plus Jakarta Sans & Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Custom Design System CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
 
 <div class="app">
 
+    <!-- ============================================================
+         SIDEBAR: NAVIGATION GỒM 2 MỤC CHÍNH (DASHBOARD & ĐIỂM DANH)
+         ============================================================ -->
     <aside class="sidebar">
+        <!-- Brand Identity -->
         <div class="brand">
-            <div class="brand-icon"><span>⌂</span></div>
-            <div>
+            <div class="brand-icon">🏫</div>
+            <div class="brand-meta">
                 <h1>SmartClass</h1>
-                <p>IoT Classroom</p>
+                <span class="brand-badge">IoT PRO SYSTEM</span>
             </div>
         </div>
 
+        <!-- Main Navigation Links -->
+        <span class="nav-section-label">HỆ THỐNG CHÍNH</span>
         <nav class="sidebar-nav">
-            <a href="#dashboard" class="nav-item active" data-tab="dashboard"><span class="nav-icon">▦</span><span>Dashboard</span></a>
-            <a href="#attendance" class="nav-item" data-tab="attendance"><span class="nav-icon">🪪</span><span>Điểm danh</span></a>
-            <a href="#sensors-section" class="nav-item" data-tab="dashboard"><span class="nav-icon">◉</span><span>Cảm biến</span></a>
-            <a href="#devices-section" class="nav-item" data-tab="dashboard"><span class="nav-icon">⚡</span><span>Thiết bị</span></a>
-            <a href="#chart-section" class="nav-item" data-tab="dashboard"><span class="nav-icon">⌁</span><span>Lịch sử</span></a>
-            <a href="#alerts-section" class="nav-item" data-tab="dashboard"><span class="nav-icon">!</span><span>Cảnh báo</span></a>
+            <a href="#dashboard" class="nav-item active" data-tab="dashboard">
+                <span class="nav-icon">▦</span>
+                <span class="nav-text">Dashboard</span>
+                <span class="nav-tag live">LIVE</span>
+            </a>
+            <a href="#attendance" class="nav-item" data-tab="attendance">
+                <span class="nav-icon">🪪</span>
+                <span class="nav-text">Điểm danh</span>
+                <span class="nav-tag rfid">RFID</span>
+            </a>
         </nav>
 
+        <!-- Quick Room Switcher -->
+        <div class="sidebar-room-card">
+            <div class="sidebar-room-title">
+                <span>📍</span>
+                <span>Phòng học hiện tại</span>
+            </div>
+            <div class="sidebar-select-wrapper">
+                <select id="room-select">
+                    <option value="">Đang tải phòng...</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Raspberry Pi Backend Status -->
         <div class="sidebar-bottom">
             <div class="system-card">
                 <div class="system-card-header">
-                    <span class="system-dot"></span>
-                    <span>Server</span>
+                    <span>Hệ thống máy chủ</span>
+                    <span class="system-dot online" id="sidebar-system-dot"></span>
                 </div>
-                <strong id="sidebar-server-status">Connecting...</strong>
-                <small>Raspberry Pi Backend</small>
+                <strong id="sidebar-server-status">Kết nối RPi5...</strong>
+                <small>Raspberry Pi 5 · MQTT · MariaDB</small>
             </div>
-            <div class="sidebar-footer">
+
+            <div class="app-footer" style="padding-top: 14px; margin-top: 14px; border-top: 1px solid rgba(255,255,255,0.05);">
                 <span>Smart Classroom</span>
-                <span>v1.0</span>
+                <span>v2.0 UI/UX</span>
             </div>
         </div>
     </aside>
 
-
+    <!-- ============================================================
+         MAIN CONTENT AREA
+         ============================================================ -->
     <main class="main">
 
+        <!-- Topbar: Breadcrumbs, Live Clock & Server Connection Pill -->
         <header class="topbar">
             <div class="topbar-left">
-                <button class="mobile-menu" id="mobile-menu">☰</button>
-                <div>
-                    <p class="eyebrow">SMART CLASSROOM SYSTEM</p>
-                    <h2>Phòng học thông minh</h2>
+                <button class="mobile-menu-btn" id="mobile-menu" aria-label="Mở Menu">☰</button>
+                <div class="breadcrumb-nav">
+                    <span class="breadcrumb-trail" id="topbar-breadcrumb">HỆ THỐNG / TỔNG QUAN</span>
+                    <h2 class="topbar-title" id="topbar-page-title">Dashboard Phòng Học Thông Minh</h2>
                 </div>
             </div>
+
             <div class="topbar-right">
-                <div class="server-status" id="server-status">
-                    <span class="status-indicator"></span>
-                    <div>
-                        <strong id="server-status-text">Connecting...</strong>
-                        <small id="server-status-time">Đang kiểm tra server</small>
+                <!-- Live Digital Clock -->
+                <div class="live-clock-badge">
+                    <span class="clock-dot"></span>
+                    <span id="topbar-clock">--:--:--</span>
+                </div>
+
+                <!-- Server Status Pill -->
+                <div class="server-status-pill" id="server-status">
+                    <span class="status-indicator-dot online" id="topbar-status-dot"></span>
+                    <div class="server-meta">
+                        <strong id="server-status-text">Đang kết nối...</strong>
+                        <small id="server-status-time">Kiểm tra kết nối</small>
                     </div>
                 </div>
             </div>
         </header>
 
+        <!-- Content Area Wrapper -->
+        <div class="content-wrapper">
 
-        <div class="content content-view active" id="dashboard-view">
+            <!-- ============================================================
+                 PHÂN HỆ 1: DASHBOARD GIÁM SÁT & ĐIỀU KHIỂN
+                 ============================================================ -->
+            <div class="content-view" id="dashboard-view">
 
-            <section class="room-header">
-                <div class="room-info">
-                    <div class="room-icon">🏫</div>
-                    <div>
-                        <span class="section-label">PHÒNG HIỆN TẠI</span>
-                        <h3 id="room-name">Đang tải...</h3>
-                        <p id="room-id">---</p>
-                    </div>
-                </div>
-                <div class="room-selector">
-                    <label for="room-select">Phòng học</label>
-                    <select id="room-select">
-                        <option value="">Đang tải...</option>
-                    </select>
-                </div>
-            </section>
-
-
-            <section class="summary-grid">
-                <div class="summary-card">
-                    <div class="summary-icon temperature">🌡</div>
-                    <div>
-                        <span>Nhiệt độ</span>
-                        <strong id="summary-temperature">-- °C</strong>
-                    </div>
-                </div>
-                <div class="summary-card">
-                    <div class="summary-icon humidity">💧</div>
-                    <div>
-                        <span>Độ ẩm</span>
-                        <strong id="summary-humidity">-- %</strong>
-                    </div>
-                </div>
-                <div class="summary-card">
-                    <div class="summary-icon gas">◌</div>
-                    <div>
-                        <span>Khí gas</span>
-                        <strong id="summary-gas">-- ADC</strong>
-                    </div>
-                </div>
-                <div class="summary-card">
-                    <div class="summary-icon people">●</div>
-                    <div>
-                        <span>Thẻ RFID</span>
-                        <strong id="summary-door">Sẵn sàng</strong>
-                    </div>
-                </div>
-            </section>
-
-
-            <section class="section" id="sensors-section">
-                <div class="section-heading">
-                    <div>
-                        <span class="section-label">MONITORING</span>
-                        <h3>Môi trường phòng học</h3>
-                    </div>
-                    <span class="live-badge"><span></span>LIVE</span>
-                </div>
-
-                <div class="sensor-grid">
-
-                    <article class="sensor-card temperature-card">
-                        <div class="card-top">
-                            <div class="card-title">
-                                <div class="sensor-icon">🌡</div>
-                                <div>
-                                    <h4>Nhiệt độ</h4>
-                                    <span>Temperature</span>
+                <!-- Room Hero Banner -->
+                <section class="room-hero-card">
+                    <div class="room-hero-inner">
+                        <div class="room-hero-info">
+                            <div class="room-hero-icon">🏛️</div>
+                            <div class="room-hero-details">
+                                <h2 id="room-name">Đang tải phòng học...</h2>
+                                <div class="room-meta-tags">
+                                    <span class="meta-chip">MÃ PHÒNG: <strong id="room-id" style="color: var(--primary);">--</strong></span>
+                                    <span class="meta-chip active-chip">● ESP32 KẾT NỐI</span>
+                                    <span class="meta-chip" id="chip-control-mode">CHẾ ĐỘ: THỦ CÔNG</span>
                                 </div>
                             </div>
-                            <span class="sensor-status normal" id="temperature-status">NORMAL</span>
                         </div>
-                        <div class="sensor-value">
-                            <strong id="temperature-value">--</strong>
-                            <span>°C</span>
-                        </div>
-                        <div class="sensor-footer">
-                            <span>Cập nhật:</span>
-                            <strong id="temperature-time">--</strong>
-                        </div>
-                    </article>
-
-                    <article class="sensor-card humidity-card">
-                        <div class="card-top">
-                            <div class="card-title">
-                                <div class="sensor-icon">💧</div>
-                                <div>
-                                    <h4>Độ ẩm</h4>
-                                    <span>Humidity</span>
-                                </div>
-                            </div>
-                            <span class="sensor-status normal" id="humidity-status">NORMAL</span>
-                        </div>
-                        <div class="sensor-value">
-                            <strong id="humidity-value">--</strong>
-                            <span>%</span>
-                        </div>
-                        <div class="progress">
-                            <div class="progress-bar" id="humidity-progress" style="width: 0%"></div>
-                        </div>
-                        <div class="sensor-footer">
-                            <span>Cập nhật:</span>
-                            <strong id="humidity-time">--</strong>
-                        </div>
-                    </article>
-
-                    <article class="sensor-card gas-card">
-                        <div class="card-top">
-                            <div class="card-title">
-                                <div class="sensor-icon">◌</div>
-                                <div>
-                                    <h4>Khí gas</h4>
-                                    <span>Gas Sensor</span>
-                                </div>
-                            </div>
-                            <span class="sensor-status normal" id="gas-status">NORMAL</span>
-                        </div>
-                        <div class="sensor-value">
-                            <strong id="gas-value">--</strong>
-                            <span>ADC</span>
-                        </div>
-                        <div class="gas-meter">
-                            <div class="gas-meter-track">
-                                <div id="gas-progress" class="gas-meter-fill" style="width: 0%"></div>
-                            </div>
-                        </div>
-                        <div class="sensor-footer">
-                            <span>Ngưỡng cảnh báo:</span>
-                            <strong>1500 ADC</strong>
-                        </div>
-                    </article>
-
-                    <article class="sensor-card door-card">
-                        <div class="card-top">
-                            <div class="card-title">
-                                <div class="sensor-icon">🪪</div>
-                                <div>
-                                    <h4>Thẻ RFID</h4>
-                                    <span>RFID Sensor</span>
-                                </div>
-                            </div>
-                            <span class="sensor-status normal" id="door-status">READY</span>
-                        </div>
-                        <div class="door-display">
-                            <div class="door-visual" id="door-visual">💳</div>
-                            <div>
-                                <strong id="door-value">Sẵn sàng</strong>
-                                <span>Trạng thái quẹt thẻ</span>
-                            </div>
-                        </div>
-                        <div class="sensor-footer">
-                            <span>Cập nhật:</span>
-                            <strong id="door-time">--</strong>
-                        </div>
-                    </article>
-
-                </div>
-            </section>
-
-
-            <section class="section" id="devices-section">
-                <div class="section-heading">
-                    <div>
-                        <span class="section-label">CONTROL</span>
-                        <h3>Điều khiển thiết bị</h3>
-                    </div>
-                    <div class="control-mode-wrapper">
-                        <span class="mode-label-text">Chế độ:</span>
-                        <div class="mode-toggle-group">
-                            <button type="button" class="mode-btn active" id="btn-mode-manual" onclick="setRoomMode('MANUAL')" title="Điều khiển thủ công bằng các nút bấm">
-                                <span class="mode-dot"></span>Thủ công (MANUAL)
-                            </button>
-                            <button type="button" class="mode-btn" id="btn-mode-auto" onclick="setRoomMode('AUTO')" title="Tự động bật/tắt đèn và quạt theo cảm biến">
-                                <span class="mode-dot"></span>Tự động (AUTO)
+                        <div class="room-hero-actions">
+                            <button class="btn btn-secondary" onclick="loadRoom()" title="Làm mới trạng thái">
+                                🔄 Làm mới
                             </button>
                         </div>
                     </div>
-                </div>
+                </section>
 
-                <!-- Auto Mode Info Banner -->
-                <div class="auto-mode-info-banner" id="auto-mode-info" style="display: none;">
-                    <div class="auto-info-icon">⚡</div>
-                    <div class="auto-info-text">
-                        <strong>Chế độ Tự động (AUTO) đang hoạt động</strong>
-                        <span>💡 Đèn 1 & 2 tự bật khi ánh sáng &lt; 250 lux, tắt khi &gt; 450 lux. &nbsp;|&nbsp; 🌀 Quạt tự bật khi nhiệt độ &ge; 31.0°C, tắt khi &le; 28.5°C. <em>(Nếu bạn bấm nút bật/tắt thủ công, hệ thống sẽ tự động chuyển về chế độ Thủ công).</em></span>
-                    </div>
-                </div>
-
-                <div class="device-grid">
-
-                    <article class="device-card" id="device-card-light1">
-                        <div class="device-header">
-                            <div class="device-icon light">💡</div>
-                            <div>
-                                <h4>Đèn 1</h4>
-                                <span>light1</span>
-                            </div>
-                            <div class="device-state" id="light1-state">OFF</div>
-                        </div>
-                        <div class="device-control">
-                            <div class="device-current">
-                                <span>Trạng thái</span>
-                                <strong id="light1-text">Đang tắt</strong>
-                            </div>
-                            <div class="device-buttons">
-                                <button class="device-btn on" onclick="sendCommand('light1', 'ON')">BẬT</button>
-                                <button class="device-btn off" onclick="sendCommand('light1', 'OFF')">TẮT</button>
-                            </div>
-                        </div>
-                    </article>
-
-                    <article class="device-card" id="device-card-light2">
-                        <div class="device-header">
-                            <div class="device-icon light">💡</div>
-                            <div>
-                                <h4>Đèn 2</h4>
-                                <span>light2</span>
-                            </div>
-                            <div class="device-state" id="light2-state">OFF</div>
-                        </div>
-                        <div class="device-control">
-                            <div class="device-current">
-                                <span>Trạng thái</span>
-                                <strong id="light2-text">Đang tắt</strong>
-                            </div>
-                            <div class="device-buttons">
-                                <button class="device-btn on" onclick="sendCommand('light2', 'ON')">BẬT</button>
-                                <button class="device-btn off" onclick="sendCommand('light2', 'OFF')">TẮT</button>
-                            </div>
-                        </div>
-                    </article>
-
-                    <article class="device-card" id="device-card-fan">
-                        <div class="device-header">
-                            <div class="device-icon fan">🌀</div>
-                            <div>
-                                <h4>Quạt</h4>
-                                <span>fan</span>
-                            </div>
-                            <div class="device-state" id="fan-state">OFF</div>
-                        </div>
-                        <div class="device-control">
-                            <div class="device-current">
-                                <span>Trạng thái</span>
-                                <strong id="fan-text">Đang tắt</strong>
-                            </div>
-                            <div class="device-buttons">
-                                <button class="device-btn on" onclick="sendCommand('fan', 'ON')">BẬT</button>
-                                <button class="device-btn off" onclick="sendCommand('fan', 'OFF')">TẮT</button>
-                            </div>
-                        </div>
-                    </article>
-
-                    <article class="device-card" id="device-card-ac">
-                        <div class="device-header">
-                            <div class="device-icon ac">❄</div>
-                            <div>
-                                <h4>Điều hòa</h4>
-                                <span>ac</span>
-                            </div>
-                            <div class="device-state" id="ac-state">OFF</div>
-                        </div>
-                        <div class="device-control">
-                            <div class="device-current">
-                                <span>Trạng thái</span>
-                                <strong id="ac-text">Đang tắt</strong>
-                            </div>
-                            <div class="device-buttons">
-                                <button class="device-btn on" onclick="sendCommand('ac', 'ON')">BẬT</button>
-                                <button class="device-btn off" onclick="sendCommand('ac', 'OFF')">TẮT</button>
-                            </div>
-                        </div>
-                    </article>
-
-                </div>
-            </section>
-
-
-            <section class="bottom-grid">
-
-                <div class="panel chart-panel" id="chart-section">
-                    <div class="panel-header">
-                        <div>
-                            <span class="section-label">HISTORY</span>
-                            <h3>Lịch sử nhiệt độ</h3>
-                        </div>
-                        <span class="chart-unit">°C</span>
-                    </div>
-                    <div class="chart-wrapper">
-                        <canvas id="temperature-chart"></canvas>
-                        <div class="chart-empty" id="chart-empty">Chưa có dữ liệu lịch sử</div>
-                    </div>
-                </div>
-
-                <div class="panel alert-panel" id="alerts-section">
-                    <div class="panel-header">
-                        <div>
-                            <span class="section-label">SYSTEM</span>
-                            <h3>Cảnh báo</h3>
-                        </div>
-                        <span class="alert-count" id="alert-count">0</span>
-                    </div>
-                    <div class="alert-list" id="alert-list">
-                        <div class="no-alert">
-                            <div class="no-alert-icon">✓</div>
-                            <div>
-                                <strong>Hệ thống bình thường</strong>
-                                <span>Chưa có cảnh báo mới</span>
-                            </div>
+                <!-- KPI Metric Grid (Tóm Tắt Nhanh Các Chỉ Số) -->
+                <section class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="kpi-icon temp">🌡️</div>
+                        <div class="kpi-body">
+                            <span>Nhiệt độ hiện tại</span>
+                            <strong id="summary-temperature">-- °C</strong>
                         </div>
                     </div>
-                </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon hum">💧</div>
+                        <div class="kpi-body">
+                            <span>Độ ẩm không khí</span>
+                            <strong id="summary-humidity">-- %</strong>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon gas">⚠️</div>
+                        <div class="kpi-body">
+                            <span>Nồng độ Gas (MQ-2)</span>
+                            <strong id="summary-gas">-- ADC</strong>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon card">🪪</div>
+                        <div class="kpi-body">
+                            <span>Đầu đọc RFID</span>
+                            <strong id="summary-door">Sẵn sàng</strong>
+                        </div>
+                    </div>
+                </section>
 
-            </section>
+                <!-- Environmental Telemetry Sensors -->
+                <section class="section" id="sensors-section">
+                    <div class="section-header">
+                        <div class="section-title-wrap">
+                            <span class="section-eyebrow">GIÁM SÁT MÔI TRƯỜNG</span>
+                            <h3>Cảm Biến Thời Gian Thực</h3>
+                        </div>
+                        <span class="live-badge"><span></span>TRUYỀN TRỰC TIẾP</span>
+                    </div>
+
+                    <div class="sensor-grid">
+                        <!-- Sensor 1: Nhiệt độ DHT11/DHT22 -->
+                        <article class="sensor-card">
+                            <div class="sensor-top">
+                                <div class="sensor-label-group">
+                                    <div class="sensor-icon-box" style="color: var(--danger); background: rgba(244,63,94,0.1);">🌡️</div>
+                                    <div>
+                                        <h4>Nhiệt độ</h4>
+                                        <span>Cảm biến DHT</span>
+                                    </div>
+                                </div>
+                                <span class="sensor-status-tag normal" id="temperature-status">NORMAL</span>
+                            </div>
+                            <div class="sensor-metric">
+                                <strong id="temperature-value">--</strong>
+                                <span>°C</span>
+                            </div>
+                            <div class="telemetry-bar-wrap">
+                                <div class="telemetry-bar-fill" style="width: 45%; background: linear-gradient(90deg, #10b981, #f59e0b);"></div>
+                            </div>
+                            <div class="sensor-footer">
+                                <span>Cập nhật lúc:</span>
+                                <strong id="temperature-time">--:--:--</strong>
+                            </div>
+                        </article>
+
+                        <!-- Sensor 2: Độ ẩm DHT -->
+                        <article class="sensor-card">
+                            <div class="sensor-top">
+                                <div class="sensor-label-group">
+                                    <div class="sensor-icon-box" style="color: var(--primary); background: rgba(56,189,248,0.1);">💧</div>
+                                    <div>
+                                        <h4>Độ ẩm</h4>
+                                        <span>Độ ẩm tương đối</span>
+                                    </div>
+                                </div>
+                                <span class="sensor-status-tag normal" id="humidity-status">NORMAL</span>
+                            </div>
+                            <div class="sensor-metric">
+                                <strong id="humidity-value">--</strong>
+                                <span>%</span>
+                            </div>
+                            <div class="telemetry-bar-wrap">
+                                <div class="telemetry-bar-fill hum" id="humidity-progress" style="width: 0%;"></div>
+                            </div>
+                            <div class="sensor-footer">
+                                <span>Cập nhật lúc:</span>
+                                <strong id="humidity-time">--:--:--</strong>
+                            </div>
+                        </article>
+
+                        <!-- Sensor 3: Khí gas MQ-2 -->
+                        <article class="sensor-card">
+                            <div class="sensor-top">
+                                <div class="sensor-label-group">
+                                    <div class="sensor-icon-box" style="color: var(--warning); background: rgba(245,158,11,0.1);">☁️</div>
+                                    <div>
+                                        <h4>Khí Gas & Khói</h4>
+                                        <span>Cảm biến MQ-2</span>
+                                    </div>
+                                </div>
+                                <span class="sensor-status-tag normal" id="gas-status">NORMAL</span>
+                            </div>
+                            <div class="sensor-metric">
+                                <strong id="gas-value">--</strong>
+                                <span>ADC</span>
+                            </div>
+                            <div class="telemetry-bar-wrap">
+                                <div class="telemetry-bar-fill gas" id="gas-progress" style="width: 0%;"></div>
+                            </div>
+                            <div class="sensor-footer">
+                                <span>Ngưỡng cảnh báo:</span>
+                                <strong>1500 ADC</strong>
+                            </div>
+                        </article>
+
+                        <!-- Sensor 4: Cảm biến ánh sáng Photoresistor / Light Sensor -->
+                        <article class="sensor-card">
+                            <div class="sensor-top">
+                                <div class="sensor-label-group">
+                                    <div class="sensor-icon-box" style="color: #fbbf24; background: rgba(251,191,36,0.1);">☀️</div>
+                                    <div>
+                                        <h4>Ánh sáng</h4>
+                                        <span>Cảm biến quang LDR</span>
+                                    </div>
+                                </div>
+                                <span class="sensor-status-tag normal" id="light-status">NORMAL</span>
+                            </div>
+                            <div class="sensor-metric">
+                                <strong id="light-value">--</strong>
+                                <span>lux</span>
+                            </div>
+                            <div class="telemetry-bar-wrap">
+                                <div class="telemetry-bar-fill light" id="light-progress" style="width: 0%;"></div>
+                            </div>
+                            <div class="sensor-footer">
+                                <span>Ngưỡng bật đèn:</span>
+                                <strong>&lt; 250 lux</strong>
+                            </div>
+                        </article>
+
+                        <!-- Sensor 5: Trạng thái quẹt thẻ RFID -->
+                        <article class="sensor-card">
+                            <div class="sensor-top">
+                                <div class="sensor-label-group">
+                                    <div class="sensor-icon-box" style="color: var(--accent); background: rgba(129,140,248,0.1);">🪪</div>
+                                    <div>
+                                        <h4>Cổng RFID</h4>
+                                        <span>Đầu đọc RC522</span>
+                                    </div>
+                                </div>
+                                <span class="sensor-status-tag normal" id="door-status">READY</span>
+                            </div>
+                            <div class="door-state-box">
+                                <div class="door-avatar" id="door-visual">💳</div>
+                                <div class="door-avatar-text">
+                                    <strong id="door-value">Sẵn sàng</strong>
+                                    <span>Chờ quẹt thẻ học viên</span>
+                                </div>
+                            </div>
+                            <div class="sensor-footer">
+                                <span>Lần quẹt cuối:</span>
+                                <strong id="door-time">--:--:--</strong>
+                            </div>
+                        </article>
+                    </div>
+                </section>
+
+                <!-- Device Control Center -->
+                <section class="section" id="devices-section">
+                    <div class="section-header">
+                        <div class="section-title-wrap">
+                            <span class="section-eyebrow">TRUNG TÂM ĐIỀU KHIỂN</span>
+                            <h3>Thiết Bị Phòng Học</h3>
+                        </div>
+
+                        <!-- Segmented Mode Controller (MANUAL vs AUTO) -->
+                        <div class="control-mode-container">
+                            <span style="font-size: 11px; font-weight: 700; color: var(--text-muted);">CHẾ ĐỘ HỆ THỐNG:</span>
+                            <div class="control-mode-pill">
+                                <button type="button" class="mode-btn active" id="btn-mode-manual" onclick="setRoomMode('MANUAL')" title="Điều khiển thủ công bằng các nút bấm">
+                                    <span class="mode-dot"></span>Thủ công (MANUAL)
+                                </button>
+                                <button type="button" class="mode-btn" id="btn-mode-auto" onclick="setRoomMode('AUTO')" title="Tự động bật/tắt đèn và quạt theo cảm biến">
+                                    <span class="mode-dot"></span>Tự động (AUTO)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Auto Mode Smart Notification Banner -->
+                    <div class="auto-mode-info-banner" id="auto-mode-info" style="display: none;">
+                        <div class="auto-info-icon">⚡</div>
+                        <div class="auto-info-text">
+                            <strong>Chế độ Tự động (AUTO) đang kích hoạt</strong>
+                            <span>💡 <strong>Đèn 1 & 2:</strong> Tự bật khi ánh sáng &lt; 250 lux, tự tắt khi &gt; 450 lux. &nbsp;|&nbsp; 🌀 <strong>Quạt:</strong> Tự bật khi nhiệt độ &ge; 31.0°C, tự tắt khi &le; 28.5°C. <em>(Bấm nút bật/tắt thủ công sẽ đưa hệ thống về chế độ Thủ công).</em></span>
+                        </div>
+                    </div>
+
+                    <!-- 2x2 Device Grid -->
+                    <div class="device-grid">
+                        <!-- Device 1: Đèn 1 -->
+                        <article class="device-card" id="device-card-light1">
+                            <div class="device-card-header">
+                                <div class="device-avatar light">💡</div>
+                                <div class="device-title">
+                                    <h4>Đèn Chiếu Sáng 1</h4>
+                                    <span>Mã: light1 · Tiếp điểm Relay 1</span>
+                                </div>
+                                <span class="device-status-badge" id="light1-state">OFF</span>
+                            </div>
+                            <div class="device-action-row">
+                                <div class="device-state-text">
+                                    <span>Trạng thái</span>
+                                    <strong id="light1-text">Đang tắt</strong>
+                                </div>
+                                <div class="device-button-group">
+                                    <button class="btn-device btn-turn-on" onclick="sendCommand('light1', 'ON')">BẬT</button>
+                                    <button class="btn-device btn-turn-off" onclick="sendCommand('light1', 'OFF')">TẮT</button>
+                                </div>
+                            </div>
+                        </article>
+
+                        <!-- Device 2: Đèn 2 -->
+                        <article class="device-card" id="device-card-light2">
+                            <div class="device-card-header">
+                                <div class="device-avatar light">💡</div>
+                                <div class="device-title">
+                                    <h4>Đèn Chiếu Sáng 2</h4>
+                                    <span>Mã: light2 · Tiếp điểm Relay 2</span>
+                                </div>
+                                <span class="device-status-badge" id="light2-state">OFF</span>
+                            </div>
+                            <div class="device-action-row">
+                                <div class="device-state-text">
+                                    <span>Trạng thái</span>
+                                    <strong id="light2-text">Đang tắt</strong>
+                                </div>
+                                <div class="device-button-group">
+                                    <button class="btn-device btn-turn-on" onclick="sendCommand('light2', 'ON')">BẬT</button>
+                                    <button class="btn-device btn-turn-off" onclick="sendCommand('light2', 'OFF')">TẮT</button>
+                                </div>
+                            </div>
+                        </article>
+
+                        <!-- Device 3: Quạt làm mát -->
+                        <article class="device-card" id="device-card-fan">
+                            <div class="device-card-header">
+                                <div class="device-avatar fan"><span>🌀</span></div>
+                                <div class="device-title">
+                                    <h4>Quạt Làm Mát</h4>
+                                    <span>Mã: fan · Tiếp điểm Relay 3</span>
+                                </div>
+                                <span class="device-status-badge" id="fan-state">OFF</span>
+                            </div>
+                            <div class="device-action-row">
+                                <div class="device-state-text">
+                                    <span>Trạng thái</span>
+                                    <strong id="fan-text">Đang tắt</strong>
+                                </div>
+                                <div class="device-button-group">
+                                    <button class="btn-device btn-turn-on" onclick="sendCommand('fan', 'ON')">BẬT</button>
+                                    <button class="btn-device btn-turn-off" onclick="sendCommand('fan', 'OFF')">TẮT</button>
+                                </div>
+                            </div>
+                        </article>
+
+                        <!-- Device 4: Điều hòa -->
+                        <article class="device-card" id="device-card-ac">
+                            <div class="device-card-header">
+                                <div class="device-avatar ac">❄️</div>
+                                <div class="device-title">
+                                    <h4>Máy Điều Hòa</h4>
+                                    <span>Mã: ac · Tiếp điểm Relay 4</span>
+                                </div>
+                                <span class="device-status-badge" id="ac-state">OFF</span>
+                            </div>
+                            <div class="device-action-row">
+                                <div class="device-state-text">
+                                    <span>Trạng thái</span>
+                                    <strong id="ac-text">Đang tắt</strong>
+                                </div>
+                                <div class="device-button-group">
+                                    <button class="btn-device btn-turn-on" onclick="sendCommand('ac', 'ON')">BẬT</button>
+                                    <button class="btn-device btn-turn-off" onclick="sendCommand('ac', 'OFF')">TẮT</button>
+                                </div>
+                            </div>
+                        </article>
+                    </div>
+                </section>
+
+                <!-- Bottom Analytics & System Alert Feed -->
+                <section class="bottom-grid">
+                    <!-- Historical Temperature Chart -->
+                    <div class="panel-card" id="chart-section">
+                        <div class="panel-header">
+                            <div>
+                                <span class="section-eyebrow">DỮ LIỆU ĐO THEO DÕI</span>
+                                <h3>Biểu Đồ Lịch Sử Nhiệt Độ</h3>
+                            </div>
+                            <span class="chart-unit-pill">°C THEO THỜI GIAN</span>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="temperature-chart"></canvas>
+                            <div class="chart-empty-state" id="chart-empty">Đang tải dữ liệu biểu đồ...</div>
+                        </div>
+                    </div>
+
+                    <!-- System Alerts Panel -->
+                    <div class="panel-card" id="alerts-section">
+                        <div class="panel-header">
+                            <div>
+                                <span class="section-eyebrow">NHẬT KÝ HỆ THỐNG</span>
+                                <h3>Cảnh Báo An Toàn</h3>
+                            </div>
+                            <div class="alert-counter-badge" id="alert-count">0</div>
+                        </div>
+                        <div class="alert-feed" id="alert-list">
+                            <div class="alert-item normal">
+                                <div class="alert-icon-box normal">✓</div>
+                                <div>
+                                    <strong>Môi trường an toàn</strong>
+                                    <span>Không phát hiện nồng độ khí gas hoặc nhiệt độ bất thường</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Footer -->
+                <footer class="app-footer">
+                    <div>Smart Classroom IoT Management System · Powered by Raspberry Pi 5 & ESP32</div>
+                    <div>Giao thức MQTT · Flask Framework · MariaDB Database</div>
+                </footer>
+            </div>
 
 
-            <footer class="footer">
-                <div>Smart Classroom IoT System</div>
-                <div>Raspberry Pi 5 · Flask · MQTT · MariaDB</div>
-            </footer>
+            <!-- ============================================================
+                 PHÂN HỆ 2: ĐIỂM DANH & QUẢN LÝ THẺ RFID
+                 ============================================================ -->
+            <div class="content-view" id="attendance-view" style="display: none;">
+
+                <!-- Attendance Header Hero -->
+                <section class="room-hero-card">
+                    <div class="room-hero-inner">
+                        <div class="room-hero-info">
+                            <div class="room-hero-icon" style="background: rgba(129,140,248,0.15); border-color: rgba(129,140,248,0.3); color: var(--accent);">🪪</div>
+                            <div class="room-hero-details">
+                                <h2>Phân Hệ Điểm Danh Thẻ RFID</h2>
+                                <div class="room-meta-tags">
+                                    <span class="meta-chip">GÁN MÃ THẺ RFID</span>
+                                    <span class="meta-chip active-chip">● QUÉT THẺ TỰ ĐỘNG</span>
+                                    <span class="meta-chip">THỜI GIAN THỰC</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="attendance-top-bar">
+                            <div class="filter-input-group">
+                                <label for="attendance-date-filter">📅 Ngày:</label>
+                                <input type="date" id="attendance-date-filter">
+                            </div>
+                            <button class="btn btn-primary" onclick="openAddStudentModal()">
+                                <span>+</span> Thêm học viên
+                            </button>
+                            <button class="btn btn-secondary" onclick="loadAttendanceData()" title="Làm mới bảng">
+                                <span>🔄</span> Làm mới
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Attendance KPI Statistics -->
+                <section class="attendance-kpi-grid">
+                    <div class="attendance-kpi-card">
+                        <div class="attendance-kpi-icon total">👥</div>
+                        <div class="kpi-body">
+                            <span>Tổng số học viên</span>
+                            <strong id="stat-total-students">0</strong>
+                        </div>
+                    </div>
+                    <div class="attendance-kpi-card">
+                        <div class="attendance-kpi-icon present">✓</div>
+                        <div class="kpi-body">
+                            <span>Đã có mặt (Đúng giờ)</span>
+                            <strong id="stat-present-students" style="color: var(--success);">0</strong>
+                        </div>
+                    </div>
+                    <div class="attendance-kpi-card">
+                        <div class="attendance-kpi-icon late">⏰</div>
+                        <div class="kpi-body">
+                            <span>Điểm danh muộn</span>
+                            <strong id="stat-late-students" style="color: var(--warning);">0</strong>
+                        </div>
+                    </div>
+                    <div class="attendance-kpi-card">
+                        <div class="attendance-kpi-icon absent">✕</div>
+                        <div class="kpi-body">
+                            <span>Chưa điểm danh</span>
+                            <strong id="stat-absent-students" style="color: var(--danger);">0</strong>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Section: Danh Sách Học Viên & Gán Thẻ RFID -->
+                <section class="table-container-card">
+                    <div class="table-header-bar">
+                        <div class="section-title-wrap">
+                            <span class="section-eyebrow">CƠ SỞ DỮ LIỆU HỌC VIÊN</span>
+                            <h3>Danh Sách Học Viên & Gán Thẻ RFID</h3>
+                        </div>
+                        <div class="search-input-wrap">
+                            <span>🔍</span>
+                            <input type="text" id="student-search-input" placeholder="Tìm theo tên, mã HV, mã thẻ RFID..." oninput="filterStudents()">
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="modern-table" id="students-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;">STT</th>
+                                    <th>Mã Học Viên</th>
+                                    <th>Họ Và Tên</th>
+                                    <th>Lớp Học</th>
+                                    <th>Mã Thẻ RFID UID</th>
+                                    <th>Trạng Thái Cấp Thẻ</th>
+                                    <th>Thông Tin Liên Hệ</th>
+                                    <th style="text-align: center; width: 160px;">Thao Tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="students-table-body">
+                                <tr><td colspan="8" class="table-empty-cell">Đang tải danh sách học viên...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Section: Nhật Ký Quẹt Thẻ Thời Gian Thực -->
+                <section class="table-container-card">
+                    <div class="table-header-bar">
+                        <div class="section-title-wrap">
+                            <span class="section-eyebrow">NHẬT KÝ ĐIỂM DANH LIVE</span>
+                            <h3>Lịch Sử Quẹt Thẻ Ra Vào</h3>
+                        </div>
+                        <span class="live-badge"><span></span>TỰ ĐỘNG CẬP NHẬT</span>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="modern-table" id="attendance-log-table">
+                            <thead>
+                                <tr>
+                                    <th>Thời Gian Quẹt</th>
+                                    <th>Phòng Học</th>
+                                    <th>Học Viên</th>
+                                    <th>Mã HV</th>
+                                    <th>Lớp</th>
+                                    <th>Mã Thẻ UID</th>
+                                    <th>Loại Sự Kiện</th>
+                                    <th>Trạng Thái</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendance-log-body">
+                                <tr><td colspan="8" class="table-empty-cell">Đang tải nhật ký quẹt thẻ...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Footer -->
+                <footer class="app-footer">
+                    <div>Smart Classroom Attendance Subsystem · Tích hợp Đầu Đọc Thẻ RFID RC522 & ESP32</div>
+                    <div>Hệ thống điểm danh học sinh thông minh · Raspberry Pi 5</div>
+                </footer>
+            </div>
 
         </div>
-
-
-        <!-- TAB: ATTENDANCE (PHÂN HỆ ĐIỂM DANH) -->
-        <div class="content content-view" id="attendance-view" style="display: none;">
-
-            <section class="room-header">
-                <div class="room-info">
-                    <div class="room-icon">🪪</div>
-                    <div>
-                        <span class="section-label">HỆ THỐNG ĐIỂM DANH THÔNG MINH</span>
-                        <h3>Điểm danh & Quản lý Thẻ RFID</h3>
-                        <p id="attendance-subtitle">Gán thẻ RFID học viên và theo dõi điểm danh thời gian thực</p>
-                    </div>
-                </div>
-                <div class="attendance-top-actions">
-                    <div class="filter-item">
-                        <label for="attendance-date-filter">Ngày điểm danh:</label>
-                        <input type="date" id="attendance-date-filter" class="custom-input date-input">
-                    </div>
-                    <button class="btn btn-primary" onclick="openAddStudentModal()">
-                        <span class="btn-icon">+</span> Thêm học viên
-                    </button>
-                    <button class="btn btn-secondary" onclick="loadAttendanceData()" title="Làm mới dữ liệu">
-                        <span>🔄</span> Làm mới
-                    </button>
-                </div>
-            </section>
-
-            <!-- STATS SUMMARY -->
-            <section class="summary-grid">
-                <div class="summary-card">
-                    <div class="summary-icon people">👥</div>
-                    <div>
-                        <span>Tổng số học viên</span>
-                        <strong id="stat-total-students">0</strong>
-                    </div>
-                </div>
-                <div class="summary-card">
-                    <div class="summary-icon" style="background: rgba(34,197,94,0.12); color: var(--success);">✓</div>
-                    <div>
-                        <span>Đã có mặt</span>
-                        <strong id="stat-present-students" style="color: var(--success);">0</strong>
-                    </div>
-                </div>
-                <div class="summary-card">
-                    <div class="summary-icon" style="background: rgba(245,158,11,0.12); color: var(--warning);">⏰</div>
-                    <div>
-                        <span>Đi muộn</span>
-                        <strong id="stat-late-students" style="color: var(--warning);">0</strong>
-                    </div>
-                </div>
-                <div class="summary-card">
-                    <div class="summary-icon" style="background: rgba(239,68,68,0.12); color: var(--danger);">✕</div>
-                    <div>
-                        <span>Chưa điểm danh</span>
-                        <strong id="stat-absent-students" style="color: var(--danger);">0</strong>
-                    </div>
-                </div>
-            </section>
-
-            <!-- SECTION: QUẢN LÝ HỌC VIÊN & GÁN THẺ RFID -->
-            <section class="section" id="students-manage-section">
-                <div class="section-heading">
-                    <div>
-                        <span class="section-label">STUDENT DIRECTORY</span>
-                        <h3>Danh sách học viên & Gán thẻ RFID</h3>
-                    </div>
-                    <div class="table-tools">
-                        <div class="search-box">
-                            <span class="search-icon">🔍</span>
-                            <input type="text" id="student-search-input" placeholder="Tìm theo tên, mã HV, thẻ RFID..." oninput="filterStudents()">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="table-wrapper">
-                    <table class="data-table" id="students-table">
-                        <thead>
-                            <tr>
-                                <th style="width: 50px;">STT</th>
-                                <th>Mã học viên</th>
-                                <th>Họ và tên</th>
-                                <th>Lớp</th>
-                                <th>Thẻ RFID UID</th>
-                                <th>Trạng thái thẻ</th>
-                                <th>Liên hệ</th>
-                                <th style="text-align: center; width: 150px;">Hành động</th>
-                            </tr>
-                        </thead>
-                        <tbody id="students-table-body">
-                            <tr><td colspan="8" class="table-empty">Đang tải danh sách học viên...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- SECTION: NHẬT KÝ ĐIỂM DANH -->
-            <section class="section" id="attendance-log-section">
-                <div class="section-heading">
-                    <div>
-                        <span class="section-label">ATTENDANCE LOGS</span>
-                        <h3>Nhật ký điểm danh thời gian thực</h3>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span class="live-badge"><span></span>LIVE AUTO-REFRESH</span>
-                    </div>
-                </div>
-
-                <div class="table-wrapper">
-                    <table class="data-table" id="attendance-log-table">
-                        <thead>
-                            <tr>
-                                <th>Thời gian</th>
-                                <th>Phòng học</th>
-                                <th>Học viên</th>
-                                <th>Mã HV</th>
-                                <th>Lớp</th>
-                                <th>Mã thẻ UID</th>
-                                <th>Sự kiện</th>
-                                <th>Trạng thái</th>
-                            </tr>
-                        </thead>
-                        <tbody id="attendance-log-body">
-                            <tr><td colspan="8" class="table-empty">Đang tải nhật ký điểm danh...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <footer class="footer">
-                <div>Smart Classroom Attendance Subsystem</div>
-                <div>Phân hệ Điểm danh RFID thông minh · Tích hợp ESP32 & MariaDB</div>
-            </footer>
-
-        </div>
-
     </main>
 
 </div>
 
 
-<!-- MODAL: THÊM / SỬA HỌC VIÊN & GÁN THẺ RFID -->
+<!-- ============================================================
+     MODAL: THÊM / CHỈNH SỬA HỌC VIÊN & GÁN THẺ RFID
+     ============================================================ -->
 <div class="modal-backdrop" id="student-modal" style="display: none;">
-    <div class="modal-container">
-        <div class="modal-header">
+    <div class="modal-dialog">
+        <div class="modal-top">
             <div class="modal-title-group">
-                <div class="modal-icon">🪪</div>
+                <div class="modal-avatar-icon">🪪</div>
                 <div>
                     <h3 id="modal-title">Thêm học viên mới</h3>
                     <p id="modal-subtitle">Điền thông tin và gán mã thẻ RFID</p>
                 </div>
             </div>
-            <button class="modal-close" onclick="closeStudentModal()">&times;</button>
+            <button class="modal-close-btn" onclick="closeStudentModal()">&times;</button>
         </div>
 
         <form id="student-form" onsubmit="handleSaveStudent(event)">
             <input type="hidden" id="student-id-input">
 
-            <div class="form-grid">
-                <div class="form-group">
-                    <label for="student-code-input">Mã học viên <span class="text-danger">*</span></label>
-                    <input type="text" id="student-code-input" class="custom-input" placeholder="VD: HV005" required>
+            <div class="form-grid-2">
+                <div class="form-field">
+                    <label for="student-code-input">Mã học viên <span style="color: var(--danger);">*</span></label>
+                    <input type="text" id="student-code-input" class="custom-input" placeholder="VD: HV001" required>
                 </div>
 
-                <div class="form-group">
-                    <label for="student-name-input">Họ và tên <span class="text-danger">*</span></label>
+                <div class="form-field">
+                    <label for="student-name-input">Họ và tên <span style="color: var(--danger);">*</span></label>
                     <input type="text" id="student-name-input" class="custom-input" placeholder="VD: Nguyễn Văn Nam" required>
                 </div>
+            </div>
 
-                <div class="form-group">
+            <div class="form-grid-2">
+                <div class="form-field">
                     <label for="student-class-input">Lớp học</label>
                     <input type="text" id="student-class-input" class="custom-input" placeholder="VD: 12A1 / IoT-K20">
                 </div>
 
-                <div class="form-group">
+                <div class="form-field">
                     <label for="student-phone-input">Số điện thoại</label>
-                    <input type="tel" id="student-phone-input" class="custom-input" placeholder="VD: 0901234567">
+                    <input type="tel" id="student-phone-input" class="custom-input" placeholder="VD: 0912345678">
                 </div>
             </div>
 
-            <div class="form-group" style="margin-top: 14px;">
-                <label for="student-email-input">Email</label>
+            <div class="form-field">
+                <label for="student-email-input">Địa chỉ Email</label>
                 <input type="email" id="student-email-input" class="custom-input" placeholder="VD: nam.nv@smartclass.edu.vn">
             </div>
 
-            <div class="form-group" style="margin-top: 14px;">
+            <div class="form-field">
                 <label for="student-card-input">Mã thẻ RFID UID</label>
-                <div class="input-action-group">
-                    <input type="text" id="student-card-input" class="custom-input" placeholder="VD: A1B2C3D4 (Để trống nếu chưa cấp thẻ)">
+                <div class="input-with-button">
+                    <input type="text" id="student-card-input" class="custom-input" placeholder="VD: A1B2C3D4 (Để trống nếu chưa có thẻ)">
                     <button type="button" class="btn btn-accent" onclick="fetchLatestCardUid()" title="Lấy mã thẻ RFID vừa quẹt gần nhất">
                         ⚡ Lấy UID vừa quẹt
                     </button>
                 </div>
-                <p class="form-help">💡 <strong>Mẹo gán thẻ nhanh:</strong> Quẹt thẻ vào đầu đọc RFID tại phòng học, sau đó bấm <strong>"⚡ Lấy UID vừa quẹt"</strong> để hệ thống tự điền mã thẻ!</p>
+                <span class="form-help-tip">💡 <strong>Mẹo gán thẻ nhanh:</strong> Hãy quẹt thẻ vào đầu đọc RFID tại phòng học, sau đó nhấn <strong>"⚡ Lấy UID vừa quẹt"</strong> để hệ thống tự động điền mã!</span>
             </div>
 
-            <div class="modal-footer">
+            <div class="modal-actions">
                 <button type="button" class="btn btn-secondary" onclick="closeStudentModal()">Hủy bỏ</button>
                 <button type="submit" class="btn btn-primary" id="btn-save-student">Lưu học viên</button>
             </div>
@@ -600,15 +693,19 @@
 </div>
 
 
-<div class="toast" id="toast">
-    <div class="toast-icon" id="toast-icon">✓</div>
-    <div>
+<!-- ============================================================
+     TOAST NOTIFICATION COMPONENT
+     ============================================================ -->
+<div class="toast-popup" id="toast">
+    <div class="toast-icon-circle" id="toast-icon">✓</div>
+    <div class="toast-text">
         <strong id="toast-title">Thành công</strong>
-        <span id="toast-message">Thao tác thành công</span>
+        <span id="toast-message">Thao tác hoàn tất</span>
     </div>
 </div>
 
 
+<!-- Application Client Script -->
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 
 </body>

@@ -1,47 +1,135 @@
+/**
+ * Smart Classroom - Interactive UX/UI Client Controller
+ * Theme: Cyber-Academic Glassmorphism
+ * Author: Antigravity IoT Engineer
+ */
+
 let currentRoom = null;
 let temperatureChart = null;
 const REFRESH_INTERVAL = 3000;
+let currentTab = "dashboard";
+let allStudents = [];
+let toastTimer = null;
+let currentControlMode = "MANUAL";
 
-function $(id) { return document.getElementById(id); }
+function $(id) {
+    return document.getElementById(id);
+}
+
+function escapeHtml(str) {
+    if (str === null || str === undefined) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
 
 function formatTime(value) {
-    if (!value) return "--";
+    if (!value) return "--:--:--";
     try {
         const date = new Date(value);
         if (isNaN(date.getTime())) return value;
         return date.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    } catch (error) {
+    } catch {
         return value;
     }
 }
 
-function setServerStatus(online) {
-    const text = $("server-status-text");
-    const sidebar = $("sidebar-server-status");
-    const indicator = document.querySelector(".status-indicator");
-    const sidebarDot = document.querySelector(".system-dot");
-    const time = $("server-status-time");
-    if (!text || !sidebar || !indicator || !sidebarDot || !time) return;
-
-    if (online) {
-        text.textContent = "Server Online";
-        sidebar.textContent = "Online";
-        time.textContent = "Backend đang hoạt động";
-        indicator.style.background = "var(--success)";
-        indicator.style.boxShadow = "0 0 12px var(--success)";
-        sidebarDot.style.background = "var(--success)";
-        sidebarDot.style.boxShadow = "0 0 10px var(--success)";
-    } else {
-        text.textContent = "Server Offline";
-        sidebar.textContent = "Offline";
-        time.textContent = "Không thể kết nối";
-        indicator.style.background = "var(--danger)";
-        indicator.style.boxShadow = "0 0 12px var(--danger)";
-        sidebarDot.style.background = "var(--danger)";
-        sidebarDot.style.boxShadow = "0 0 10px var(--danger)";
+function formatFullDateTime(value) {
+    if (!value) return "--";
+    try {
+        const date = new Date(value);
+        if (isNaN(date.getTime())) return value;
+        return date.toLocaleString("vi-VN", {
+            hour: "2-digit", minute: "2-digit", second: "2-digit",
+            day: "2-digit", month: "2-digit", year: "numeric"
+        });
+    } catch {
+        return value;
     }
 }
 
+// ============================================================
+// REALTIME LIVE CLOCK
+// ============================================================
+function updateLiveClock() {
+    const clockEl = $("topbar-clock");
+    if (!clockEl) return;
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const dateStr = now.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+    clockEl.textContent = `${timeStr} · ${dateStr}`;
+}
+
+// ============================================================
+// SERVER CONNECTION STATUS
+// ============================================================
+function setServerStatus(online) {
+    const text = $("server-status-text");
+    const sidebar = $("sidebar-server-status");
+    const topbarDot = $("topbar-status-dot") || document.querySelector(".status-indicator-dot");
+    const sidebarDot = $("sidebar-system-dot") || document.querySelector(".system-dot");
+    const time = $("server-status-time");
+
+    if (online) {
+        if (text) text.textContent = "Server Online";
+        if (sidebar) sidebar.textContent = "RPi5 Online";
+        if (time) time.textContent = "RPi 5 · MQTT · MariaDB";
+        if (topbarDot) {
+            topbarDot.className = "status-indicator-dot online";
+        }
+        if (sidebarDot) {
+            sidebarDot.className = "system-dot online";
+        }
+    } else {
+        if (text) text.textContent = "Server Offline";
+        if (sidebar) sidebar.textContent = "Offline";
+        if (time) time.textContent = "Mất kết nối máy chủ";
+        if (topbarDot) {
+            topbarDot.className = "status-indicator-dot";
+            topbarDot.style.background = "var(--danger)";
+            topbarDot.style.boxShadow = "0 0 10px var(--danger)";
+        }
+        if (sidebarDot) {
+            sidebarDot.className = "system-dot";
+            sidebarDot.style.background = "var(--danger)";
+            sidebarDot.style.boxShadow = "0 0 10px var(--danger)";
+        }
+    }
+}
+
+// ============================================================
+// TOAST NOTIFICATIONS
+// ============================================================
+function showToast(title, message, success = true) {
+    const toast = $("toast");
+    const icon = $("toast-icon");
+    const titleElement = $("toast-title");
+    const messageElement = $("toast-message");
+    if (!toast || !icon || !titleElement || !messageElement) return;
+
+    titleElement.textContent = title;
+    messageElement.textContent = message;
+    icon.textContent = success ? "✓" : "!";
+    icon.style.background = success ? "rgba(16, 185, 129, 0.15)" : "rgba(244, 63, 94, 0.15)";
+    icon.style.color = success ? "var(--success)" : "var(--danger)";
+    icon.style.borderColor = success ? "rgba(16, 185, 129, 0.35)" : "rgba(244, 63, 94, 0.35)";
+
+    toast.classList.add("active");
+    toast.classList.add("show");
+
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+        toast.classList.remove("active");
+        toast.classList.remove("show");
+    }, 3600);
+}
+
+// ============================================================
+// ROOM MANAGEMENT
+// ============================================================
 async function loadRooms() {
     try {
         const response = await fetch("/api/rooms");
@@ -89,14 +177,17 @@ async function loadRoom() {
         const result = await response.json();
         const room = result.data || result;
         setServerStatus(true);
-        $("room-id").textContent = room.room_id || currentRoom;
-        $("room-name").textContent = room.name || `Phòng ${currentRoom}`;
+        if ($("room-id")) $("room-id").textContent = room.room_id || currentRoom;
+        if ($("room-name")) $("room-name").textContent = room.name || `Phòng ${currentRoom}`;
     } catch (error) {
         console.error("LOAD ROOM ERROR:", error);
     }
     await Promise.all([loadSensors(), loadDevices(), loadTemperatureHistory(), loadRoomMode()]);
 }
 
+// ============================================================
+// SENSORS & TELEMETRY
+// ============================================================
 async function loadSensors() {
     try {
         const response = await fetch(`/api/rooms/${currentRoom}/sensors`);
@@ -126,25 +217,38 @@ function updateSensor(name, value, unit, time) {
 
     switch (name) {
         case "temperature":
-            $("temperature-value").textContent = numericValue.toFixed(1);
-            $("summary-temperature").textContent = `${numericValue.toFixed(1)} °C`;
-            $("temperature-time").textContent = formatTime(time);
+            if ($("temperature-value")) $("temperature-value").textContent = numericValue.toFixed(1);
+            if ($("summary-temperature")) $("summary-temperature").textContent = `${numericValue.toFixed(1)} °C`;
+            if ($("temperature-time")) $("temperature-time").textContent = formatTime(time);
             updateTemperatureStatus(numericValue);
             break;
 
         case "humidity":
-            $("humidity-value").textContent = numericValue.toFixed(1);
-            $("summary-humidity").textContent = `${numericValue.toFixed(1)} %`;
-            $("humidity-time").textContent = formatTime(time);
+            if ($("humidity-value")) $("humidity-value").textContent = numericValue.toFixed(1);
+            if ($("summary-humidity")) $("summary-humidity").textContent = `${numericValue.toFixed(1)} %`;
+            if ($("humidity-time")) $("humidity-time").textContent = formatTime(time);
             const humidityPercent = Math.max(0, Math.min(100, numericValue));
-            $("humidity-progress").style.width = `${humidityPercent}%`;
+            if ($("humidity-progress")) $("humidity-progress").style.width = `${humidityPercent}%`;
             updateHumidityStatus(numericValue);
             break;
 
         case "gas":
-            $("gas-value").textContent = Math.round(numericValue);
-            $("summary-gas").textContent = `${Math.round(numericValue)} ADC`;
+            const gasRound = Math.round(numericValue);
+            if ($("gas-value")) $("gas-value").textContent = gasRound;
+            if ($("summary-gas")) $("summary-gas").textContent = `${gasRound} ADC`;
             updateGasStatus(numericValue);
+            break;
+
+        case "light":
+        case "ldr":
+            const lightVal = Math.round(numericValue);
+            if ($("light-value")) $("light-value").textContent = lightVal;
+            if ($("light-time")) $("light-time").textContent = formatTime(time);
+            if ($("light-progress")) {
+                const lightPercent = Math.max(0, Math.min(100, (lightVal / 1000) * 100));
+                $("light-progress").style.width = `${lightPercent}%`;
+            }
+            updateLightStatus(lightVal);
             break;
 
         case "door":
@@ -161,13 +265,13 @@ function updateTemperatureStatus(value) {
     if (!element) return;
     if (value >= 35) {
         element.textContent = "HIGH";
-        element.className = "sensor-status danger";
+        element.className = "sensor-status-tag danger";
     } else if (value >= 30) {
         element.textContent = "WARM";
-        element.className = "sensor-status warning";
+        element.className = "sensor-status-tag warning";
     } else {
         element.textContent = "NORMAL";
-        element.className = "sensor-status normal";
+        element.className = "sensor-status-tag normal";
     }
 }
 
@@ -176,10 +280,10 @@ function updateHumidityStatus(value) {
     if (!element) return;
     if (value < 30 || value > 80) {
         element.textContent = "WARNING";
-        element.className = "sensor-status warning";
+        element.className = "sensor-status-tag warning";
     } else {
         element.textContent = "NORMAL";
-        element.className = "sensor-status normal";
+        element.className = "sensor-status-tag normal";
     }
 }
 
@@ -193,14 +297,29 @@ function updateGasStatus(value) {
 
     if (value >= 1500) {
         element.textContent = "DANGER";
-        element.className = "sensor-status danger";
+        element.className = "sensor-status-tag danger";
         addGasAlert(value);
     } else if (value >= 1000) {
         element.textContent = "WARNING";
-        element.className = "sensor-status warning";
+        element.className = "sensor-status-tag warning";
     } else {
         element.textContent = "NORMAL";
-        element.className = "sensor-status normal";
+        element.className = "sensor-status-tag normal";
+    }
+}
+
+function updateLightStatus(value) {
+    const element = $("light-status");
+    if (!element) return;
+    if (value < 250) {
+        element.textContent = "DARK (BẬT ĐÈN)";
+        element.className = "sensor-status-tag warning";
+    } else if (value > 600) {
+        element.textContent = "BRIGHT (SÁNG)";
+        element.className = "sensor-status-tag normal";
+    } else {
+        element.textContent = "NORMAL";
+        element.className = "sensor-status-tag normal";
     }
 }
 
@@ -218,18 +337,21 @@ function updateDoor(isOpen, time) {
     if (isOpen) {
         value.textContent = "Đã quẹt thẻ";
         visual.textContent = "🪪";
-        visual.style.background = "rgba(59,130,246,0.15)";
+        visual.style.background = "rgba(56, 189, 248, 0.15)";
         status.textContent = "ACTIVE";
-        status.className = "sensor-status normal";
+        status.className = "sensor-status-tag normal";
     } else {
         value.textContent = "Sẵn sàng";
         visual.textContent = "💳";
-        visual.style.background = "rgba(34,197,94,0.1)";
+        visual.style.background = "rgba(16, 185, 129, 0.1)";
         status.textContent = "READY";
-        status.className = "sensor-status normal";
+        status.className = "sensor-status-tag normal";
     }
 }
 
+// ============================================================
+// DEVICE CONTROLS
+// ============================================================
 async function loadDevices() {
     try {
         const response = await fetch(`/api/rooms/${currentRoom}/devices`);
@@ -262,24 +384,26 @@ function updateDevice(deviceName, state) {
 
     if (normalized === "ON") {
         stateElement.textContent = "ON";
-        stateElement.className = "device-state on";
+        stateElement.className = "device-status-badge on";
         textElement.textContent = "Đang bật";
+        textElement.style.color = "var(--success)";
         if (card) card.classList.add("device-on");
     } else {
         stateElement.textContent = "OFF";
-        stateElement.className = "device-state off";
+        stateElement.className = "device-status-badge";
         textElement.textContent = "Đang tắt";
+        textElement.style.color = "var(--text-dim)";
         if (card) card.classList.remove("device-on");
     }
 }
 
 async function sendCommand(deviceName, command) {
     if (!currentRoom) {
-        showToast("Lỗi", "Chưa chọn phòng", false);
+        showToast("Lỗi", "Chưa chọn phòng học", false);
         return;
     }
     try {
-        showToast("Đang gửi lệnh", `${deviceName} → ${command}`, true);
+        showToast("Đang gửi lệnh", `${deviceName.toUpperCase()} → ${command}`, true);
         const response = await fetch(`/api/rooms/${currentRoom}/devices/${deviceName}/command`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -287,23 +411,19 @@ async function sendCommand(deviceName, command) {
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || data.message || "Không thể gửi lệnh");
-        showToast("Đã gửi lệnh", `${deviceName} → ${command}. Chờ thiết bị phản hồi.`, true);
+        showToast("Đã gửi lệnh", `${deviceName.toUpperCase()} → ${command}. Chờ phản hồi...`, true);
         setTimeout(async () => {
             await Promise.all([loadDevices(), loadRoomMode()]);
         }, 800);
     } catch (error) {
         console.error("SEND COMMAND ERROR:", error);
-        showToast("Gửi lệnh thất bại", error.message, false);
+        showToast("Lỗi gửi lệnh", error.message, false);
     }
 }
-
 
 // ============================================================
 // CHẾ ĐỘ ĐIỀU KHIỂN (MANUAL / AUTO)
 // ============================================================
-
-let currentControlMode = "MANUAL";
-
 async function loadRoomMode() {
     if (!currentRoom) return;
     try {
@@ -323,26 +443,35 @@ function updateModeUI(mode) {
     const btnManual = $("btn-mode-manual");
     const btnAuto = $("btn-mode-auto");
     const infoBanner = $("auto-mode-info");
+    const chipMode = $("chip-control-mode");
 
     if (normalized === "AUTO") {
         if (btnAuto) btnAuto.classList.add("active");
         if (btnManual) btnManual.classList.remove("active");
         if (infoBanner) infoBanner.style.display = "flex";
+        if (chipMode) {
+            chipMode.textContent = "CHẾ ĐỘ: TỰ ĐỘNG (AUTO)";
+            chipMode.className = "meta-chip active-chip";
+        }
     } else {
         if (btnManual) btnManual.classList.add("active");
         if (btnAuto) btnAuto.classList.remove("active");
         if (infoBanner) infoBanner.style.display = "none";
+        if (chipMode) {
+            chipMode.textContent = "CHẾ ĐỘ: THỦ CÔNG (MANUAL)";
+            chipMode.className = "meta-chip";
+        }
     }
 }
 
 async function setRoomMode(mode) {
     if (!currentRoom) {
-        showToast("Lỗi", "Chưa chọn phòng", false);
+        showToast("Lỗi", "Chưa chọn phòng học", false);
         return;
     }
     const modeUpper = String(mode).toUpperCase();
     try {
-        showToast("Chuyển chế độ", `Đang gửi lệnh chuyển sang ${modeUpper}...`, true);
+        showToast("Chuyển chế độ", `Gửi lệnh chuyển sang ${modeUpper}...`, true);
         const response = await fetch(`/api/rooms/${currentRoom}/mode`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -360,6 +489,9 @@ async function setRoomMode(mode) {
     }
 }
 
+// ============================================================
+// TEMPERATURE HISTORY CHART
+// ============================================================
 async function loadTemperatureHistory() {
     try {
         const response = await fetch(`/api/rooms/${currentRoom}/sensors/temperature/history?limit=30`);
@@ -413,32 +545,58 @@ function drawTemperatureChart(history) {
 
     if (temperatureChart) temperatureChart.destroy();
 
+    const ctx = canvas.getContext("2d");
+    const gradient = ctx.createLinearGradient(0, 0, 0, 240);
+    gradient.addColorStop(0, "rgba(56, 189, 248, 0.35)");
+    gradient.addColorStop(1, "rgba(56, 189, 248, 0.0)");
+
     temperatureChart = new Chart(canvas, {
         type: "line",
         data: {
             labels: labels,
             datasets: [{
-                label: "Nhiệt độ",
+                label: "Nhiệt độ (°C)",
                 data: values,
-                tension: 0.35,
+                tension: 0.38,
                 fill: true,
-                borderWidth: 2,
+                backgroundColor: gradient,
+                borderColor: "#38bdf8",
+                borderWidth: 2.5,
+                pointBackgroundColor: "#38bdf8",
+                pointBorderColor: "#070a12",
+                pointBorderWidth: 2,
                 pointRadius: 3,
-                pointHoverRadius: 5
+                pointHoverRadius: 6
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: "rgba(12, 17, 30, 0.92)",
+                    titleColor: "#f1f5f9",
+                    bodyColor: "#38bdf8",
+                    borderColor: "rgba(56, 189, 248, 0.3)",
+                    borderWidth: 1,
+                    padding: 10,
+                    displayColors: false,
+                    callbacks: {
+                        label: function (context) {
+                            return `${context.parsed.y} °C`;
+                        }
+                    }
+                }
+            },
             scales: {
                 x: {
-                    ticks: { color: "#64748b", maxTicksLimit: 7, font: { size: 9 } },
-                    grid: { color: "rgba(255,255,255,0.04)" }
+                    ticks: { color: "#64748b", maxTicksLimit: 7, font: { size: 10, family: "Inter" } },
+                    grid: { color: "rgba(255, 255, 255, 0.04)" }
                 },
                 y: {
-                    ticks: { color: "#64748b", font: { size: 9 } },
-                    grid: { color: "rgba(255,255,255,0.04)" }
+                    ticks: { color: "#64748b", font: { size: 10, family: "Inter" } },
+                    grid: { color: "rgba(255, 255, 255, 0.04)" }
                 }
             }
         }
@@ -451,69 +609,31 @@ function addGasAlert(value) {
     if (!list || !count) return;
 
     list.innerHTML = `
-        <div class="no-alert" style="background: rgba(239,68,68,0.06); border-color: rgba(239,68,68,0.12);">
-            <div class="no-alert-icon" style="background: rgba(239,68,68,0.1); color: var(--danger);">!</div>
+        <div class="alert-item danger">
+            <div class="alert-icon-box danger">!</div>
             <div>
-                <strong>Cảnh báo khí gas</strong>
-                <span>Giá trị hiện tại: ${Math.round(value)} ADC</span>
+                <strong>Cảnh báo nồng độ khí gas nguy hiểm!</strong>
+                <span>Giá trị đo đạt: ${Math.round(value)} ADC (vượt ngưỡng an toàn 1500)</span>
             </div>
         </div>
     `;
 
     count.textContent = "1";
-    count.style.background = "rgba(239,68,68,0.1)";
+    count.style.background = "rgba(244,63,94,0.18)";
     count.style.color = "var(--danger)";
 }
 
-let toastTimer = null;
-
-function showToast(title, message, success = true) {
-    const toast = $("toast");
-    const icon = $("toast-icon");
-    const titleElement = $("toast-title");
-    const messageElement = $("toast-message");
-    if (!toast || !icon || !titleElement || !messageElement) return;
-
-    titleElement.textContent = title;
-    messageElement.textContent = message;
-    icon.textContent = success ? "✓" : "!";
-    icon.style.background = success ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)";
-    icon.style.color = success ? "var(--success)" : "var(--danger)";
-
-    toast.classList.add("show");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove("show"), 3500);
-}
-
 // ============================================================
-// PHÂN HỆ ĐIỂM DANH & QUẢN LÝ HỌC VIÊN
+// TAB NAVIGATION (DASHBOARD & ĐIỂM DANH)
 // ============================================================
-
-let currentTab = "dashboard";
-let allStudents = [];
-
 function setupTabNavigation() {
     const navItems = document.querySelectorAll(".sidebar-nav .nav-item");
     navItems.forEach(item => {
         item.addEventListener("click", function (e) {
+            e.preventDefault();
             const targetTab = this.getAttribute("data-tab");
-            const href = this.getAttribute("href");
-
-            if (targetTab === "attendance") {
-                e.preventDefault();
-                switchView("attendance");
-                setActiveNav(this);
-            } else if (targetTab === "dashboard") {
-                switchView("dashboard");
-                if (href === "#dashboard") {
-                    e.preventDefault();
-                    setActiveNav(this);
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                } else {
-                    // Chuyển về dashboard rồi để trình duyệt cuộn tự nhiên theo hash
-                    setActiveNav(this);
-                }
-            }
+            switchView(targetTab);
+            setActiveNav(this);
         });
     });
 
@@ -540,6 +660,8 @@ function switchView(tabName) {
     currentTab = tabName;
     const dashboardView = $("dashboard-view");
     const attendanceView = $("attendance-view");
+    const breadcrumb = $("topbar-breadcrumb");
+    const pageTitle = $("topbar-page-title");
 
     if (tabName === "attendance") {
         if (dashboardView) dashboardView.style.display = "none";
@@ -548,16 +670,21 @@ function switchView(tabName) {
             loadStudents();
             loadAttendanceData();
         }
+        if (breadcrumb) breadcrumb.textContent = "HỆ THỐNG / ĐIỂM DANH";
+        if (pageTitle) pageTitle.textContent = "Phân Hệ Điểm Danh Thẻ RFID";
+        window.scrollTo({ top: 0, behavior: "smooth" });
     } else {
         if (attendanceView) attendanceView.style.display = "none";
         if (dashboardView) dashboardView.style.display = "block";
+        if (breadcrumb) breadcrumb.textContent = "HỆ THỐNG / TỔNG QUAN";
+        if (pageTitle) pageTitle.textContent = "Dashboard Phòng Học Thông Minh";
+        window.scrollTo({ top: 0, behavior: "smooth" });
     }
 }
 
-// ------------------------------------------------------------
-// QUẢN LÝ HỌC VIÊN (STUDENTS)
-// ------------------------------------------------------------
-
+// ============================================================
+// STUDENT DIRECTORY MANAGEMENT
+// ============================================================
 async function loadStudents() {
     try {
         const response = await fetch("/api/students");
@@ -569,7 +696,7 @@ async function loadStudents() {
         console.error("LOAD STUDENTS ERROR:", error);
         const tbody = $("students-table-body");
         if (tbody) {
-            tbody.innerHTML = `<tr><td colspan="8" class="table-empty" style="color:var(--danger)">Lỗi tải danh sách: ${error.message}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="table-empty-cell" style="color:var(--danger)">Lỗi tải danh sách: ${error.message}</td></tr>`;
         }
     }
 }
@@ -579,37 +706,46 @@ function renderStudentsTable(students) {
     if (!tbody) return;
 
     if (!students || students.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="table-empty">Không tìm thấy học viên nào</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="table-empty-cell">Không tìm thấy học viên nào trong cơ sở dữ liệu</td></tr>`;
         return;
     }
 
     tbody.innerHTML = students.map((student, index) => {
         const hasCard = !!student.card_uid;
-        const cardBadge = hasCard
-            ? `<span class="badge-card">${escapeHtml(student.card_uid)}</span>`
-            : `<span class="badge-card unassigned">Chưa gán</span>`;
+        const cardPill = hasCard
+            ? `<span class="card-uid-pill">🪪 ${escapeHtml(student.card_uid)}</span>`
+            : `<span class="status-badge unassigned">Chưa gán thẻ</span>`;
 
         const statusBadge = hasCard
-            ? `<span class="badge badge-success">● Đã cấp thẻ</span>`
-            : `<span class="badge badge-warning">◌ Chờ cấp</span>`;
+            ? `<span class="status-badge ontime">● Đã cấp thẻ</span>`
+            : `<span class="status-badge late">◌ Chờ cấp thẻ</span>`;
 
         const contactInfo = [student.phone, student.email].filter(Boolean).map(escapeHtml).join(" · ") || "--";
+        const initials = student.full_name ? student.full_name.split(" ").slice(-2).map(w => w[0]).join("").toUpperCase() : "HV";
 
         return `
             <tr>
-                <td style="color:var(--text-muted); font-weight:600;">${index + 1}</td>
-                <td><strong style="color:var(--primary); font-family:ui-monospace,monospace;">${escapeHtml(student.student_code)}</strong></td>
-                <td><strong style="color:var(--text); font-size:13px;">${escapeHtml(student.full_name)}</strong></td>
-                <td><span style="color:var(--text-secondary);">${escapeHtml(student.class_name || "--")}</span></td>
-                <td>${cardBadge}</td>
+                <td style="color:var(--text-muted); font-weight:700;">${index + 1}</td>
+                <td><strong style="color:var(--primary); font-family: 'JetBrains Mono', monospace, Consolas;">${escapeHtml(student.student_code)}</strong></td>
+                <td>
+                    <div class="student-avatar-cell">
+                        <div class="student-avatar-circle">${escapeHtml(initials)}</div>
+                        <div class="student-name-meta">
+                            <strong>${escapeHtml(student.full_name)}</strong>
+                            <small>${escapeHtml(student.class_name || "Chưa phân lớp")}</small>
+                        </div>
+                    </div>
+                </td>
+                <td><span style="color:var(--text-dim); font-weight:600;">${escapeHtml(student.class_name || "--")}</span></td>
+                <td>${cardPill}</td>
                 <td>${statusBadge}</td>
                 <td><small style="color:var(--text-muted);">${contactInfo}</small></td>
                 <td>
-                    <div class="action-buttons">
-                        <button class="btn btn-secondary btn-sm" onclick="openEditStudentModal(${student.id})" title="Chỉnh sửa hoặc gán thẻ">
-                            ✏️ Sửa / Gán thẻ
+                    <div class="action-btn-group" style="justify-content: center;">
+                        <button class="btn btn-secondary btn-xs" onclick="openEditStudentModal(${student.id})" title="Chỉnh sửa hoặc gán thẻ">
+                            ✏️ Gán thẻ
                         </button>
-                        <button class="btn btn-danger-outline btn-sm" onclick="deleteStudent(${student.id}, '${escapeHtml(student.full_name)}')" title="Xóa học viên">
+                        <button class="btn btn-danger-outline btn-xs" onclick="deleteStudent(${student.id}, '${escapeHtml(student.full_name)}')" title="Xóa học viên">
                             🗑️
                         </button>
                     </div>
@@ -667,8 +803,8 @@ function openEditStudentModal(studentId) {
     $("student-email-input").value = student.email || "";
     $("student-card-input").value = student.card_uid || "";
 
-    $("modal-title").textContent = "Chỉnh sửa học viên";
-    $("modal-subtitle").textContent = `Cập nhật thông tin & mã thẻ RFID cho ${student.full_name}`;
+    $("modal-title").textContent = "Chỉnh sửa học viên & Gán thẻ";
+    $("modal-subtitle").textContent = `Cập nhật thông tin cho ${student.full_name}`;
     $("student-modal").style.display = "flex";
 }
 
@@ -741,16 +877,16 @@ async function deleteStudent(id, name) {
 
 async function fetchLatestCardUid() {
     try {
-        showToast("Đang tìm thẻ", "Đang đọc mã thẻ quẹt gần nhất...", true);
+        showToast("Đang tìm thẻ", "Đang đọc mã thẻ RFID vừa quẹt gần nhất...", true);
         const response = await fetch("/api/attendance/latest-scan");
         if (!response.ok) throw new Error("Không thể lấy dữ liệu quẹt thẻ");
         const res = await response.json();
 
         if (res.data && res.data.card_uid) {
             $("student-card-input").value = res.data.card_uid;
-            showToast("Đã lấy mã thẻ!", `Mã thẻ UID: ${res.data.card_uid}`, true);
+            showToast("Đã lấy mã thẻ!", `Mã UID: ${res.data.card_uid}`, true);
         } else {
-            showToast("Chưa có thẻ quẹt", "Vui lòng quẹt thẻ lên đầu đọc trước rồi bấm lại", false);
+            showToast("Chưa có thẻ quẹt", "Hãy quẹt thẻ lên đầu đọc RC522 rồi bấm lại", false);
         }
     } catch (error) {
         console.error("FETCH SCAN ERROR:", error);
@@ -758,10 +894,9 @@ async function fetchLatestCardUid() {
     }
 }
 
-// ------------------------------------------------------------
-// NHẬT KÝ VÀ THỐNG KÊ ĐIỂM DANH (ATTENDANCE)
-// ------------------------------------------------------------
-
+// ============================================================
+// ATTENDANCE LOGS & STATS
+// ============================================================
 async function loadAttendanceData() {
     const dateInput = $("attendance-date-filter");
     const dateFilter = dateInput ? dateInput.value : "";
@@ -804,73 +939,52 @@ function renderAttendanceLogs(logs) {
     if (!tbody) return;
 
     if (!logs || logs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="table-empty">Chưa có lượt quẹt thẻ điểm danh nào trong ngày đã chọn</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="table-empty-cell">Chưa có lượt quẹt thẻ điểm danh nào trong ngày đã chọn</td></tr>`;
         return;
     }
 
     tbody.innerHTML = logs.map(log => {
         let statusBadge;
         if (log.status === "DUNG_GIO") {
-            statusBadge = `<span class="badge badge-success">✓ Đúng giờ</span>`;
+            statusBadge = `<span class="status-badge ontime">✓ Đúng giờ</span>`;
         } else if (log.status === "MUON") {
-            statusBadge = `<span class="badge badge-warning">⏰ Đi muộn</span>`;
+            statusBadge = `<span class="status-badge late">⏰ Đi muộn</span>`;
         } else {
-            statusBadge = `<span class="badge badge-danger">${escapeHtml(log.status || "Chưa rõ")}</span>`;
+            statusBadge = `<span class="status-badge unassigned">${escapeHtml(log.status || "Chưa rõ")}</span>`;
         }
 
         const studentName = log.full_name
-            ? `<strong style="color:var(--text); font-size:13px;">${escapeHtml(log.full_name)}</strong>`
-            : `<span style="color:var(--text-muted); font-style:italic;">Thẻ chưa gán học viên</span>`;
+            ? `<strong style="color:var(--text-pure); font-size:13px;">${escapeHtml(log.full_name)}</strong>`
+            : `<span style="color:var(--text-muted); font-style:italic;">Thẻ chưa đăng ký học viên</span>`;
 
         const studentCode = log.student_code
-            ? `<span style="color:var(--primary); font-family:ui-monospace,monospace; font-weight:600;">${escapeHtml(log.student_code)}</span>`
+            ? `<span style="color:var(--primary); font-family:'JetBrains Mono', monospace; font-weight:700;">${escapeHtml(log.student_code)}</span>`
             : `--`;
+
+        const eventBadge = (log.event_type === "CHECK_OUT")
+            ? `<span class="event-type-badge out">CHECK OUT</span>`
+            : `<span class="event-type-badge in">CHECK IN</span>`;
 
         const timeStr = formatFullDateTime(log.recorded_at);
 
         return `
             <tr>
-                <td style="white-space:nowrap; font-size:11.5px; color:var(--text-secondary);">${timeStr}</td>
-                <td><span class="badge" style="background:rgba(255,255,255,0.05); color:var(--text);">${escapeHtml(log.room_id)}</span></td>
+                <td style="white-space:nowrap; font-size:12px; color:var(--text-dim); font-weight:600;">${timeStr}</td>
+                <td><span class="meta-chip">${escapeHtml(log.room_id)}</span></td>
                 <td>${studentName}</td>
                 <td>${studentCode}</td>
-                <td><span style="color:var(--text-secondary);">${escapeHtml(log.class_name || "--")}</span></td>
-                <td><span class="badge-card">${escapeHtml(log.card_uid)}</span></td>
-                <td><span class="badge badge-info">${escapeHtml(log.event_type || "CHECK_IN")}</span></td>
+                <td><span style="color:var(--text-muted);">${escapeHtml(log.class_name || "--")}</span></td>
+                <td><span class="card-uid-pill">🪪 ${escapeHtml(log.card_uid)}</span></td>
+                <td>${eventBadge}</td>
                 <td>${statusBadge}</td>
             </tr>
         `;
     }).join("");
 }
 
-function formatFullDateTime(value) {
-    if (!value) return "--";
-    try {
-        const date = new Date(value);
-        if (isNaN(date.getTime())) return value;
-        return date.toLocaleString("vi-VN", {
-            hour: "2-digit", minute: "2-digit", second: "2-digit",
-            day: "2-digit", month: "2-digit", year: "numeric"
-        });
-    } catch {
-        return value;
-    }
-}
-
-function escapeHtml(str) {
-    if (str === null || str === undefined) return "";
-    return String(str)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
-
-// ------------------------------------------------------------
-// KHỞI CHẠY HỆ THỐNG
-// ------------------------------------------------------------
-
+// ============================================================
+// INITIALIZATION
+// ============================================================
 const roomSelect = $("room-select");
 if (roomSelect) {
     roomSelect.addEventListener("change", async function () {
@@ -887,7 +1001,18 @@ if (mobileMenu) {
     });
 }
 
+// Close modal when clicking outside
+window.addEventListener("click", function (event) {
+    const modal = $("student-modal");
+    if (modal && event.target === modal) {
+        closeStudentModal();
+    }
+});
+
 async function initializeDashboard() {
+    updateLiveClock();
+    setInterval(updateLiveClock, 1000);
+
     setupTabNavigation();
     await loadRooms();
 
@@ -900,7 +1025,7 @@ async function initializeDashboard() {
         }
     }, REFRESH_INTERVAL);
 
-    // Auto-refresh Lịch sử nhiệt độ
+    // Auto-refresh Temperature History Chart
     setInterval(async () => {
         if (currentTab === "dashboard" && currentRoom) {
             await loadTemperatureHistory();
@@ -908,4 +1033,4 @@ async function initializeDashboard() {
     }, 15000);
 }
 
-document.addEventListener("DOMContentLoaded", initializeDashboard);
+document.addEventListener("DOMContentLoaded", initializeDashboard);
