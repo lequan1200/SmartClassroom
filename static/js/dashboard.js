@@ -94,7 +94,7 @@ async function loadRoom() {
     } catch (error) {
         console.error("LOAD ROOM ERROR:", error);
     }
-    await Promise.all([loadSensors(), loadDevices(), loadTemperatureHistory()]);
+    await Promise.all([loadSensors(), loadDevices(), loadTemperatureHistory(), loadRoomMode()]);
 }
 
 async function loadSensors() {
@@ -288,9 +288,75 @@ async function sendCommand(deviceName, command) {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || data.message || "Không thể gửi lệnh");
         showToast("Đã gửi lệnh", `${deviceName} → ${command}. Chờ thiết bị phản hồi.`, true);
+        setTimeout(async () => {
+            await Promise.all([loadDevices(), loadRoomMode()]);
+        }, 800);
     } catch (error) {
         console.error("SEND COMMAND ERROR:", error);
         showToast("Gửi lệnh thất bại", error.message, false);
+    }
+}
+
+
+// ============================================================
+// CHẾ ĐỘ ĐIỀU KHIỂN (MANUAL / AUTO)
+// ============================================================
+
+let currentControlMode = "MANUAL";
+
+async function loadRoomMode() {
+    if (!currentRoom) return;
+    try {
+        const response = await fetch(`/api/rooms/${currentRoom}/mode`);
+        if (!response.ok) return;
+        const data = await response.json();
+        const mode = data.mode || "MANUAL";
+        currentControlMode = mode.toUpperCase();
+        updateModeUI(currentControlMode);
+    } catch (error) {
+        console.error("LOAD ROOM MODE ERROR:", error);
+    }
+}
+
+function updateModeUI(mode) {
+    const normalized = String(mode).toUpperCase();
+    const btnManual = $("btn-mode-manual");
+    const btnAuto = $("btn-mode-auto");
+    const infoBanner = $("auto-mode-info");
+
+    if (normalized === "AUTO") {
+        if (btnAuto) btnAuto.classList.add("active");
+        if (btnManual) btnManual.classList.remove("active");
+        if (infoBanner) infoBanner.style.display = "flex";
+    } else {
+        if (btnManual) btnManual.classList.add("active");
+        if (btnAuto) btnAuto.classList.remove("active");
+        if (infoBanner) infoBanner.style.display = "none";
+    }
+}
+
+async function setRoomMode(mode) {
+    if (!currentRoom) {
+        showToast("Lỗi", "Chưa chọn phòng", false);
+        return;
+    }
+    const modeUpper = String(mode).toUpperCase();
+    try {
+        showToast("Chuyển chế độ", `Đang gửi lệnh chuyển sang ${modeUpper}...`, true);
+        const response = await fetch(`/api/rooms/${currentRoom}/mode`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode: modeUpper })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || "Không thể chuyển chế độ");
+        currentControlMode = modeUpper;
+        updateModeUI(modeUpper);
+        showToast("Thành công", data.message || `Đã chuyển sang ${modeUpper}`, true);
+        setTimeout(loadDevices, 1000);
+    } catch (error) {
+        console.error("SET MODE ERROR:", error);
+        showToast("Chuyển chế độ thất bại", error.message, false);
     }
 }
 
@@ -825,10 +891,10 @@ async function initializeDashboard() {
     setupTabNavigation();
     await loadRooms();
 
-    // Auto-refresh Dashboard (Sensors & Devices)
+    // Auto-refresh Dashboard (Sensors, Devices & Control Mode)
     setInterval(async () => {
         if (currentTab === "dashboard" && currentRoom) {
-            await Promise.all([loadSensors(), loadDevices()]);
+            await Promise.all([loadSensors(), loadDevices(), loadRoomMode()]);
         } else if (currentTab === "attendance") {
             await loadAttendanceData();
         }

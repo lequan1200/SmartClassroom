@@ -239,7 +239,26 @@
                         <span class="section-label">CONTROL</span>
                         <h3>Điều khiển thiết bị</h3>
                     </div>
-                    <div class="control-mode"><span class="mode-dot"></span>MANUAL</div>
+                    <div class="control-mode-wrapper">
+                        <span class="mode-label-text">Chế độ:</span>
+                        <div class="mode-toggle-group">
+                            <button type="button" class="mode-btn active" id="btn-mode-manual" onclick="setRoomMode('MANUAL')" title="Điều khiển thủ công bằng các nút bấm">
+                                <span class="mode-dot"></span>Thủ công (MANUAL)
+                            </button>
+                            <button type="button" class="mode-btn" id="btn-mode-auto" onclick="setRoomMode('AUTO')" title="Tự động bật/tắt đèn và quạt theo cảm biến">
+                                <span class="mode-dot"></span>Tự động (AUTO)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Auto Mode Info Banner -->
+                <div class="auto-mode-info-banner" id="auto-mode-info" style="display: none;">
+                    <div class="auto-info-icon">⚡</div>
+                    <div class="auto-info-text">
+                        <strong>Chế độ Tự động (AUTO) đang hoạt động</strong>
+                        <span>💡 Đèn 1 & 2 tự bật khi ánh sáng &lt; 250 lux, tắt khi &gt; 450 lux. &nbsp;|&nbsp; 🌀 Quạt tự bật khi nhiệt độ &ge; 31.0°C, tắt khi &le; 28.5°C. <em>(Nếu bạn bấm nút bật/tắt thủ công, hệ thống sẽ tự động chuyển về chế độ Thủ công).</em></span>
+                    </div>
                 </div>
 
                 <div class="device-grid">

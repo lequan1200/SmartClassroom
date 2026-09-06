@@ -282,7 +282,7 @@ def lay_danh_sach_phong():
 
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, room_id, name, created_at FROM rooms ORDER BY id")
+        cursor.execute("SELECT id, room_id, name, created_at, control_mode FROM rooms ORDER BY id")
         rows = cursor.fetchall()
         cursor.close()
         conn.close()
@@ -292,7 +292,8 @@ def lay_danh_sach_phong():
                 "id": row[0],
                 "room_id": row[1],
                 "name": row[2],
-                "created_at": row[3].isoformat() if row[3] else None
+                "created_at": row[3].isoformat() if row[3] else None,
+                "control_mode": row[4] if len(row) > 4 and row[4] else "MANUAL"
             }
             for row in rows
         ]
@@ -311,7 +312,7 @@ def lay_phong(room_id):
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, room_id, name, created_at FROM rooms WHERE room_id = ?",
+            "SELECT id, room_id, name, created_at, control_mode FROM rooms WHERE room_id = ?",
             (room_id,)
         )
         row = cursor.fetchone()
@@ -325,13 +326,66 @@ def lay_phong(room_id):
             "id": row[0],
             "room_id": row[1],
             "name": row[2],
-            "created_at": row[3].isoformat() if row[3] else None
+            "created_at": row[3].isoformat() if row[3] else None,
+            "control_mode": row[4] if len(row) > 4 and row[4] else "MANUAL"
         }
     except mariadb.Error as e:
         print(f"DB ERROR: {e}")
         if conn:
             conn.close()
         return None
+
+
+def lay_che_do_phong(room_id):
+    conn = ket_noi()
+    if conn is None:
+        return "MANUAL"
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT control_mode FROM rooms WHERE room_id = ?",
+            (room_id,)
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        if row and row[0]:
+            return row[0].upper()
+        return "MANUAL"
+    except mariadb.Error as e:
+        print(f"DB ERROR lay_che_do_phong: {e}")
+        if conn:
+            conn.close()
+        return "MANUAL"
+
+
+def cap_nhat_che_do_phong(room_id, mode):
+    mode = str(mode).upper()
+    if mode not in ["MANUAL", "AUTO"]:
+        return False
+
+    conn = ket_noi()
+    if conn is None:
+        return False
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE rooms SET control_mode = ? WHERE room_id = ?",
+            (mode, room_id)
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return True
+    except mariadb.Error as e:
+        print(f"DB ERROR cap_nhat_che_do_phong: {e}")
+        if conn:
+            conn.rollback()
+            conn.close()
+        return False
+
 
 
 def lay_sensor(room_id, sensor_name):

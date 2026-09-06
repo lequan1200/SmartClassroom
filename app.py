@@ -4,6 +4,7 @@ import threading
 from database import (
     lay_danh_sach_phong,
     lay_phong,
+    lay_che_do_phong,
     lay_sensor_hien_tai,
     lay_sensor,
     lay_sensor_history,
@@ -22,7 +23,9 @@ from database import (
 from mqtt_client import (
     client,
     ket_noi_mqtt,
-    gui_lenh_thiet_bi
+    gui_lenh_thiet_bi,
+    lay_che_do_hien_tai,
+    gui_lenh_che_do
 )
 
 app = Flask(__name__)
@@ -187,6 +190,62 @@ def api_device_command(room_id, device_name):
         "device_name": device_name,
         "command": command
     }), 202
+
+
+# ============================================================
+# API CHẾ ĐỘ ĐIỀU KHIỂN (MANUAL / AUTO)
+# ============================================================
+
+@app.route("/api/rooms/<room_id>/mode", methods=["GET"])
+def api_get_room_mode(room_id):
+    room = lay_phong(room_id)
+    if room is None:
+        return jsonify({"success": False, "message": "Không tìm thấy phòng", "room_id": room_id}), 404
+
+    mode = lay_che_do_hien_tai(room_id)
+    return jsonify({
+        "success": True,
+        "room_id": room_id,
+        "mode": mode
+    }), 200
+
+
+@app.route("/api/rooms/<room_id>/mode", methods=["POST"])
+def api_set_room_mode(room_id):
+    if not request.is_json:
+        return jsonify({"success": False, "message": "Request phải có Content-Type: application/json"}), 400
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "message": "JSON không hợp lệ"}), 400
+
+    mode = data.get("mode")
+    if not mode:
+        return jsonify({"success": False, "message": "Thiếu trường mode"}), 400
+
+    mode = str(mode).upper()
+    if mode not in ["MANUAL", "AUTO"]:
+        return jsonify({"success": False, "message": "Mode chỉ chấp nhận MANUAL hoặc AUTO", "mode": mode}), 400
+
+    room = lay_phong(room_id)
+    if room is None:
+        return jsonify({"success": False, "message": "Không tìm thấy phòng", "room_id": room_id}), 404
+
+    success, message = gui_lenh_che_do(room_id, mode)
+    if not success:
+        return jsonify({
+            "success": False,
+            "message": message,
+            "room_id": room_id,
+            "mode": mode
+        }), 500
+
+    return jsonify({
+        "success": True,
+        "message": message,
+        "room_id": room_id,
+        "mode": mode
+    }), 200
 
 
 # ============================================================

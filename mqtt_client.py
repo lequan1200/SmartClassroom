@@ -11,7 +11,9 @@ from database import (
     cap_nhat_device_current,
     luu_device_log,
     luu_attendance_log,
-    tim_hoc_vien_theo_card
+    tim_hoc_vien_theo_card,
+    lay_che_do_phong,
+    cap_nhat_che_do_phong
 )
 
 
@@ -105,6 +107,22 @@ def phan_tich_topic(topic):
         return {
             "room_id": room_id,
             "loai": "alert"
+        }
+
+
+    # ========================================================
+    # MODE (MANUAL / AUTO)
+    #
+    # classroom/room01/mode/set
+    # classroom/room01/mode/status
+    # ========================================================
+
+    if loai == "mode" and len(parts) == 4:
+
+        return {
+            "room_id": room_id,
+            "loai": "mode",
+            "hanh_dong": parts[3]
         }
 
 
@@ -307,6 +325,18 @@ def khi_nhan_message(
         )
 
 
+    # ========================================================
+    # MODE (MANUAL / AUTO)
+    # ========================================================
+
+    elif thong_tin["loai"] == "mode":
+
+        xu_ly_mode(
+            thong_tin,
+            data
+        )
+
+
 # ============================================================
 # XỬ LÝ SENSOR
 # ============================================================
@@ -463,6 +493,17 @@ def xu_ly_device(
             "KHONG LUU DATABASE"
         )
 
+        return
+
+
+    # --------------------------------------------------------
+    # Nếu là status chế độ riêng của thiết bị (vd: light1_mode, light2_mode, fan_mode)
+    # --------------------------------------------------------
+    if device_name.endswith("_mode"):
+        mode = data.get("mode") or data.get("state") or data.get("command")
+        if mode:
+            mode = str(mode).upper()
+            print(f"DEVICE MODE STATUS | Room: {room_id} | Device: {device_name} -> {mode}")
         return
 
 
@@ -649,6 +690,42 @@ def xu_ly_alert(
 
 
 # ============================================================
+# XỬ LÝ MODE (MANUAL / AUTO)
+# ============================================================
+
+che_do_phong = {}
+
+def lay_che_do_hien_tai(room_id):
+    if room_id in che_do_phong:
+        return che_do_phong[room_id]
+    mode = lay_che_do_phong(room_id)
+    che_do_phong[room_id] = mode
+    return mode
+
+
+def xu_ly_mode(thong_tin, data):
+    room_id = thong_tin["room_id"]
+    hanh_dong = thong_tin.get("hanh_dong")
+
+    mode = data.get("mode") or data.get("state")
+    if not mode:
+        print(f"MODE ERROR: Thieu mode trong payload {data}")
+        return
+
+    mode = str(mode).upper()
+    if mode not in ["MANUAL", "AUTO"]:
+        print(f"MODE INVALID: {mode}")
+        return
+
+    che_do_phong[room_id] = mode
+    cap_nhat_che_do_phong(room_id, mode)
+
+    print(
+        f"MODE UPDATE | Room: {room_id} | Mode: {mode} | Action: {hanh_dong}"
+    )
+
+
+# ============================================================
 # MQTT CLIENT
 # ============================================================
 
@@ -808,6 +885,68 @@ def gui_lenh_thiet_bi(
         return (
             False,
             "MQTT publish error"
+        )
+
+
+# ============================================================
+# GỬI COMMAND CHUYỂN CHẾ ĐỘ (MANUAL / AUTO)
+# ============================================================
+
+def gui_lenh_che_do(
+    room_id,
+    mode
+):
+    mode = str(mode).upper()
+    if mode not in ["MANUAL", "AUTO"]:
+        return (
+            False,
+            "Chế độ không hợp lệ (chỉ chấp nhận MANUAL hoặc AUTO)"
+        )
+
+    topic = f"classroom/{room_id}/mode/set"
+    payload = {
+        "mode": mode
+    }
+    payload_json = json.dumps(payload)
+
+    try:
+        result = client.publish(
+            topic,
+            payload_json,
+            qos=1,
+            retain=True
+        )
+
+        # Đồng thời gửi lệnh chế độ riêng cho từng thiết bị để tương thích tuyệt đối
+        for dev_mode in ["light1_mode", "light2_mode", "fan_mode"]:
+            dev_topic = f"classroom/{room_id}/device/{dev_mode}/set"
+            client.publish(dev_topic, json.dumps({"command": mode}), qos=1)
+
+        if result.rc != mqtt.MQTT_ERR_SUCCESS:
+            print(f"MQTT PUBLISH MODE ERROR: {result.rc}")
+            return (
+                False,
+                "Không thể gửi lệnh MQTT mode"
+            )
+
+        che_do_phong[room_id] = mode
+        cap_nhat_che_do_phong(room_id, mode)
+
+        print()
+        print("========== MQTT MODE TX ==========")
+        print(f"Topic: {topic}")
+        print(f"Payload: {payload_json}")
+        print("==================================")
+
+        return (
+            True,
+            f"Đã chuyển sang chế độ {mode}"
+        )
+    except Exception as e:
+        print(f"MQTT PUBLISH ERROR: {e}")
+        return (
+            False,
+            f"Lỗi MQTT: {e}"
         )
 
 

@@ -127,7 +127,7 @@ button { cursor: pointer; }
 .section { margin-bottom: 38px; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
 .section-heading h3 { font-size: 17px; }
-.live-badge, .control-mode {
+.live-badge {
     display: flex; align-items: center; gap: 7px;
     border: 1px solid var(--border);
     background: rgba(255,255,255,0.025);
@@ -137,7 +137,131 @@ button { cursor: pointer; }
     font-size: 9px; font-weight: 700;
 }
 .live-badge span { width: 6px; height: 6px; border-radius: 50%; background: var(--success); box-shadow: 0 0 8px var(--success); }
-.mode-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); }
+
+/* CONTROL MODE TOGGLE */
+.control-mode-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mode-label-text {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.mode-toggle-group {
+    display: inline-flex;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 3px;
+    gap: 3px;
+    backdrop-filter: blur(8px);
+}
+
+.mode-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mode-btn .mode-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: all 0.25s ease;
+}
+
+.mode-btn:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* Manual Active State */
+.mode-btn#btn-mode-manual.active {
+    background: rgba(56, 189, 248, 0.12);
+    border-color: rgba(56, 189, 248, 0.35);
+    color: var(--primary);
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
+}
+.mode-btn#btn-mode-manual.active .mode-dot {
+    background: var(--primary);
+    box-shadow: 0 0 8px var(--primary);
+}
+
+/* Auto Active State */
+.mode-btn#btn-mode-auto.active {
+    background: rgba(34, 197, 94, 0.14);
+    border-color: rgba(34, 197, 94, 0.4);
+    color: var(--success);
+    box-shadow: 0 0 14px rgba(34, 197, 94, 0.25);
+}
+.mode-btn#btn-mode-auto.active .mode-dot {
+    background: var(--success);
+    box-shadow: 0 0 8px var(--success);
+    animation: pulseDot 1.8s infinite;
+}
+
+@keyframes pulseDot {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.4); opacity: 0.7; }
+}
+
+/* Auto Mode Info Banner */
+.auto-mode-info-banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: linear-gradient(90deg, rgba(34, 197, 94, 0.08), rgba(56, 189, 248, 0.05));
+    border: 1px solid rgba(34, 197, 94, 0.25);
+    border-radius: 14px;
+    padding: 12px 18px;
+    margin-bottom: 18px;
+    animation: fadeInView 0.3s ease;
+}
+
+.auto-info-icon {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: rgba(34, 197, 94, 0.15);
+    color: var(--success);
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.auto-info-text strong {
+    display: block;
+    font-size: 12px;
+    color: var(--success);
+    margin-bottom: 2px;
+}
+
+.auto-info-text span {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.auto-info-text em {
+    color: var(--text-muted);
+    font-style: normal;
+}
 
 /* SENSOR CARDS */
 .sensor-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }

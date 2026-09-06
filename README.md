@@ -222,8 +222,56 @@ mosquitto_pub -h 127.0.0.1 -p 1883 -t "classroom/room01/device/light1/set" -m '{
 # Tắt đèn 1:
 mosquitto_pub -h 127.0.0.1 -p 1883 -t "classroom/room01/device/light1/set" -m '{"command":"OFF"}'
 
-# Bật cả 2 đèn cùng lúc:
-mosquitto_pub -h 127.0.0.1 -p 1883 -t "classroom/room01/device/light/set" -m '{"command":"ON"}'
+## 4.1. Chế độ điều khiển Thủ công (MANUAL) và Tự động (AUTO)
+
+Hệ thống hỗ trợ 2 cơ chế điều khiển linh hoạt:
+1. **Chế độ phòng (Room-level Mode)**: Cho phép chuyển toàn bộ phòng sang Thủ công hoặc Tự động chỉ bằng 1 nút bấm trên Dashboard hoặc 1 lệnh MQTT / API.
+2. **Chế độ thiết bị con (Device-level Mode)**: Cho phép cấu hình Auto độc lập cho từng thiết bị (`light1_mode`, `light2_mode`, `fan_mode`).
+
+### Bảng cơ chế Tự động (AUTO Logic)
+
+| Thiết bị | Cảm biến kích hoạt | Ngưỡng Tự Động BẬT (ON) | Ngưỡng Tự Động TẮT (OFF) | Ghi chú Logic |
+| :--- | :--- | :--- | :--- | :--- |
+| **Đèn 1 (`light1`)** | Ánh sáng BH1750 | `lux < 50.0` | `lux > 80.0` | Đèn chính, hoạt động độc lập theo độ sáng |
+| **Đèn 2 (`light2`)** | Ánh sáng BH1750 | `lux < 15.0` *(và Đèn 1 đang ON)* | `lux > 25.0` *(hoặc khi Đèn 1 đã OFF)* | Đèn phụ trợ, chỉ bật thêm khi quá tối và tự tắt khi Đèn 1 tắt |
+| **Quạt (`fan`)** | Nhiệt độ DHT11 | `temp >= 31.0 °C` | `temp <= 28.5 °C` | Hysteresis 2.5°C chống bật/tắt nhấp nháy |
+
+> **Cơ chế Can thiệp thủ công (Manual Override):** Khi hệ thống đang ở chế độ `AUTO`, nếu người dùng bấm bật/tắt thiết bị thủ công trên Web hoặc gửi lệnh `device/{name}/set`, thiết bị đó (và trạng thái phòng) sẽ **tự động chuyển sang chế độ `MANUAL`**. Điều này đảm bảo cảm biến sẽ không tự ý đè lại thao tác vừa bấm của người dùng!
+
+### Topic chuyển chế độ phòng:
+```text
+classroom/{room_id}/mode/set
+```
+Payload:
+```json
+{"mode": "AUTO"}
+```
+hoặc
+```json
+{"mode": "MANUAL"}
+```
+
+### Topic trạng thái chế độ:
+```text
+classroom/{room_id}/mode/status
+```
+Payload:
+```json
+{
+  "room_id": "room01",
+  "mode": "AUTO",
+  "light1_mode": "AUTO",
+  "light2_mode": "AUTO",
+  "fan_mode": "AUTO",
+  "time": "2026-09-06 15:00:00"
+}
+```
+
+### Topic chuyển chế độ từng thiết bị:
+```text
+classroom/{room_id}/device/light1_mode/set  -> {"command": "AUTO" | "MANUAL"}
+classroom/{room_id}/device/light2_mode/set  -> {"command": "AUTO" | "MANUAL"}
+classroom/{room_id}/device/fan_mode/set     -> {"command": "AUTO" | "MANUAL"}
 ```
 
 ---
@@ -701,6 +749,66 @@ ESP32
       │
       ▼
 Light / Fan / AC
+```
+
+---
+
+## 13.1. API chế độ điều khiển (MANUAL / AUTO)
+
+### Lấy chế độ hiện tại của phòng:
+
+```http
+GET /api/rooms/{room_id}/mode
+```
+
+Ví dụ:
+
+```text
+GET http://127.0.0.1:5000/api/rooms/room01/mode
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "room_id": "room01",
+  "mode": "AUTO"
+}
+```
+
+### Chuyển đổi chế độ phòng:
+
+```http
+POST /api/rooms/{room_id}/mode
+```
+
+Headers:
+```text
+Content-Type: application/json
+```
+
+Request body:
+```json
+{
+  "mode": "AUTO"
+}
+```
+hoặc
+```json
+{
+  "mode": "MANUAL"
+}
+```
+
+Response:
+```json
+{
+  "success": true,
+  "room_id": "room01",
+  "mode": "AUTO",
+  "message": "Đã chuyển sang chế độ AUTO"
+}
 ```
 
 ---
