@@ -13,7 +13,10 @@ from database import (
     luu_attendance_log,
     tim_hoc_vien_theo_card,
     lay_che_do_phong,
-    cap_nhat_che_do_phong
+    cap_nhat_che_do_phong,
+    tim_hoac_tao_session_hien_tai,
+    lay_sinh_vien_trong_lop,
+    ghi_nhan_diem_danh_sinh_vien
 )
 
 
@@ -87,6 +90,9 @@ def phan_tich_topic(topic):
     #
     # classroom/room01/attendance
     # ========================================================
+
+    if loai == "attendance" and len(parts) == 4 and parts[3] == "feedback":
+        return None  # Bo qua feedback topic de tranh vong lap
 
     if loai == "attendance" and len(parts) == 3:
 
@@ -609,55 +615,175 @@ def xu_ly_device(
 
 
 # ============================================================
-# XỬ LÝ ATTENDANCE
+# XỬ LÝ ATTENDANCE (BACKEND DECISION ENGINE)
 # ============================================================
+
+def gui_phan_hoi_diem_danh(room_id, feedback_data):
+    """
+    Gửi gói tin phản hồi điểm danh ngược về cho ESP32 phòng học.
+    Topic: classroom/{room_id}/attendance/feedback
+    Payload JSON: {"status": "SUCCESS"|"LATE"|"NOT_IN_CLASS"|"UNKNOWN_CARD"|"FREE_ACCESS", "message": "...", "beeps": 1|2|3}
+    """
+    topic = f"classroom/{room_id}/attendance/feedback"
+    try:
+        payload_str = json.dumps(feedback_data, ensure_ascii=False)
+        client.publish(topic, payload_str, qos=0)
+        print(f"ATTENDANCE FEEDBACK TX -> {topic}: {payload_str}")
+    except Exception as e:
+        print(f"ATTENDANCE FEEDBACK ERROR: {e}")
+
 
 def xu_ly_attendance(
     thong_tin,
     data
 ):
-
-    room_id = thong_tin[
-        "room_id"
-    ]
-
-    card_uid = data.get("card_uid") or data.get("uid") or data.get("card")
-    event_type = data.get("event_type", "CHECK_IN")
-    status = data.get("status", "DUNG_GIO")
-    timestamp = data.get("timestamp")
-
-    print(
-        f"ATTENDANCE | "
-        f"Room: {room_id} | "
-        f"Card: {card_uid} | "
-        f"Event: {event_type} | "
-        f"Status: {status}"
-    )
+    room_id = thong_tin["room_id"]
+    card_uid = (data.get("card_uid") or data.get("uid") or data.get("card") or "").strip().upper()
+    timestamp_str = data.get("timestamp")
 
     if not card_uid:
-        print("ATTENDANCE ERROR: Missing card_uid")
+        print(f"ATTENDANCE ERROR: Missing card_uid for room {room_id}")
         return
 
-    # Tra cứu học viên đã được gán thẻ chưa
+    # Xác định thời gian quét thẻ
+    scan_dt = datetime.now()
+    if timestamp_str:
+        try:
+            scan_dt = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+        except Exception:
+            pass
+
+    time_str = scan_dt.strftime("%Y-%m-%d %H:%M:%S")
+    print(f"\n========== ATTENDANCE SCAN ==========")
+    print(f"Room      : {room_id}")
+    print(f"Card UID  : {card_uid}")
+    print(f"Scan Time : {time_str}")
+
+    # 1. Tra cứu học viên đã được gán thẻ chưa
     student = tim_hoc_vien_theo_card(card_uid)
-    student_name = student["full_name"] if student else "Chưa gán học viên"
-    student_code = student["student_code"] if student else "N/A"
-
-    # Lưu log điểm danh vào CSDL
-    log_id = luu_attendance_log(
-        room_id=room_id,
-        card_uid=card_uid,
-        event_type=event_type,
-        status=status,
-        recorded_at=timestamp
-    )
-
-    if log_id:
-        print(
-            f"ATTENDANCE DB OK | LogID: {log_id} | Student: {student_name} ({student_code})"
+    if not student:
+        print(f"ATTENDANCE ALERT: Thẻ {card_uid} chưa được gán cho học viên nào!")
+        luu_attendance_log(
+            room_id=room_id,
+            card_uid=card_uid,
+            event_type="CHECK_IN",
+            status="CHUA_DANG_KY",
+            recorded_at=time_str
         )
+        gui_phan_hoi_diem_danh(room_id, {
+            "status": "UNKNOWN_CARD",
+            "card_uid": card_uid,
+            "message": "Thẻ chưa đăng ký học viên",
+            "beeps": 3
+        })
+        print("=====================================\n")
+        return
+
+    student_id = student["id"]
+    student_name = student["full_name"]
+    student_code = student["student_code"]
+
+    # 2. Tra cứu ca học (attendance_session) hiện tại của phòng theo thời khóa biểu
+    session = tim_hoac_tao_session_hien_tai(room_id, at_datetime=scan_dt)
+
+    if session:
+        # 3. Có ca học: Kiểm tra xem sinh viên có thuộc danh sách lớp học phần này không
+        class_id = session["class_id"]
+        students_in_class = lay_sinh_vien_trong_lop(class_id)
+        enrolled_ids = [s["id"] for s in students_in_class]
+
+        if student_id not in enrolled_ids:
+            print(f"ATTENDANCE REJECT: {student_name} ({student_code}) không thuộc lớp học phần ID={class_id} tại {room_id}!")
+            luu_attendance_log(
+                room_id=room_id,
+                card_uid=card_uid,
+                event_type="CHECK_IN",
+                status="KHONG_THUOC_LOP",
+                recorded_at=time_str
+            )
+            gui_phan_hoi_diem_danh(room_id, {
+                "status": "NOT_IN_CLASS",
+                "student_name": student_name,
+                "student_code": student_code,
+                "message": "Không thuộc lớp này",
+                "beeps": 3
+            })
+            print("=====================================\n")
+            return
+
+        # 4. Sinh viên thuộc lớp: Đánh giá thời gian quẹt thẻ so với giờ bắt đầu ca học
+        start_time_str = session["start_time"]  # Ví dụ "07:00:00"
+        late_grace_mins = session.get("late_grace_period_mins") or 15
+
+        try:
+            start_parts = [int(p) for p in str(start_time_str).split(":")]
+            session_start_dt = scan_dt.replace(hour=start_parts[0], minute=start_parts[1], second=start_parts[2])
+        except Exception:
+            session_start_dt = scan_dt
+
+        from datetime import timedelta
+        grace_limit_dt = session_start_dt + timedelta(minutes=late_grace_mins)
+
+        if scan_dt <= grace_limit_dt:
+            rec_status = "PRESENT"
+            log_status = "DUNG_GIO"
+            msg = "Điểm danh đúng giờ"
+            beeps = 1
+        else:
+            rec_status = "LATE"
+            log_status = "DI_MUON"
+            msg = "Điểm danh muộn"
+            beeps = 2
+
+        # 5. Ghi vào sổ điểm danh lớp học chuẩn (attendance_records)
+        ghi_nhan_diem_danh_sinh_vien(
+            session_id=session["id"],
+            student_id=student_id,
+            status=rec_status,
+            method="RFID"
+        )
+
+        # 6. Đồng thời lưu log để Web Dashboard cập nhật real-time
+        log_id = luu_attendance_log(
+            room_id=room_id,
+            card_uid=card_uid,
+            event_type="CHECK_IN",
+            status=log_status,
+            recorded_at=time_str
+        )
+
+        print(f"ATTENDANCE OK: {student_name} ({student_code}) | {log_status} ({rec_status}) | LogID: {log_id}")
+
+        # 7. Gửi phản hồi feedback về cho ESP32 phòng học
+        gui_phan_hoi_diem_danh(room_id, {
+            "status": "SUCCESS",
+            "attendance_status": log_status,
+            "student_name": student_name,
+            "student_code": student_code,
+            "message": msg,
+            "beeps": beeps
+        })
+
     else:
-        print("ATTENDANCE DB ERROR: Failed to save attendance log")
+        # Ngoài giờ học / Không có lịch học nào đang diễn ra tại phòng này
+        print(f"ATTENDANCE FREE: Phòng {room_id} không có ca học lịch trình | {student_name} ({student_code})")
+        log_id = luu_attendance_log(
+            room_id=room_id,
+            card_uid=card_uid,
+            event_type="CHECK_IN",
+            status="DUNG_GIO",
+            recorded_at=time_str
+        )
+        gui_phan_hoi_diem_danh(room_id, {
+            "status": "FREE_ACCESS",
+            "attendance_status": "DUNG_GIO",
+            "student_name": student_name,
+            "student_code": student_code,
+            "message": "Quẹt ngoài giờ",
+            "beeps": 1
+        })
+
+    print("=====================================\n")
 
 
 # ============================================================

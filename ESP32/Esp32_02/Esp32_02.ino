@@ -13,15 +13,15 @@
 // =====================================================
 // 1. WIFI & MQTT
 // =====================================================
-const char* WIFI_SSID = "QH";
-const char* WIFI_PASS = "123456789";
+const char* WIFI_SSID = "P100";
+const char* WIFI_PASS = "123123123";
 
 
 const char* MQTT_HOSTNAME = "mypi5";
 const int MQTT_PORT = 1883;
 
 
-#define ROOM_ID "room01"
+#define ROOM_ID "room02"
 
 
 // =====================================================
@@ -44,7 +44,7 @@ const int MQTT_PORT = 1883;
 
 // RFID RC522 - SPI (chan mac dinh cua ESP32: SCK=18, MISO=19, MOSI=23)
 #define RFID_SS_PIN   17
-#define RFID_RST_PIN  2
+#define RFID_RST_PIN  12
 
 
 // BH1750 - I2C
@@ -58,7 +58,7 @@ const int MQTT_PORT = 1883;
 
 // Relay - active LOW
 #define RELAY_LIGHT1  25   // Den 1 (IN1)
-#define RELAY_LIGHT2  33   // Den 2 (phu)
+#define RELAY_LIGHT2  22   // Den 2 (phu)
 #define RELAY_FAN     21   // Quat (IN2)
 #define RELAY_AC      32   // Dieu hoa (neu co)
 
@@ -109,33 +109,26 @@ unsigned long lastSensorRead = 0;
 
 // Nguong tu dong bat/tat den theo anh sang (co hysteresis chong nhap nhay)
 // Light1: den chinh, hoat dong doc lap theo lux
-const float LUX_LIGHT1_ON_THRESHOLD  = 50.0;  // lux < 50  -> BAT Light1
-const float LUX_LIGHT1_OFF_THRESHOLD = 80.0;  // lux > 80  -> TAT Light1
+const float LUX_LIGHT1_ON_THRESHOLD  = 300.0;  // lux < 200  -> BAT Light1
+const float LUX_LIGHT1_OFF_THRESHOLD = 350.0;  // lux > 200  -> TAT Light1
 
 
 // Light2: den phu - CHI duoc bat khi Light1 dang bat ma van con toi hon nguong nay
-const float LUX_LIGHT2_ON_THRESHOLD  = 15.0;  // lux < 15  -> BAT THEM Light2 (neu light1 dang ON)
-const float LUX_LIGHT2_OFF_THRESHOLD = 25.0;  // lux > 25  -> TAT Light2
-
-
-// Nguong tu dong bat/tat quat theo nhiet do (co hysteresis chong nhap nhay)
-const float TEMP_FAN_ON_THRESHOLD   = 31.0;  // temp >= 31.0 -> BAT Quat
-const float TEMP_FAN_OFF_THRESHOLD  = 28.5;  // temp <= 28.5 -> TAT Quat
+const float LUX_LIGHT2_ON_THRESHOLD  = 200.0;  // lux < 15  -> BAT THEM Light2 (neu light1 dang ON)
+const float LUX_LIGHT2_OFF_THRESHOLD = 250.0;  // lux > 25  -> TAT Light2
 
 
 // =====================================================
-// 5B. TRANG THAI AUTO/MANUAL - CHO DEN & QUAT
+// 5B. TRANG THAI AUTO/MANUAL - DOC LAP CHO TUNG DEN
 // =====================================================
 
 
 bool light1AutoMode = true;   // true = AUTO (theo lux), false = MANUAL
 bool light2AutoMode = true;   // true = AUTO (theo lux + light1), false = MANUAL
-bool fanAutoMode    = true;   // true = AUTO (theo nhiet do), false = MANUAL
 
 
 bool light1IsOn = false;      // trang thai relay thuc te Light1
 bool light2IsOn = false;      // trang thai relay thuc te Light2
-bool fanIsOn    = false;      // trang thai relay thuc te Quat
 
 
 // =====================================================
@@ -210,8 +203,6 @@ bool rfidCardLocked = false;
 String topicSensorPrefix;   // classroom/room01/sensor/
 String topicDevicePrefix;   // classroom/room01/device/
 String topicSetWildcard;    // classroom/room01/device/+/set
-String topicModeSet;        // classroom/room01/mode/set
-String topicModeStatus;     // classroom/room01/mode/status
 String topicAttendance;     // classroom/room01/attendance
 String topicAttendanceFeedback; // classroom/room01/attendance/feedback
 String topicAlert;          // classroom/room01/alert
@@ -280,6 +271,11 @@ void updateBuzzer() {
 }
 
 
+// =====================================================
+// 13-14. DATABASE THE RFID
+// =====================================================
+
+
 // 13-14. XU LY THE RFID (Duoc quan ly boi Server)
 
 
@@ -346,7 +342,7 @@ void publishDeviceStatus(const String& devName, const char* state, const char* s
 }
 
 
-// Phan hoi trang thai che do AUTO/MANUAL cua 1 den/quat (retained)
+// Phan hoi trang thai che do AUTO/MANUAL cua 1 den (retained)
 void publishLightMode(const String& devName, bool autoMode) {
   if (!mqtt.connected()) return;
 
@@ -370,34 +366,8 @@ void publishLightMode(const String& devName, bool autoMode) {
 }
 
 
-// Phan hoi trang thai che do chung toan phong (retained)
-void publishModeStatus() {
-  if (!mqtt.connected()) return;
-
-  bool isOverallAuto = (light1AutoMode && light2AutoMode && fanAutoMode);
-
-  JsonDocument doc;
-  doc["room_id"] = ROOM_ID;
-  doc["mode"] = isOverallAuto ? "AUTO" : "MANUAL";
-  doc["light1_mode"] = light1AutoMode ? "AUTO" : "MANUAL";
-  doc["light2_mode"] = light2AutoMode ? "AUTO" : "MANUAL";
-  doc["fan_mode"]    = fanAutoMode ? "AUTO" : "MANUAL";
-  doc["time"] = getCurrentTime();
-
-  char buffer[192];
-  serializeJson(doc, buffer);
-
-  mqtt.publish(topicModeStatus.c_str(), buffer, true);
-  Serial.printf("[MODE STATUS] %s (light1=%s, light2=%s, fan=%s)\n",
-                isOverallAuto ? "AUTO" : "MANUAL",
-                light1AutoMode ? "AUTO" : "MANUAL",
-                light2AutoMode ? "AUTO" : "MANUAL",
-                fanAutoMode ? "AUTO" : "MANUAL");
-}
-
-
 // =====================================================
-// 17. AP DUNG TRANG THAI RELAY CHO TUNG THIET BI (AUTO & MANUAL)
+// 17. AP DUNG TRANG THAI RELAY CHO TUNG DEN (dung chung cho AUTO & MANUAL)
 // =====================================================
 
 
@@ -415,16 +385,16 @@ void applyLight2(bool turnOn, const char* source) {
 }
 
 
-void applyFan(bool turnOn, const char* source) {
-  fanIsOn = turnOn;
-  digitalWrite(RELAY_FAN, turnOn ? RELAY_ON : RELAY_OFF);
-  publishDeviceStatus("fan", turnOn ? "ON" : "OFF", source);
-}
-
-
 // =====================================================
-// 18. LOGIC AUTO CHO DEN & QUAT
+// 18. LOGIC AUTO CHO 2 DEN
 // =====================================================
+// Light1: doc lap, chi theo lux.
+// Light2: la den PHU - trong AUTO chi duoc bat THEM khi Light1 dang bat ma
+//         van con toi hon nguong cua Light2; se tu tat khi du sang HOAC khi
+//         Light1 da tat (Light2 khong tu "dung mot minh").
+// QUAN TRONG: xu ly Light1 truoc, Light2 sau, trong cung 1 lan goi, de Light2
+// luon doc duoc trang thai light1IsOn moi nhat (ke ca khi Light1 vua auto-tat
+// ngay trong lan doc lux nay).
 
 
 void autoControlLights(float lux) {
@@ -449,28 +419,18 @@ void autoControlLights(float lux) {
 }
 
 
-void autoControlFan(float temp) {
-  if (temp <= 0) return;
-  if (fanAutoMode) {
-    if (!fanIsOn && temp >= TEMP_FAN_ON_THRESHOLD) {
-      applyFan(true, "AUTO");
-    } else if (fanIsOn && temp <= TEMP_FAN_OFF_THRESHOLD) {
-      applyFan(false, "AUTO");
-    }
-  }
-}
-
-
 // =====================================================
-// 19. DIEU KHIEN RELAY THEO TEN THIET BI (AC - khong co AUTO)
+// 19. DIEU KHIEN RELAY THEO TEN THIET BI (FAN / AC - khong co AUTO)
 // =====================================================
 
 
 bool setDevice(const String& device, uint8_t pinLevel) {
-  if (device == "ac") {
+  if (device == "fan") {
+    digitalWrite(RELAY_FAN, pinLevel);
+  } else if (device == "ac") {
     digitalWrite(RELAY_AC, pinLevel);
   } else {
-    return false; // thiet bi khong hop le
+    return false; // thiet bi khong hop le (light1/light2/light/all duoc xu ly rieng)
   }
   return true;
 }
@@ -486,10 +446,8 @@ bool setDevice(const String& device, uint8_t pinLevel) {
 void xuLyMQTT(char* topic, byte* payload, unsigned int length) {
   String topicStr = String(topic);
 
-
   String data;
   for (unsigned int i = 0; i < length; i++) data += (char)payload[i];
-
 
   JsonDocument doc;
   DeserializationError error = deserializeJson(doc, data);
@@ -498,11 +456,7 @@ void xuLyMQTT(char* topic, byte* payload, unsigned int length) {
     return;
   }
 
-
-  // -----------------------------------------------------
   // 0. Xu ly topic phan hoi diem danh tu Server: classroom/{room_id}/attendance/feedback
-  // Payload: {"status": "SUCCESS"|"LATE"|"NOT_IN_CLASS"|"UNKNOWN_CARD", "message": "...", "beeps": 1|2|3}
-  // -----------------------------------------------------
   if (topicStr.endsWith("/attendance/feedback")) {
     int beeps = doc["beeps"] | 1;
     const char* status = doc["status"] | "INFO";
@@ -513,44 +467,15 @@ void xuLyMQTT(char* topic, byte* payload, unsigned int length) {
     return;
   }
 
-
-  // -----------------------------------------------------
-  // 1. Xu ly topic chuyen che do toan phong: classroom/{room_id}/mode/set
-  // Payload: {"mode": "AUTO"} / {"mode": "MANUAL"}
-  // -----------------------------------------------------
-  if (topicStr.endsWith("/mode/set")) {
-    const char* mode = doc["mode"];
-    if (!mode) mode = doc["command"];
-    if (mode) {
-      bool wantAuto = (strcmp(mode, "AUTO") == 0);
-      light1AutoMode = wantAuto;
-      light2AutoMode = wantAuto;
-      fanAutoMode    = wantAuto;
-      publishModeStatus();
-      publishLightMode("light1_mode", light1AutoMode);
-      publishLightMode("light2_mode", light2AutoMode);
-      publishLightMode("fan_mode", fanAutoMode);
-      Serial.printf("[MODE] Chuyen toan bo phong sang: %s\n", mode);
-    }
-    return;
-  }
-
-
-  // -----------------------------------------------------
-  // 2. Xu ly topic thiet bi: classroom/{room_id}/device/{device_name}/set
-  // -----------------------------------------------------
   int startIdx = topicStr.indexOf("device/") + 7;
   int endIdx = topicStr.indexOf("/set");
-
 
   if (startIdx < 7 || endIdx < 0 || endIdx <= startIdx) {
     Serial.println("[MQTT] Topic khong hop le!");
     return;
   }
 
-
   String device = topicStr.substring(startIdx, endIdx);
-
 
   const char* command = doc["command"];
   if (!command) {
@@ -560,16 +485,16 @@ void xuLyMQTT(char* topic, byte* payload, unsigned int length) {
 
 
   // -----------------------------------------------------
-  // light1_mode / light2_mode / fan_mode: bat/tat AUTO rieng cho tung thiet bi
+  // light1_mode / light2_mode: bat/tat AUTO rieng cho tung den
   // -----------------------------------------------------
-  if (device == "light1_mode" || device == "light2_mode" || device == "fan_mode") {
+  if (device == "light1_mode" || device == "light2_mode") {
     bool wantAuto;
     if (strcmp(command, "AUTO") == 0) {
       wantAuto = true;
     } else if (strcmp(command, "MANUAL") == 0) {
       wantAuto = false;
     } else {
-      Serial.println("[MQTT] mode chi nhan AUTO hoac MANUAL!");
+      Serial.println("[MQTT] light_mode chi nhan AUTO hoac MANUAL!");
       return;
     }
 
@@ -577,14 +502,10 @@ void xuLyMQTT(char* topic, byte* payload, unsigned int length) {
     if (device == "light1_mode") {
       light1AutoMode = wantAuto;
       publishLightMode("light1_mode", light1AutoMode);
-    } else if (device == "light2_mode") {
+    } else {
       light2AutoMode = wantAuto;
       publishLightMode("light2_mode", light2AutoMode);
-    } else if (device == "fan_mode") {
-      fanAutoMode = wantAuto;
-      publishLightMode("fan_mode", fanAutoMode);
     }
-    publishModeStatus();
     return;
   }
 
@@ -595,11 +516,11 @@ void xuLyMQTT(char* topic, byte* payload, unsigned int length) {
 
   // -----------------------------------------------------
   // light1 / light2: lenh thu cong -> tu dong chuyen sang MANUAL
+  // de khong bi auto ghi de ngay sau do
   // -----------------------------------------------------
   if (device == "light1") {
     light1AutoMode = false;
     applyLight1(turnOn, "MANUAL");
-    publishModeStatus();
     Serial.println("[MQTT] light1 nhan lenh thu cong -> chuyen sang MANUAL");
     return;
   }
@@ -608,7 +529,6 @@ void xuLyMQTT(char* topic, byte* payload, unsigned int length) {
   if (device == "light2") {
     light2AutoMode = false;
     applyLight2(turnOn, "MANUAL");
-    publishModeStatus();
     Serial.println("[MQTT] light2 nhan lenh thu cong -> chuyen sang MANUAL");
     return;
   }
@@ -622,43 +542,29 @@ void xuLyMQTT(char* topic, byte* payload, unsigned int length) {
     light2AutoMode = false;
     applyLight1(turnOn, "MANUAL");
     applyLight2(turnOn, "MANUAL");
-    publishModeStatus();
     return;
   }
 
 
   // -----------------------------------------------------
-  // fan: lenh thu cong -> tu dong chuyen sang MANUAL
-  // -----------------------------------------------------
-  if (device == "fan") {
-    fanAutoMode = false;
-    applyFan(turnOn, "MANUAL");
-    publishModeStatus();
-    Serial.println("[MQTT] fan nhan lenh thu cong -> chuyen sang MANUAL");
-    return;
-  }
-
-
-  // -----------------------------------------------------
-  // all: dieu khien light1, light2, fan (chuyen MANUAL), va ac
+  // all: dieu khien light1, light2 (chuyen MANUAL), fan va ac
   // -----------------------------------------------------
   if (device == "all") {
     light1AutoMode = false;
     light2AutoMode = false;
-    fanAutoMode    = false;
     applyLight1(turnOn, "MANUAL");
     applyLight2(turnOn, "MANUAL");
-    applyFan(turnOn, "MANUAL");
+    setDevice("fan", pinLevel);
     setDevice("ac", pinLevel);
+    publishDeviceStatus("fan", command, "MANUAL");
     publishDeviceStatus("ac", command, "MANUAL");
-    publishModeStatus();
     Serial.printf("[MQTT] all -> %s\n", command);
     return;
   }
 
 
   // -----------------------------------------------------
-  // ac (va cac thiet bi khac neu co)
+  // fan / ac
   // -----------------------------------------------------
   if (!setDevice(device, pinLevel)) {
     Serial.printf("[MQTT] Thiet bi khong hop le: %s\n", device.c_str());
@@ -739,19 +645,16 @@ void ketNoiMQTT() {
   if (mqtt.connect(clientID.c_str())) {
     Serial.println("[MQTT] KET NOI THANH CONG!");
     mqtt.subscribe(topicSetWildcard.c_str());
-    mqtt.subscribe(topicModeSet.c_str());
     mqtt.subscribe(topicAttendanceFeedback.c_str());
 
 
     // Gui trang thai ban dau de Backend va Web dong bo ngay khi ket noi
     publishDeviceStatus("light1", light1IsOn ? "ON" : "OFF", "MANUAL");
     publishDeviceStatus("light2", light2IsOn ? "ON" : "OFF", "MANUAL");
-    publishDeviceStatus("fan", fanIsOn ? "ON" : "OFF", "MANUAL");
-    publishDeviceStatus("ac", "OFF", "MANUAL");
     publishLightMode("light1_mode", light1AutoMode);
     publishLightMode("light2_mode", light2AutoMode);
-    publishLightMode("fan_mode", fanAutoMode);
-    publishModeStatus();
+    publishDeviceStatus("fan", "OFF", "MANUAL");
+    publishDeviceStatus("ac", "OFF", "MANUAL");
   } else {
     Serial.printf("[MQTT] Loi ket noi. State = %d\n", mqtt.state());
   }
@@ -875,10 +778,6 @@ void docCamBien() {
   autoControlLights(lux);
 
 
-  // ---- Tu dong bat/tat quat theo nhiet do (khi quat dang AUTO) ----
-  autoControlFan(temp);
-
-
   // ---- Publish tung sensor rieng ----
   publishSensor("temperature", temp, "C");
   publishSensor("humidity", hum, "%");
@@ -897,7 +796,6 @@ void docCamBien() {
   Serial.printf("Cua      : %s\n", doorOpen ? "DANG MO" : "DA DONG");
   Serial.printf("Light1   : %s (%s)\n", light1IsOn ? "BAT" : "TAT", light1AutoMode ? "AUTO" : "MANUAL");
   Serial.printf("Light2   : %s (%s)\n", light2IsOn ? "BAT" : "TAT", light2AutoMode ? "AUTO" : "MANUAL");
-  Serial.printf("Fan      : %s (%s)\n", fanIsOn ? "BAT" : "TAT", fanAutoMode ? "AUTO" : "MANUAL");
   Serial.println("-----------------------------------");
 
 
@@ -1005,8 +903,6 @@ void setup() {
   topicSensorPrefix = "classroom/" + String(ROOM_ID) + "/sensor/";
   topicDevicePrefix = "classroom/" + String(ROOM_ID) + "/device/";
   topicSetWildcard  = topicDevicePrefix + "+/set";
-  topicModeSet      = "classroom/" + String(ROOM_ID) + "/mode/set";
-  topicModeStatus   = "classroom/" + String(ROOM_ID) + "/mode/status";
   topicAttendance   = "classroom/" + String(ROOM_ID) + "/attendance";
   topicAttendanceFeedback = "classroom/" + String(ROOM_ID) + "/attendance/feedback";
   topicAlert        = "classroom/" + String(ROOM_ID) + "/alert";
@@ -1080,4 +976,6 @@ void loop() {
 
   // Khong dung delay() o day
 }
+
+
 

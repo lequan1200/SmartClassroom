@@ -547,6 +547,71 @@
                     </div>
                 </section>
 
+                <!-- Section: Sổ Điểm Danh Buổi Học Theo Ca (Roll Call Sheet) -->
+                <section class="table-container-card" id="session-rollcall-card">
+                    <div class="table-header-bar" style="flex-wrap: wrap; gap: 12px;">
+                        <div class="section-title-wrap">
+                            <span class="section-eyebrow">QUẢN LÝ LỚP HỌC & ĐÀO TẠO</span>
+                            <h3>Sổ Điểm Danh Buổi Học Theo Ca</h3>
+                        </div>
+
+                        <!-- Session Selector & Actions -->
+                        <div class="session-control-bar" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <div class="filter-input-group">
+                                <label for="session-select">📚 Ca học:</label>
+                                <select id="session-select" class="custom-select" onchange="handleSessionChange()" style="min-width: 240px;">
+                                    <option value="">-- Đang tìm ca học --</option>
+                                </select>
+                            </div>
+                            <span id="session-status-badge" class="status-badge" style="display: none;">Đang diễn ra</span>
+                            <button class="btn btn-secondary btn-sm" id="btn-export-csv" onclick="exportCurrentSession()" title="Xuất file CSV báo cáo cho buổi học này">
+                                <span>📥</span> Xuất CSV
+                            </button>
+                            <button class="btn btn-warning btn-sm" id="btn-close-session" onclick="closeCurrentSession()" title="Chốt sổ điểm danh và khóa phiên">
+                                <span>🔒</span> Chốt điểm danh
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Session Info Hero Banner -->
+                    <div class="session-info-banner" id="session-info-banner" style="display: none; padding: 12px 18px; margin: 0 16px 14px; background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 10px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                        <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+                            <span>📖 <strong>Môn:</strong> <span id="sess-subject">---</span></span>
+                            <span>👥 <strong>Lớp HP:</strong> <span id="sess-class">---</span></span>
+                            <span>👨‍🏫 <strong>GV:</strong> <span id="sess-teacher">---</span></span>
+                            <span>⏰ <strong>Thời gian:</strong> <span id="sess-time">---</span></span>
+                        </div>
+                        <div class="sess-kpi-pill-group" style="display: flex; gap: 8px;">
+                            <span class="mini-pill total">Sĩ số: <strong id="sess-total">0</strong></span>
+                            <span class="mini-pill present">Có mặt: <strong id="sess-present">0</strong></span>
+                            <span class="mini-pill late">Muộn: <strong id="sess-late">0</strong></span>
+                            <span class="mini-pill excused">Có phép: <strong id="sess-excused">0</strong></span>
+                            <span class="mini-pill absent">Vắng: <strong id="sess-absent">0</strong></span>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="modern-table" id="rollcall-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;">STT</th>
+                                    <th>Mã Học Viên</th>
+                                    <th>Họ Và Tên</th>
+                                    <th>Mã Thẻ RFID</th>
+                                    <th>Trạng Thái Điểm Danh</th>
+                                    <th>Giờ Điểm Danh</th>
+                                    <th>Hình Thức</th>
+                                    <th>Ghi Chú</th>
+                                    <th style="text-align: center; width: 140px;">Thao Tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rollcall-table-body">
+                                <tr><td colspan="9" class="table-empty-cell">Vui lòng chọn hoặc chờ ca học đang diễn ra...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
                 <!-- Section: Danh Sách Học Viên & Gán Thẻ RFID -->
                 <section class="table-container-card">
                     <div class="table-header-bar">
@@ -687,6 +752,49 @@
             <div class="modal-actions">
                 <button type="button" class="btn btn-secondary" onclick="closeStudentModal()">Hủy bỏ</button>
                 <button type="submit" class="btn btn-primary" id="btn-save-student">Lưu học viên</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- ============================================================
+     MODAL: CHỈNH SỬA ĐIỂM DANH THỦ CÔNG (TEACHER OVERRIDE)
+     ============================================================ -->
+<div class="modal-backdrop" id="edit-record-modal" style="display: none;">
+    <div class="modal-dialog" style="max-width: 480px;">
+        <div class="modal-top">
+            <div class="modal-title-group">
+                <div class="modal-avatar-icon" style="background: rgba(245, 158, 11, 0.15); border-color: rgba(245, 158, 11, 0.3); color: var(--warning);">✍️</div>
+                <div>
+                    <h3>Chỉnh sửa điểm danh</h3>
+                    <p id="edit-record-student-name">Sinh viên: ---</p>
+                </div>
+            </div>
+            <button class="modal-close-btn" onclick="closeEditRecordModal()">&times;</button>
+        </div>
+
+        <form id="edit-record-form" onsubmit="handleSaveEditRecord(event)">
+            <input type="hidden" id="edit-record-id">
+
+            <div class="form-field" style="margin-bottom: 14px;">
+                <label for="edit-record-status">Trạng thái điểm danh <span style="color: var(--danger);">*</span></label>
+                <select id="edit-record-status" class="custom-select" required style="width: 100%; padding: 10px; border-radius: 8px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-pure);">
+                    <option value="PRESENT">✓ Có mặt (Đúng giờ)</option>
+                    <option value="LATE">⏰ Đi muộn</option>
+                    <option value="ABSENT_EXCUSED">📝 Nghỉ có phép</option>
+                    <option value="ABSENT_UNEXCUSED">✕ Vắng không phép</option>
+                </select>
+            </div>
+
+            <div class="form-field" style="margin-bottom: 18px;">
+                <label for="edit-record-note">Lý do / Ghi chú</label>
+                <input type="text" id="edit-record-note" class="custom-input" placeholder="VD: Có đơn xin phép, quên mang thẻ..." style="width: 100%;">
+            </div>
+
+            <div class="modal-footer-actions" style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" class="btn btn-secondary" onclick="closeEditRecordModal()">Hủy bỏ</button>
+                <button type="submit" class="btn btn-primary"><span>💾</span> Lưu thay đổi</button>
             </div>
         </form>
     </div>

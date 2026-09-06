@@ -1,5 +1,7 @@
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, jsonify, request, render_template, Response
 import threading
+import io
+import csv
 
 from database import (
     lay_danh_sach_phong,
@@ -17,7 +19,14 @@ from database import (
     gan_the_hoc_vien,
     tim_hoc_vien_theo_card,
     lay_danh_sach_diem_danh,
-    lay_thong_ke_diem_danh
+    lay_thong_ke_diem_danh,
+    lay_danh_sach_sessions,
+    lay_bang_diem_danh_buoi_hoc,
+    cap_nhat_diem_danh_thu_cong,
+    dong_buoi_diem_danh,
+    lay_danh_sach_lop_hoc_phan,
+    lay_danh_sach_mon_hoc,
+    lay_thoi_khoa_bieu
 )
 
 from mqtt_client import (
@@ -383,6 +392,132 @@ def api_latest_scan():
     if not logs:
         return jsonify({"success": True, "data": None}), 200
     return jsonify({"success": True, "data": logs[0]}), 200
+
+
+# ============================================================
+# API PHÂN HỆ ĐIỂM DANH LỚP HỌC (ACADEMIC SESSIONS & RECORDS)
+# ============================================================
+
+@app.route("/api/attendance/sessions", methods=["GET"])
+def api_attendance_sessions():
+    room_id = request.args.get("room_id")
+    date_filter = request.args.get("date")
+    class_id = request.args.get("class_id", type=int)
+
+    sessions = lay_danh_sach_sessions(room_id=room_id, session_date=date_filter, class_id=class_id)
+    return jsonify({"success": True, "data": sessions}), 200
+
+
+@app.route("/api/attendance/sessions/<int:session_id>/records", methods=["GET"])
+def api_session_records(session_id):
+    records = lay_bang_diem_danh_buoi_hoc(session_id)
+    if records is None:
+        return jsonify({"success": False, "message": "Không tìm thấy buổi điểm danh"}), 404
+    return jsonify({"success": True, "data": records}), 200
+
+
+@app.route("/api/attendance/records/<int:record_id>", methods=["PUT"])
+def api_update_record(record_id):
+    if not request.is_json:
+        return jsonify({"success": False, "message": "Content-Type phải là application/json"}), 400
+
+    data = request.get_json(silent=True) or {}
+    new_status = data.get("status")
+    note = data.get("note")
+
+    valid_statuses = ["PRESENT", "LATE", "ABSENT_EXCUSED", "ABSENT_UNEXCUSED"]
+    if new_status not in valid_statuses:
+        return jsonify({
+            "success": False,
+            "message": f"Trạng thái không hợp lệ. Chỉ chấp nhận: {', '.join(valid_statuses)}"
+        }), 400
+
+    success, message = cap_nhat_diem_danh_thu_cong(record_id, new_status, note)
+    if not success:
+        return jsonify({"success": False, "message": message}), 400
+
+    return jsonify({"success": True, "message": message}), 200
+
+
+@app.route("/api/attendance/sessions/<int:session_id>/close", methods=["POST"])
+def api_close_session(session_id):
+    success, message = dong_buoi_diem_danh(session_id)
+    if not success:
+        return jsonify({"success": False, "message": message}), 400
+    return jsonify({"success": True, "message": message}), 200
+
+
+@app.route("/api/attendance/sessions/<int:session_id>/export", methods=["GET"])
+def api_export_session_csv(session_id):
+    # Lấy thông tin session
+    all_sessions = lay_danh_sach_sessions()
+    session_info = next((s for s in all_sessions if s["id"] == session_id), None)
+    if not session_info:
+        return jsonify({"success": False, "message": "Không tìm thấy buổi học"}), 404
+
+    records = lay_bang_diem_danh_buoi_hoc(session_id) or []
+
+    status_map = {
+        "PRESENT": "Có mặt (Đúng giờ)",
+        "LATE": "Đi muộn",
+        "ABSENT_EXCUSED": "Nghỉ có phép",
+        "ABSENT_UNEXCUSED": "Vắng không phép"
+    }
+
+    method_map = {
+        "RFID": "Quẹt thẻ RFID",
+        "MANUAL_TEACHER": "Giảng viên xác nhận",
+        "AUTO_ABSENT": "Hệ thống tự động"
+    }
+
+    output = io.StringIO()
+    # Ghi UTF-8 BOM để Excel hiển thị tiếng Việt chính xác
+    output.write('\ufeff')
+
+    writer = csv.writer(output)
+    writer.writerow(["BẢNG ĐIỂM DANH LỚP HỌC PHẦN"])
+    writer.writerow([f"Môn học: {session_info['subject_name']} ({session_info['subject_code']})"])
+    writer.writerow([f"Lớp học phần: {session_info['class_code']} | Học kỳ: {session_info['semester']}"])
+    writer.writerow([f"Giảng viên: {session_info['teacher_name']} | Phòng học: {session_info['room_name']}"])
+    writer.writerow([f"Ngày học: {session_info['session_date']} | Khung giờ: {session_info['start_time']} - {session_info['end_time']}"])
+    writer.writerow([])
+    writer.writerow(["STT", "Mã Học Viên", "Họ Và Tên", "Lớp Biên Chế", "Mã Thẻ RFID", "Trạng Thái", "Giờ Quẹt Thẻ", "Hình Thức", "Ghi Chú"])
+
+    for idx, r in enumerate(records, start=1):
+        writer.writerow([
+            idx,
+            r["student_code"],
+            r["full_name"],
+            r["class_name"] or "",
+            r["card_uid"] or "",
+            status_map.get(r["status"], r["status"]),
+            r["checkin_time"] or "",
+            method_map.get(r["method"], r["method"]),
+            r["note"] or ""
+        ])
+
+    csv_data = output.getvalue()
+    filename = f"diem_danh_{session_info['class_code']}_{session_info['session_date']}.csv"
+
+    return Response(
+        csv_data,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@app.route("/api/course-classes", methods=["GET"])
+def api_course_classes():
+    classes = lay_danh_sach_lop_hoc_phan()
+    return jsonify({"success": True, "data": classes}), 200
+
+
+@app.route("/api/schedules", methods=["GET"])
+def api_schedules():
+    room_id = request.args.get("room_id")
+    class_id = request.args.get("class_id", type=int)
+    schedules = lay_thoi_khoa_bieu(room_id=room_id, class_id=class_id)
+    return jsonify({"success": True, "data": schedules}), 200
 
 
 

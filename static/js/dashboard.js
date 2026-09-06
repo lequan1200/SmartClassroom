@@ -922,6 +922,9 @@ async function loadAttendanceData() {
                 renderAttendanceLogs(logsData.data);
             }
         }
+
+        // Tải sổ điểm danh theo ca học
+        await loadAttendanceSessions();
     } catch (error) {
         console.error("LOAD ATTENDANCE DATA ERROR:", error);
     }
@@ -945,9 +948,9 @@ function renderAttendanceLogs(logs) {
 
     tbody.innerHTML = logs.map(log => {
         let statusBadge;
-        if (log.status === "DUNG_GIO") {
+        if (log.status === "DUNG_GIO" || log.status === "PRESENT") {
             statusBadge = `<span class="status-badge ontime">✓ Đúng giờ</span>`;
-        } else if (log.status === "MUON") {
+        } else if (log.status === "MUON" || log.status === "DI_MUON" || log.status === "LATE") {
             statusBadge = `<span class="status-badge late">⏰ Đi muộn</span>`;
         } else {
             statusBadge = `<span class="status-badge unassigned">${escapeHtml(log.status || "Chưa rõ")}</span>`;
@@ -983,6 +986,266 @@ function renderAttendanceLogs(logs) {
 }
 
 // ============================================================
+// ACADEMIC SESSIONS & ROLL CALL SHEET
+// ============================================================
+let currentAttendanceSessions = [];
+let selectedSessionId = null;
+
+async function loadAttendanceSessions() {
+    const dateInput = $("attendance-date-filter");
+    const dateFilter = dateInput ? dateInput.value : "";
+    const sessionSelect = $("session-select");
+    if (!sessionSelect) return;
+
+    try {
+        let url = `/api/attendance/sessions?`;
+        if (currentRoom) url += `room_id=${encodeURIComponent(currentRoom)}&`;
+        if (dateFilter) url += `date=${encodeURIComponent(dateFilter)}&`;
+
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Không thể tải danh sách ca học");
+        const json = await res.json();
+
+        currentAttendanceSessions = json.data || [];
+
+        if (currentAttendanceSessions.length === 0) {
+            sessionSelect.innerHTML = `<option value="">-- Không có ca học nào --</option>`;
+            selectedSessionId = null;
+            renderEmptyRollCallSheet("Không có ca học nào trong ngày / phòng học này.");
+            updateSessionBanner(null);
+            return;
+        }
+
+        sessionSelect.innerHTML = currentAttendanceSessions.map(s => {
+            const statusIcon = s.status === "ACTIVE" ? "🟢" : (s.status === "CLOSED" ? "🔒" : "⏳");
+            return `<option value="${s.id}">
+                ${statusIcon} ${escapeHtml(s.class_code)}: ${escapeHtml(s.subject_name)} (${s.start_time.slice(0,5)} - ${s.end_time.slice(0,5)})
+            </option>`;
+        }).join("");
+
+        // Tự động chọn session đầu tiên nếu chưa chọn hoặc session cũ không còn trong danh sách
+        if (!selectedSessionId || !currentAttendanceSessions.some(s => s.id === selectedSessionId)) {
+            selectedSessionId = currentAttendanceSessions[0].id;
+        }
+
+        sessionSelect.value = selectedSessionId;
+        await loadSessionRollCallSheet(selectedSessionId);
+
+    } catch (err) {
+        console.error("LOAD ATTENDANCE SESSIONS ERROR:", err);
+    }
+}
+
+async function handleSessionChange() {
+    const sessionSelect = $("session-select");
+    if (!sessionSelect) return;
+    selectedSessionId = parseInt(sessionSelect.value, 10) || null;
+    if (selectedSessionId) {
+        await loadSessionRollCallSheet(selectedSessionId);
+    }
+}
+
+async function loadSessionRollCallSheet(sessionId) {
+    if (!sessionId) return;
+    const session = currentAttendanceSessions.find(s => s.id === sessionId);
+    updateSessionBanner(session);
+
+    const tbody = $("rollcall-table-body");
+    if (!tbody) return;
+
+    try {
+        const res = await fetch(`/api/attendance/sessions/${sessionId}/records`);
+        if (!res.ok) throw new Error("Không thể tải sổ điểm danh");
+        const json = await res.json();
+        const records = json.data || [];
+
+        renderRollCallSheet(records, session);
+    } catch (err) {
+        console.error("LOAD ROLLCALL SHEET ERROR:", err);
+        tbody.innerHTML = `<tr><td colspan="9" class="table-empty-cell">Lỗi tải dữ liệu sổ điểm danh: ${escapeHtml(err.message)}</td></tr>`;
+    }
+}
+
+function updateSessionBanner(session) {
+    const banner = $("session-info-banner");
+    const statusBadge = $("session-status-badge");
+    const closeBtn = $("btn-close-session");
+    if (!banner) return;
+
+    if (!session) {
+        banner.style.display = "none";
+        if (statusBadge) statusBadge.style.display = "none";
+        if (closeBtn) closeBtn.style.display = "none";
+        return;
+    }
+
+    banner.style.display = "flex";
+    if ($("sess-subject")) $("sess-subject").textContent = session.subject_name;
+    if ($("sess-class")) $("sess-class").textContent = `${session.class_code} (${session.room_name})`;
+    if ($("sess-teacher")) $("sess-teacher").textContent = session.teacher_name;
+    if ($("sess-time")) $("sess-time").textContent = `${session.start_time.slice(0,5)} - ${session.end_time.slice(0,5)} (${session.session_date})`;
+
+    if ($("sess-total")) $("sess-total").textContent = session.total_enrolled;
+    if ($("sess-present")) $("sess-present").textContent = session.present_count;
+    if ($("sess-late")) $("sess-late").textContent = session.late_count;
+    if ($("sess-excused")) $("sess-excused").textContent = session.excused_count;
+    if ($("sess-absent")) $("sess-absent").textContent = session.unexcused_count;
+
+    if (statusBadge) {
+        statusBadge.style.display = "inline-flex";
+        if (session.status === "ACTIVE") {
+            statusBadge.className = "status-badge active";
+            statusBadge.textContent = "● Đang diễn ra";
+            if (closeBtn) closeBtn.style.display = "inline-flex";
+        } else if (session.status === "CLOSED") {
+            statusBadge.className = "status-badge closed";
+            statusBadge.textContent = "🔒 Đã chốt sổ";
+            if (closeBtn) closeBtn.style.display = "none";
+        } else {
+            statusBadge.className = "status-badge ontime";
+            statusBadge.textContent = "⏳ Sắp diễn ra";
+            if (closeBtn) closeBtn.style.display = "inline-flex";
+        }
+    }
+}
+
+function renderEmptyRollCallSheet(message) {
+    const tbody = $("rollcall-table-body");
+    if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="9" class="table-empty-cell">${escapeHtml(message)}</td></tr>`;
+    }
+}
+
+function renderRollCallSheet(records, session) {
+    const tbody = $("rollcall-table-body");
+    if (!tbody) return;
+
+    if (records.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="table-empty-cell">Lớp học phần này chưa có sinh viên nào đăng ký</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = records.map((r, idx) => {
+        let badgeHtml;
+        if (r.status === "PRESENT") {
+            badgeHtml = `<span class="status-badge ontime">✓ Đúng giờ</span>`;
+        } else if (r.status === "LATE") {
+            badgeHtml = `<span class="status-badge late">⏰ Đi muộn</span>`;
+        } else if (r.status === "ABSENT_EXCUSED") {
+            badgeHtml = `<span class="status-badge excused">📝 Nghỉ có phép</span>`;
+        } else {
+            badgeHtml = `<span class="status-badge absent">✕ Vắng không phép</span>`;
+        }
+
+        const methodStr = r.method === "RFID"
+            ? `<span style="color:var(--primary); font-weight:600;">🪪 Quẹt thẻ RFID</span>`
+            : (r.method === "MANUAL_TEACHER"
+                ? `<span style="color:var(--warning); font-weight:600;">✍️ Giáo viên sửa</span>`
+                : `<span style="color:var(--text-muted); font-style:italic;">Chưa điểm danh</span>`);
+
+        const timeStr = r.checkin_time ? formatFullDateTime(r.checkin_time) : `<span style="color:var(--text-muted);">--:--</span>`;
+        const noteStr = r.note ? `<span style="color:var(--text-pure); font-size:12px;">${escapeHtml(r.note)}</span>` : `<span style="color:var(--text-dim); font-size:11px;">--</span>`;
+
+        const encodedName = encodeURIComponent(r.full_name || "");
+        const encodedNote = encodeURIComponent(r.note || "");
+
+        return `
+            <tr>
+                <td style="text-align:center; color:var(--text-dim); font-weight:600;">${idx + 1}</td>
+                <td><span style="color:var(--primary); font-family:'JetBrains Mono', monospace; font-weight:700;">${escapeHtml(r.student_code)}</span></td>
+                <td><strong style="color:var(--text-pure); font-size:13px;">${escapeHtml(r.full_name)}</strong></td>
+                <td><span class="card-uid-pill">${r.card_uid ? `🪪 ${escapeHtml(r.card_uid)}` : `<span style="color:var(--text-muted);">Chưa có thẻ</span>`}</span></td>
+                <td>${badgeHtml}</td>
+                <td style="font-size:12px; color:var(--text-dim); font-weight:600;">${timeStr}</td>
+                <td>${methodStr}</td>
+                <td>${noteStr}</td>
+                <td style="text-align:center;">
+                    <button class="btn btn-secondary btn-sm" onclick="openEditRecordModal(${r.record_id}, decodeURIComponent('${encodedName}'), '${r.status}', decodeURIComponent('${encodedNote}'))" title="Sửa điểm danh thủ công">
+                        <span>✍️</span> Sửa
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join("");
+}
+
+// EDIT RECORD MODAL (MANUAL OVERRIDE)
+function openEditRecordModal(recordId, studentName, currentStatus, currentNote) {
+    if (!recordId) {
+        showToast("Lỗi", "Bản ghi điểm danh chưa được tạo", false);
+        return;
+    }
+    $("edit-record-id").value = recordId;
+    $("edit-record-student-name").textContent = `Sinh viên: ${studentName}`;
+    $("edit-record-status").value = currentStatus || "PRESENT";
+    $("edit-record-note").value = currentNote || "";
+
+    $("edit-record-modal").style.display = "flex";
+}
+
+function closeEditRecordModal() {
+    $("edit-record-modal").style.display = "none";
+}
+
+async function handleSaveEditRecord(e) {
+    e.preventDefault();
+    const recordId = $("edit-record-id").value;
+    const status = $("edit-record-status").value;
+    const note = $("edit-record-note").value.trim();
+
+    try {
+        const res = await fetch(`/api/attendance/records/${recordId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status, note })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || "Không thể cập nhật điểm danh");
+
+        showToast("Thành công", data.message || "Đã cập nhật điểm danh", true);
+        closeEditRecordModal();
+
+        // Tải lại dữ liệu session và danh sách điểm danh
+        await loadAttendanceSessions();
+        await loadAttendanceData();
+    } catch (err) {
+        console.error("SAVE RECORD ERROR:", err);
+        showToast("Lỗi cập nhật", err.message, false);
+    }
+}
+
+async function closeCurrentSession() {
+    if (!selectedSessionId) return;
+    if (!confirm("Bạn có chắc chắn muốn chốt sổ buổi điểm danh này? Sau khi chốt, toàn bộ sinh viên chưa có mặt sẽ chính thức được tính là Vắng không phép.")) {
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/attendance/sessions/${selectedSessionId}/close`, {
+            method: "POST"
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || "Không thể chốt sổ");
+
+        showToast("Đã chốt sổ", "Buổi điểm danh đã được khóa thành công", true);
+        await loadAttendanceSessions();
+        await loadAttendanceData();
+    } catch (err) {
+        console.error("CLOSE SESSION ERROR:", err);
+        showToast("Lỗi chốt sổ", err.message, false);
+    }
+}
+
+function exportCurrentSession() {
+    if (!selectedSessionId) {
+        showToast("Chưa chọn ca học", "Vui lòng chọn ca học để xuất file", false);
+        return;
+    }
+    showToast("Đang xuất file", "Đang tải file CSV báo cáo điểm danh...", true);
+    window.location.href = `/api/attendance/sessions/${selectedSessionId}/export`;
+}
+
+// ============================================================
 // INITIALIZATION
 // ============================================================
 const roomSelect = $("room-select");
@@ -990,6 +1253,9 @@ if (roomSelect) {
     roomSelect.addEventListener("change", async function () {
         currentRoom = this.value;
         await loadRoom();
+        if (currentTab === "attendance") {
+            await loadAttendanceData();
+        }
     });
 }
 
@@ -1003,9 +1269,13 @@ if (mobileMenu) {
 
 // Close modal when clicking outside
 window.addEventListener("click", function (event) {
-    const modal = $("student-modal");
-    if (modal && event.target === modal) {
+    const studentModal = $("student-modal");
+    if (studentModal && event.target === studentModal) {
         closeStudentModal();
+    }
+    const editModal = $("edit-record-modal");
+    if (editModal && event.target === editModal) {
+        closeEditRecordModal();
     }
 });
 
