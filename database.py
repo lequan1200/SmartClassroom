@@ -475,11 +475,11 @@ if __name__ == "__main__":
     else:
         print("Sensor NOT FOUND: room01 / temperature")
 
-    device_id = tim_device_id("room01", "light")
+    device_id = tim_device_id("room01", "light1")
     if device_id is not None:
-        print(f"Device OK: light -> ID {device_id}")
+        print(f"Device OK: light1 -> ID {device_id}")
     else:
-        print("Device NOT FOUND: room01 / light")
+        print("Device NOT FOUND: room01 / light1")
 
     print("================================")
     print("       TEST HOAN TAT")
