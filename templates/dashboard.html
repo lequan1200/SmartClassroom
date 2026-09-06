@@ -46,6 +46,16 @@
                 <span class="nav-text">Điểm danh</span>
                 <span class="nav-tag rfid">RFID</span>
             </a>
+            <a href="#students" class="nav-item" data-tab="students">
+                <span class="nav-icon">👥</span>
+                <span class="nav-text">Danh sách sinh viên</span>
+                <span class="nav-tag info">HỌC VIÊN</span>
+            </a>
+            <a href="#schedule" class="nav-item" data-tab="schedule">
+                <span class="nav-icon">📅</span>
+                <span class="nav-text">Thời khóa biểu</span>
+                <span class="nav-tag live">LỊCH HỌC</span>
+            </a>
         </nav>
 
         <!-- Quick Room Switcher -->
@@ -687,6 +697,176 @@
                 <!-- Footer -->
                 <footer class="app-footer">
                     <div>Smart Classroom Attendance Subsystem · Tích hợp Đầu Đọc Thẻ RFID RC522 & ESP32</div>
+                    <div>Hệ thống điểm danh học sinh thông minh · Raspberry Pi 5</div>
+                </footer>
+            </div>
+
+            <!-- ============================================================
+                 PHÂN HỆ 3: DANH SÁCH SINH VIÊN (STUDENTS DIRECTORY)
+                 ============================================================ -->
+            <div class="content-view" id="students-view" style="display: none;">
+
+                <!-- Students Hero Banner -->
+                <section class="room-hero-card">
+                    <div class="room-hero-inner">
+                        <div class="room-hero-info">
+                            <div class="room-hero-icon" style="background: rgba(14, 165, 233, 0.15); border-color: rgba(14, 165, 233, 0.3); color: var(--info);">👥</div>
+                            <div class="room-hero-details">
+                                <h2>Cơ Sở Dữ Liệu Sinh Viên & Thẻ RFID</h2>
+                                <div class="room-meta-tags">
+                                    <span class="meta-chip">HỒ SƠ HỌC VIÊN</span>
+                                    <span class="meta-chip active-chip">● GÁN THẺ RC522</span>
+                                    <span class="meta-chip">QUẢN TRỊ TẬP TRUNG</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="attendance-top-bar" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <div class="search-input-wrap" style="position: relative;">
+                                <input type="text" id="students-search-input" class="custom-input" placeholder="🔍 Tìm kiếm sinh viên..." oninput="handleStudentSearch(this.value)" style="min-width: 280px; padding-left: 36px;">
+                                <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none;">🔎</span>
+                            </div>
+                            <button class="btn btn-primary" onclick="openAddStudentModal()">
+                                <span>+</span> Thêm sinh viên
+                            </button>
+                            <button class="btn btn-secondary" onclick="loadStudentsView()" title="Làm mới danh sách">
+                                <span>🔄</span> Làm mới
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Students KPI Grid -->
+                <section class="attendance-kpi-grid">
+                    <div class="attendance-kpi-card">
+                        <div class="attendance-kpi-icon total">👥</div>
+                        <div class="kpi-body">
+                            <span>Tổng số sinh viên</span>
+                            <strong id="students-kpi-total">0</strong>
+                        </div>
+                    </div>
+                    <div class="attendance-kpi-card">
+                        <div class="attendance-kpi-icon present">🪪</div>
+                        <div class="kpi-body">
+                            <span>Đã có thẻ RFID</span>
+                            <strong id="students-kpi-assigned" style="color: var(--success);">0</strong>
+                        </div>
+                    </div>
+                    <div class="attendance-kpi-card">
+                        <div class="attendance-kpi-icon late">⚠️</div>
+                        <div class="kpi-body">
+                            <span>Chưa có thẻ RFID</span>
+                            <strong id="students-kpi-unassigned" style="color: var(--warning);">0</strong>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Table Card: Students Directory -->
+                <section class="table-container-card">
+                    <div class="table-header-bar">
+                        <div class="section-title-wrap">
+                            <span class="section-eyebrow">QUẢN LÝ HỒ SƠ</span>
+                            <h3>Danh Sách Sinh Viên & Trạng Thái Thẻ RFID</h3>
+                        </div>
+                        <span class="badge" id="students-count-badge" style="background: rgba(14, 165, 233, 0.15); color: var(--info); border: 1px solid rgba(14, 165, 233, 0.3);">0 sinh viên</span>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="modern-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;">STT</th>
+                                    <th>Mã Sinh Viên</th>
+                                    <th>Họ Và Tên</th>
+                                    <th>Mã Thẻ RFID</th>
+                                    <th>Trạng Thái Thẻ</th>
+                                    <th>Ngày Cập Nhật</th>
+                                    <th style="text-align: center; width: 220px;">Thao Tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="students-view-table-body">
+                                <tr><td colspan="7" class="table-empty-cell">Đang tải danh sách sinh viên...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Footer -->
+                <footer class="app-footer">
+                    <div>Smart Classroom Student Directory · Quản lý hồ sơ học viên & thẻ thông minh RFID</div>
+                    <div>Hệ thống điểm danh học sinh thông minh · Raspberry Pi 5</div>
+                </footer>
+            </div>
+
+            <!-- ============================================================
+                 PHÂN HỆ 4: THỜI KHÓA BIỂU & LỊCH HỌC (SCHEDULE & TIMETABLE)
+                 ============================================================ -->
+            <div class="content-view" id="schedule-view" style="display: none;">
+
+                <!-- Schedule Hero Banner -->
+                <section class="room-hero-card">
+                    <div class="room-hero-inner">
+                        <div class="room-hero-info">
+                            <div class="room-hero-icon" style="background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.3); color: #c084fc;">📅</div>
+                            <div class="room-hero-details">
+                                <h2>Thời Khóa Biểu & Lịch Giảng Dạy</h2>
+                                <div class="room-meta-tags">
+                                    <span class="meta-chip">LỊCH HỌC TUẦN</span>
+                                    <span class="meta-chip active-chip">● TỰ ĐỘNG MỞ CA</span>
+                                    <span class="meta-chip">ĐỒNG BỘ CẢM BIẾN</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="attendance-top-bar" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <div class="filter-input-group">
+                                <label for="schedule-room-filter">📍 Phòng:</label>
+                                <select id="schedule-room-filter" class="custom-select" onchange="loadScheduleView()" style="min-width: 170px;">
+                                    <option value="">Tất cả phòng</option>
+                                    <option value="room01">Phòng học 01 (room01)</option>
+                                    <option value="room02">Phòng học 02 (room02)</option>
+                                </select>
+                            </div>
+                            <div class="filter-input-group">
+                                <label for="schedule-class-filter">📚 Lớp:</label>
+                                <select id="schedule-class-filter" class="custom-select" onchange="loadScheduleView()" style="min-width: 190px;">
+                                    <option value="">Tất cả lớp học phần</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-primary" onclick="openCreateSessionModal()" title="Khởi tạo ca học mới ngay">
+                                <span>📚</span> Mở ca học ngay
+                            </button>
+                            <button class="btn btn-secondary" onclick="loadScheduleView()" title="Làm mới thời khóa biểu">
+                                <span>🔄</span> Làm mới
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Weekly Timetable Grid -->
+                <section class="table-container-card" style="padding: 20px;">
+                    <div class="table-header-bar" style="margin-bottom: 16px;">
+                        <div class="section-title-wrap">
+                            <span class="section-eyebrow">LỊCH HỌC CỐ ĐỊNH TRONG TUẦN</span>
+                            <h3>Thời Khóa Biểu Các Lớp Học Phần (Thứ 2 — Chủ Nhật)</h3>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <span class="meta-chip" style="background: rgba(16, 185, 129, 0.15); color: var(--success); border-color: rgba(16, 185, 129, 0.3);">☀️ Ca Sáng: 07:00 - 11:30</span>
+                            <span class="meta-chip" style="background: rgba(14, 165, 233, 0.15); color: var(--info); border-color: rgba(14, 165, 233, 0.3);">⛅ Ca Chiều: 12:30 - 17:30</span>
+                            <span class="meta-chip" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border-color: rgba(168, 85, 247, 0.3);">🌙 Ca Tối: 18:00 - 23:59</span>
+                        </div>
+                    </div>
+
+                    <!-- 7 Columns Week Grid Container -->
+                    <div class="schedule-week-grid" id="schedule-grid-container">
+                        <!-- Rendered by dashboard.js -->
+                        <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-dim);">
+                            Đang tải thời khóa biểu tuần...
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Footer -->
+                <footer class="app-footer">
+                    <div>Smart Classroom Schedule Subsystem · Đồng bộ thời khóa biểu giảng dạy & tự động hóa điểm danh</div>
                     <div>Hệ thống điểm danh học sinh thông minh · Raspberry Pi 5</div>
                 </footer>
             </div>

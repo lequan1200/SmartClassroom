@@ -1151,7 +1151,8 @@ def lay_thoi_khoa_bieu(room_id=None, class_id=None):
             SELECT 
                 sc.id, sc.class_id, c.class_code, s.name AS subject_name,
                 sc.room_id, r.room_id AS room_code, r.name AS room_name,
-                sc.day_of_week, sc.start_time, sc.end_time, sc.late_grace_period_mins
+                sc.day_of_week, sc.start_time, sc.end_time, sc.late_grace_period_mins,
+                c.teacher_name, s.subject_code
             FROM schedules sc
             JOIN course_classes c ON sc.class_id = c.id
             JOIN subjects s ON c.subject_id = s.id
@@ -1183,7 +1184,9 @@ def lay_thoi_khoa_bieu(room_id=None, class_id=None):
                 "day_of_week": r[7],
                 "start_time": str(r[8]),
                 "end_time": str(r[9]),
-                "late_grace_period_mins": r[10]
+                "late_grace_period_mins": r[10],
+                "teacher_name": r[11] or "Chưa phân công",
+                "subject_code": r[12]
             }
             for r in rows
         ]

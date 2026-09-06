@@ -660,11 +660,18 @@ function switchView(tabName) {
     currentTab = tabName;
     const dashboardView = $("dashboard-view");
     const attendanceView = $("attendance-view");
+    const studentsView = $("students-view");
+    const scheduleView = $("schedule-view");
     const breadcrumb = $("topbar-breadcrumb");
     const pageTitle = $("topbar-page-title");
 
+    // Ẩn toàn bộ các view
+    if (dashboardView) dashboardView.style.display = "none";
+    if (attendanceView) attendanceView.style.display = "none";
+    if (studentsView) studentsView.style.display = "none";
+    if (scheduleView) scheduleView.style.display = "none";
+
     if (tabName === "attendance") {
-        if (dashboardView) dashboardView.style.display = "none";
         if (attendanceView) {
             attendanceView.style.display = "block";
             loadStudents();
@@ -672,14 +679,27 @@ function switchView(tabName) {
         }
         if (breadcrumb) breadcrumb.textContent = "HỆ THỐNG / ĐIỂM DANH";
         if (pageTitle) pageTitle.textContent = "Phân Hệ Điểm Danh Thẻ RFID";
-        window.scrollTo({ top: 0, behavior: "smooth" });
+    } else if (tabName === "students") {
+        if (studentsView) {
+            studentsView.style.display = "block";
+            loadStudents();
+        }
+        if (breadcrumb) breadcrumb.textContent = "HỆ THỐNG / SINH VIÊN";
+        if (pageTitle) pageTitle.textContent = "Cơ Sở Dữ Liệu Sinh Viên & Thẻ RFID";
+    } else if (tabName === "schedule") {
+        if (scheduleView) {
+            scheduleView.style.display = "block";
+            loadScheduleView();
+        }
+        if (breadcrumb) breadcrumb.textContent = "HỆ THỐNG / THỜI KHÓA BIỂU";
+        if (pageTitle) pageTitle.textContent = "Thời Khóa Biểu & Lịch Giảng Dạy";
     } else {
-        if (attendanceView) attendanceView.style.display = "none";
         if (dashboardView) dashboardView.style.display = "block";
         if (breadcrumb) breadcrumb.textContent = "HỆ THỐNG / TỔNG QUAN";
         if (pageTitle) pageTitle.textContent = "Dashboard Phòng Học Thông Minh";
-        window.scrollTo({ top: 0, behavior: "smooth" });
     }
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 // ============================================================
@@ -702,15 +722,28 @@ async function loadStudents() {
 }
 
 function renderStudentsTable(students) {
-    const tbody = $("students-table-body");
-    if (!tbody) return;
+    const tbody1 = $("students-table-body");
+    const tbody2 = $("students-view-table-body");
+    if (!tbody1 && !tbody2) return;
+
+    // Cập nhật KPIs cho view Danh sách sinh viên
+    const totalCount = allStudents.length;
+    const assignedCount = allStudents.filter(s => !!s.card_uid).length;
+    const unassignedCount = totalCount - assignedCount;
+
+    if ($("students-kpi-total")) $("students-kpi-total").textContent = totalCount;
+    if ($("students-kpi-assigned")) $("students-kpi-assigned").textContent = assignedCount;
+    if ($("students-kpi-unassigned")) $("students-kpi-unassigned").textContent = unassignedCount;
+    if ($("students-count-badge")) $("students-count-badge").textContent = `${totalCount} sinh viên`;
 
     if (!students || students.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="table-empty-cell">Không tìm thấy học viên nào trong cơ sở dữ liệu</td></tr>`;
+        const emptyRow = `<tr><td colspan="8" class="table-empty-cell">Không tìm thấy học viên nào trong cơ sở dữ liệu</td></tr>`;
+        if (tbody1) tbody1.innerHTML = emptyRow;
+        if (tbody2) tbody2.innerHTML = `<tr><td colspan="7" class="table-empty-cell">Không tìm thấy học viên nào phù hợp</td></tr>`;
         return;
     }
 
-    tbody.innerHTML = students.map((student, index) => {
+    const htmlContent1 = students.map((student, index) => {
         const hasCard = !!student.card_uid;
         const cardPill = hasCard
             ? `<span class="card-uid-pill">🪪 ${escapeHtml(student.card_uid)}</span>`
@@ -753,13 +786,58 @@ function renderStudentsTable(students) {
             </tr>
         `;
     }).join("");
+
+    if (tbody1) tbody1.innerHTML = htmlContent1;
+
+    // Render cho tab Danh sách sinh viên (students-view)
+    if (tbody2) {
+        tbody2.innerHTML = students.map((student, index) => {
+            const hasCard = !!student.card_uid;
+            const cardPill = hasCard
+                ? `<span class="card-uid-pill" style="font-size:12px;">🪪 ${escapeHtml(student.card_uid)}</span>`
+                : `<span class="status-badge unassigned">Chưa gán thẻ</span>`;
+
+            const statusBadge = hasCard
+                ? `<span class="status-badge ontime">● Đã cấp thẻ</span>`
+                : `<span class="status-badge late">◌ Chờ cấp thẻ</span>`;
+
+            const updatedAtStr = student.updated_at ? formatFullDateTime(student.updated_at) : (student.created_at ? formatFullDateTime(student.created_at) : "--");
+            const initials = student.full_name ? student.full_name.split(" ").slice(-2).map(w => w[0]).join("").toUpperCase() : "SV";
+
+            return `
+                <tr>
+                    <td style="color:var(--text-muted); font-weight:700; text-align:center;">${index + 1}</td>
+                    <td><strong style="color:var(--primary); font-family: 'JetBrains Mono', monospace; font-size:13px;">${escapeHtml(student.student_code)}</strong></td>
+                    <td>
+                        <div class="student-avatar-cell">
+                            <div class="student-avatar-circle" style="background: linear-gradient(135deg, rgba(14,165,233,0.2), rgba(99,102,241,0.2)); color: var(--info);">${escapeHtml(initials)}</div>
+                            <div class="student-name-meta">
+                                <strong>${escapeHtml(student.full_name)}</strong>
+                                <small>${escapeHtml(student.class_name || student.email || "Sinh viên chính quy")}</small>
+                            </div>
+                        </div>
+                    </td>
+                    <td>${cardPill}</td>
+                    <td>${statusBadge}</td>
+                    <td style="font-size:12px; color:var(--text-dim); font-weight:500;">${updatedAtStr}</td>
+                    <td style="text-align: center;">
+                        <div class="action-btn-group" style="justify-content: center; gap: 8px;">
+                            <button class="btn btn-secondary btn-sm" onclick="openEditStudentModal(${student.id})" title="Chỉnh sửa hoặc gán thẻ RFID">
+                                <span>✏️</span> Sửa / Gán thẻ
+                            </button>
+                            <button class="btn btn-danger-outline btn-sm" onclick="deleteStudent(${student.id}, '${escapeHtml(student.full_name)}')" title="Xóa sinh viên">
+                                <span>🗑️</span> Xóa
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join("");
+    }
 }
 
-function filterStudents() {
-    const input = $("student-search-input");
-    if (!input) return;
-    const query = input.value.trim().toLowerCase();
-
+function handleStudentSearch(query) {
+    query = (query || "").trim().toLowerCase();
     if (!query) {
         renderStudentsTable(allStudents);
         return;
@@ -777,6 +855,15 @@ function filterStudents() {
     });
 
     renderStudentsTable(filtered);
+}
+
+function filterStudents() {
+    const input = $("student-search-input");
+    handleStudentSearch(input ? input.value : "");
+}
+
+async function loadStudentsView() {
+    await loadStudents();
 }
 
 function openAddStudentModal() {
@@ -1268,6 +1355,10 @@ if (roomSelect) {
         await loadRoom();
         if (currentTab === "attendance") {
             await loadAttendanceData();
+        } else if (currentTab === "schedule") {
+            const schedRoomFilter = $("schedule-room-filter");
+            if (schedRoomFilter) schedRoomFilter.value = currentRoom;
+            await loadScheduleView();
         }
     });
 }
@@ -1372,6 +1463,138 @@ async function handleCreateSession(e) {
         console.error("CREATE SESSION ERROR:", err);
         showToast("Lỗi mở ca học", err.message, false);
     }
+}
+
+// ============================================================
+// TIMETABLE & SCHEDULE MANAGEMENT
+// ============================================================
+let courseClassesCache = [];
+
+async function loadScheduleView() {
+    const container = $("schedule-grid-container");
+    const roomFilter = $("schedule-room-filter");
+    const classFilter = $("schedule-class-filter");
+    if (!container) return;
+
+    const selectedRoom = roomFilter ? roomFilter.value : "";
+    const selectedClass = classFilter ? classFilter.value : "";
+
+    // Nạp danh sách lớp học phần vào filter nếu chưa có
+    if (classFilter && classFilter.children.length <= 1) {
+        try {
+            const res = await fetch("/api/course-classes");
+            const json = await res.json();
+            courseClassesCache = json.data || [];
+            classFilter.innerHTML = `<option value="">Tất cả lớp học phần</option>` + courseClassesCache.map(c => `
+                <option value="${c.id}">${escapeHtml(c.class_code)}: ${escapeHtml(c.subject_name)}</option>
+            `).join("");
+        } catch (err) {
+            console.error("LOAD CLASS FILTER ERROR:", err);
+        }
+    }
+
+    try {
+        let url = `/api/schedules?`;
+        if (selectedRoom) url += `room_id=${encodeURIComponent(selectedRoom)}&`;
+        if (selectedClass) url += `class_id=${encodeURIComponent(selectedClass)}&`;
+
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Không thể tải thời khóa biểu");
+        const json = await res.json();
+        const schedules = json.data || [];
+
+        renderScheduleGrid(schedules);
+
+    } catch (err) {
+        console.error("LOAD SCHEDULE VIEW ERROR:", err);
+        container.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--danger);">Lỗi tải thời khóa biểu: ${escapeHtml(err.message)}</div>`;
+    }
+}
+
+function renderScheduleGrid(schedules) {
+    const container = $("schedule-grid-container");
+    if (!container) return;
+
+    const DAYS = [
+        { day: 0, title: "Thứ Hai", short: "T2" },
+        { day: 1, title: "Thứ Ba", short: "T3" },
+        { day: 2, title: "Thứ Tư", short: "T4" },
+        { day: 3, title: "Thứ Năm", short: "T5" },
+        { day: 4, title: "Thứ Sáu", short: "T6" },
+        { day: 5, title: "Thứ Bảy", short: "T7" },
+        { day: 6, title: "Chủ Nhật", short: "CN" }
+    ];
+
+    // Tính thứ hiện tại theo chuẩn Python weekday (0=Thứ 2, ..., 6=Chủ Nhật)
+    const todayWeekday = (new Date().getDay() + 6) % 7;
+
+    container.innerHTML = DAYS.map(d => {
+        const isToday = (d.day === todayWeekday);
+        const daySchedules = schedules.filter(s => s.day_of_week === d.day);
+
+        const cardsHtml = daySchedules.length === 0
+            ? `<div class="schedule-empty-day">Không có ca học</div>`
+            : daySchedules.map(s => {
+                // Xác định ca học
+                const startHour = parseInt(s.start_time.split(":")[0], 10);
+                let shiftClass = "shift-morning";
+                let shiftIcon = "☀️";
+                let shiftLabel = "Sáng";
+                if (startHour >= 18) {
+                    shiftClass = "shift-evening";
+                    shiftIcon = "🌙";
+                    shiftLabel = "Tối";
+                } else if (startHour >= 12) {
+                    shiftClass = "shift-afternoon";
+                    shiftIcon = "⛅";
+                    shiftLabel = "Chiều";
+                }
+
+                const startTimeStr = s.start_time.slice(0, 5);
+                const endTimeStr = s.end_time.slice(0, 5);
+
+                return `
+                    <div class="schedule-item-card ${shiftClass}">
+                        <div class="schedule-item-time">
+                            <span>${shiftIcon} ${startTimeStr} - ${endTimeStr}</span>
+                            <span class="mini-pill" style="font-size: 10px; padding: 1px 6px;">${shiftLabel}</span>
+                        </div>
+                        <div class="schedule-item-subject">${escapeHtml(s.subject_name)}</div>
+                        <div class="schedule-item-class">${escapeHtml(s.class_code)}</div>
+                        <div class="schedule-item-meta">
+                            <span>👨‍🏫 ${escapeHtml(s.teacher_name || 'Chưa phân công')}</span>
+                            <span>📍 ${escapeHtml(s.room_name)} (${escapeHtml(s.room_code)})</span>
+                        </div>
+                        <button class="btn btn-secondary btn-xs" style="margin-top: 6px; width: 100%; justify-content: center;" onclick="goToAttendance('${escapeHtml(s.room_code)}')">
+                            <span>🪪</span> Điểm danh phòng này
+                        </button>
+                    </div>
+                `;
+            }).join("");
+
+        return `
+            <div class="schedule-day-column ${isToday ? 'is-today' : ''}">
+                <div class="schedule-day-header">
+                    <span class="schedule-day-title">${d.title} ${isToday ? '●' : ''}</span>
+                    <span class="schedule-day-count">${daySchedules.length} ca</span>
+                </div>
+                <div class="schedule-card-list">
+                    ${cardsHtml}
+                </div>
+            </div>
+        `;
+    }).join("");
+}
+
+function goToAttendance(roomCode) {
+    if (roomCode) {
+        currentRoom = roomCode;
+        const select = $("room-select");
+        if (select) select.value = roomCode;
+    }
+    const attendanceNav = document.querySelector(".sidebar-nav .nav-item[data-tab='attendance']");
+    switchView("attendance");
+    setActiveNav(attendanceNav);
 }
 
 // Close modal when clicking outside
