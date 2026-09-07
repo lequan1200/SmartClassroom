@@ -20,6 +20,9 @@
 
 <div class="app">
 
+    <!-- Mobile Sidebar Backdrop Overlay -->
+    <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleMobileMenu(false)"></div>
+
     <!-- ============================================================
          SIDEBAR: NAVIGATION GỒM 2 MỤC CHÍNH (DASHBOARD & ĐIỂM DANH)
          ============================================================ -->
@@ -61,14 +64,15 @@
         <!-- Quick Room Switcher -->
         <div class="sidebar-room-card">
             <div class="sidebar-room-title">
-                <span>📍</span>
-                <span>Phòng học hiện tại</span>
+                <span>📍 PHÒNG HỌC HIỆN TẠI</span>
             </div>
             <div class="sidebar-select-wrapper">
                 <select id="room-select">
                     <option value="">Đang tải phòng...</option>
                 </select>
             </div>
+            <!-- Dynamic Room Quick Badges in Sidebar -->
+            <div class="sidebar-room-quick-list" id="sidebar-room-list"></div>
         </div>
 
         <!-- Raspberry Pi Backend Status -->
@@ -124,6 +128,29 @@
 
         <!-- Content Area Wrapper -->
         <div class="content-wrapper">
+
+            <!-- ============================================================
+                 MULTI-ROOM QUICK SWITCHER RIBBON (DÀNH CHO QUẢN LÝ NHIỀU PHÒNG)
+                 ============================================================ -->
+            <div class="multi-room-bar" id="multi-room-bar">
+                <div class="multi-room-bar-left">
+                    <span class="multi-room-bar-label">
+                        <span>🏛️</span> PHÒNG HỌC:
+                    </span>
+                    <div class="room-tabs-container" id="room-pills-container">
+                        <button type="button" class="room-tab-pill active">
+                            <span class="room-pill-dot"></span>
+                            <span>Đang tải danh sách phòng...</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="multi-room-bar-right" style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 11px; color: var(--text-muted); font-weight: 700;">CHUYỂN NHANH:</span>
+                    <select id="quick-room-select" class="custom-select" style="min-width: 150px; padding: 6px 12px; font-size: 11px;" onchange="switchRoom(this.value)">
+                        <option value="">Đang tải...</option>
+                    </select>
+                </div>
+            </div>
 
             <!-- ============================================================
                  PHÂN HỆ 1: DASHBOARD GIÁM SÁT & ĐIỀU KHIỂN
@@ -504,6 +531,7 @@
                             <div class="room-hero-details">
                                 <h2>Phân Hệ Điểm Danh Thẻ RFID</h2>
                                 <div class="room-meta-tags">
+                                    <span class="meta-chip">PHÒNG ĐIỂM DANH: <strong id="attendance-active-room-tag" style="color: var(--primary);">--</strong></span>
                                     <span class="meta-chip">GÁN MÃ THẺ RFID</span>
                                     <span class="meta-chip active-chip">● QUÉT THẺ TỰ ĐỘNG</span>
                                     <span class="meta-chip">THỜI GIAN THỰC</span>
@@ -810,6 +838,7 @@
                             <div class="room-hero-details">
                                 <h2>Thời Khóa Biểu & Lịch Giảng Dạy</h2>
                                 <div class="room-meta-tags">
+                                    <span class="meta-chip">PHÒNG ĐANG XEM: <strong id="schedule-active-room-tag" style="color: var(--primary);">--</strong></span>
                                     <span class="meta-chip">LỊCH HỌC TUẦN</span>
                                     <span class="meta-chip active-chip">● TỰ ĐỘNG MỞ CA</span>
                                     <span class="meta-chip">ĐỒNG BỘ CẢM BIẾN</span>

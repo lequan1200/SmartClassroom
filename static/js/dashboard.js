@@ -128,8 +128,112 @@ function showToast(title, message, success = true) {
 }
 
 // ============================================================
-// ROOM MANAGEMENT
+// ROOM MANAGEMENT & MULTI-ROOM SWITCHER
 // ============================================================
+let allRooms = [];
+
+function updateRoomUIHighlights(activeRoomId) {
+    // Highlight room tab pills in multi-room bar
+    document.querySelectorAll(".room-tab-pill").forEach(pill => {
+        if (pill.getAttribute("data-room") === activeRoomId) {
+            pill.classList.add("active");
+        } else {
+            pill.classList.remove("active");
+        }
+    });
+
+    // Highlight sidebar room items
+    document.querySelectorAll(".sidebar-room-badge-btn").forEach(btn => {
+        if (btn.getAttribute("data-room") === activeRoomId) {
+            btn.classList.add("active");
+        } else {
+            btn.classList.remove("active");
+        }
+    });
+
+    // Update attendance room badge
+    const attRoomTag = $("attendance-active-room-tag");
+    if (attRoomTag) {
+        const r = allRooms.find(x => x.room_id === activeRoomId);
+        attRoomTag.textContent = r && r.name ? `${r.name} (${activeRoomId})` : activeRoomId;
+    }
+
+    // Update schedule room badge
+    const schedRoomTag = $("schedule-active-room-tag");
+    if (schedRoomTag) {
+        const r = allRooms.find(x => x.room_id === activeRoomId);
+        schedRoomTag.textContent = r && r.name ? `${r.name} (${activeRoomId})` : activeRoomId;
+    }
+}
+
+function renderRoomPills(rooms) {
+    const container = $("room-pills-container");
+    if (!container) return;
+    if (rooms.length === 0) {
+        container.innerHTML = `<span class="meta-chip">Không có phòng học nào</span>`;
+        return;
+    }
+    container.innerHTML = rooms.map(room => {
+        const isActive = room.room_id === currentRoom;
+        const displayName = room.name ? `${room.name}` : room.room_id;
+        return `
+            <button type="button" 
+                    class="room-tab-pill ${isActive ? 'active' : ''}" 
+                    data-room="${escapeHtml(room.room_id)}" 
+                    onclick="switchRoom('${escapeHtml(room.room_id)}')"
+                    title="Chuyển sang ${escapeHtml(displayName)}">
+                <span class="room-pill-dot"></span>
+                <span>🏛️ ${escapeHtml(displayName)}</span>
+                <span class="room-pill-id">${escapeHtml(room.room_id)}</span>
+            </button>
+        `;
+    }).join("");
+}
+
+function renderSidebarRoomList(rooms) {
+    const list = $("sidebar-room-list");
+    if (!list) return;
+    list.innerHTML = rooms.map(room => {
+        const isActive = room.room_id === currentRoom;
+        const displayName = room.name ? `${room.name}` : room.room_id;
+        return `
+            <div class="sidebar-room-badge-btn ${isActive ? 'active' : ''}" 
+                 data-room="${escapeHtml(room.room_id)}"
+                 onclick="switchRoom('${escapeHtml(room.room_id)}')">
+                <span>🏛️ ${escapeHtml(displayName)}</span>
+                <span class="status-indicator-dot online" style="width:6px; height:6px;"></span>
+            </div>
+        `;
+    }).join("");
+}
+
+async function switchRoom(roomId) {
+    if (!roomId) return;
+    currentRoom = roomId;
+
+    const select = $("room-select");
+    if (select) select.value = roomId;
+
+    const quickSelect = $("quick-room-select");
+    if (quickSelect) quickSelect.value = roomId;
+
+    updateRoomUIHighlights(roomId);
+    await loadRoom();
+
+    if (currentTab === "attendance") {
+        await loadAttendanceData();
+    } else if (currentTab === "schedule") {
+        const schedRoomFilter = $("schedule-room-filter");
+        if (schedRoomFilter) schedRoomFilter.value = currentRoom;
+        await loadScheduleView();
+    }
+
+    const currentRoomObj = allRooms.find(r => r.room_id === roomId);
+    const roomDisplayName = currentRoomObj && currentRoomObj.name ? currentRoomObj.name : roomId;
+    showToast("Phòng học", `Đang quản lý ${roomDisplayName} (${roomId})`, true);
+}
+window.switchRoom = switchRoom;
+
 async function loadRooms() {
     try {
         const response = await fetch("/api/rooms");
@@ -137,28 +241,39 @@ async function loadRooms() {
         const data = await response.json();
         setServerStatus(true);
 
-        const select = $("room-select");
-        if (!select) return;
-        select.innerHTML = "";
-
         let rooms = [];
         if (Array.isArray(data)) rooms = data;
         else if (Array.isArray(data.data)) rooms = data.data;
         else if (Array.isArray(data.rooms)) rooms = data.rooms;
 
-        if (rooms.length === 0) {
-            select.innerHTML = `<option value="">Không có phòng</option>`;
-            return;
+        allRooms = rooms;
+
+        const select = $("room-select");
+        if (select) {
+            select.innerHTML = "";
+            if (rooms.length === 0) {
+                select.innerHTML = `<option value="">Không có phòng</option>`;
+            } else {
+                rooms.forEach(room => {
+                    const option = document.createElement("option");
+                    option.value = room.room_id;
+                    option.textContent = room.name ? `${room.room_id} - ${room.name}` : room.room_id;
+                    select.appendChild(option);
+                });
+            }
         }
 
-        rooms.forEach(room => {
-            const option = document.createElement("option");
-            option.value = room.room_id;
-            option.textContent = room.name ? `${room.room_id} - ${room.name}` : room.room_id;
-            select.appendChild(option);
-        });
+        const quickSelect = $("quick-room-select");
+        if (quickSelect) {
+            quickSelect.innerHTML = rooms.map(room => `
+                <option value="${room.room_id}">${room.name ? `${room.name} (${room.room_id})` : room.room_id}</option>
+            `).join("");
+        }
 
-        // Đồng bộ danh sách phòng vào filter TKB (thay hardcode HTML)
+        renderRoomPills(rooms);
+        renderSidebarRoomList(rooms);
+
+        // Đồng bộ danh sách phòng vào filter TKB
         const schedRoomFilter = $("schedule-room-filter");
         if (schedRoomFilter) {
             schedRoomFilter.innerHTML = `<option value="">Tất cả phòng</option>`;
@@ -170,10 +285,24 @@ async function loadRooms() {
             });
         }
 
-        if (!currentRoom) {
+        // Đồng bộ danh sách phòng vào modal Tạo Lịch Học (schedule-modal)
+        const schedRoomInput = $("schedule-room-input");
+        if (schedRoomInput) {
+            schedRoomInput.innerHTML = rooms.map(room => `
+                <option value="${room.room_id}">${room.name ? `${room.name} (${room.room_id})` : room.room_id}</option>
+            `).join("");
+        }
+
+        if (!currentRoom && rooms.length > 0) {
             currentRoom = rooms[0].room_id;
-            select.value = currentRoom;
+            if (select) select.value = currentRoom;
+            if (quickSelect) quickSelect.value = currentRoom;
+            updateRoomUIHighlights(currentRoom);
             await loadRoom();
+        } else if (currentRoom) {
+            if (select) select.value = currentRoom;
+            if (quickSelect) quickSelect.value = currentRoom;
+            updateRoomUIHighlights(currentRoom);
         }
     } catch (error) {
         console.error("LOAD ROOMS ERROR:", error);
@@ -191,6 +320,7 @@ async function loadRoom() {
         setServerStatus(true);
         if ($("room-id")) $("room-id").textContent = room.room_id || currentRoom;
         if ($("room-name")) $("room-name").textContent = room.name || `Phòng ${currentRoom}`;
+        updateRoomUIHighlights(currentRoom);
     } catch (error) {
         console.error("LOAD ROOM ERROR:", error);
     }
@@ -559,8 +689,8 @@ function drawTemperatureChart(history) {
 
     const ctx = canvas.getContext("2d");
     const gradient = ctx.createLinearGradient(0, 0, 0, 240);
-    gradient.addColorStop(0, "rgba(56, 189, 248, 0.35)");
-    gradient.addColorStop(1, "rgba(56, 189, 248, 0.0)");
+    gradient.addColorStop(0, "rgba(37, 99, 235, 0.18)");
+    gradient.addColorStop(1, "rgba(37, 99, 235, 0.0)");
 
     temperatureChart = new Chart(canvas, {
         type: "line",
@@ -572,12 +702,12 @@ function drawTemperatureChart(history) {
                 tension: 0.38,
                 fill: true,
                 backgroundColor: gradient,
-                borderColor: "#38bdf8",
+                borderColor: "#2563eb",
                 borderWidth: 2.5,
-                pointBackgroundColor: "#38bdf8",
-                pointBorderColor: "#070a12",
+                pointBackgroundColor: "#2563eb",
+                pointBorderColor: "#ffffff",
                 pointBorderWidth: 2,
-                pointRadius: 3,
+                pointRadius: 3.5,
                 pointHoverRadius: 6
             }]
         },
@@ -587,12 +717,13 @@ function drawTemperatureChart(history) {
             plugins: {
                 legend: { display: false },
                 tooltip: {
-                    backgroundColor: "rgba(12, 17, 30, 0.92)",
-                    titleColor: "#f1f5f9",
-                    bodyColor: "#38bdf8",
-                    borderColor: "rgba(56, 189, 248, 0.3)",
+                    backgroundColor: "#0f172a",
+                    titleColor: "#ffffff",
+                    bodyColor: "#60a5fa",
+                    borderColor: "rgba(37, 99, 235, 0.3)",
                     borderWidth: 1,
                     padding: 10,
+                    cornerRadius: 8,
                     displayColors: false,
                     callbacks: {
                         label: function (context) {
@@ -604,11 +735,11 @@ function drawTemperatureChart(history) {
             scales: {
                 x: {
                     ticks: { color: "#64748b", maxTicksLimit: 7, font: { size: 10, family: "Inter" } },
-                    grid: { color: "rgba(255, 255, 255, 0.04)" }
+                    grid: { color: "rgba(0, 0, 0, 0.04)" }
                 },
                 y: {
                     ticks: { color: "#64748b", font: { size: 10, family: "Inter" } },
-                    grid: { color: "rgba(255, 255, 255, 0.04)" }
+                    grid: { color: "rgba(0, 0, 0, 0.04)" }
                 }
             }
         }
@@ -646,6 +777,7 @@ function setupTabNavigation() {
             const targetTab = this.getAttribute("data-tab");
             switchView(targetTab);
             setActiveNav(this);
+            toggleMobileMenu(false);
         });
     });
 
@@ -1395,11 +1527,25 @@ if (roomSelect) {
     });
 }
 
+function toggleMobileMenu(isOpen) {
+    const sidebar = document.querySelector(".sidebar");
+    const backdrop = $("sidebar-backdrop");
+    if (!sidebar) return;
+    const shouldOpen = isOpen !== undefined ? isOpen : !sidebar.classList.contains("open");
+    if (shouldOpen) {
+        sidebar.classList.add("open");
+        if (backdrop) backdrop.classList.add("active");
+    } else {
+        sidebar.classList.remove("open");
+        if (backdrop) backdrop.classList.remove("active");
+    }
+}
+window.toggleMobileMenu = toggleMobileMenu;
+
 const mobileMenu = $("mobile-menu");
 if (mobileMenu) {
     mobileMenu.addEventListener("click", function () {
-        const sidebar = document.querySelector(".sidebar");
-        if (sidebar) sidebar.classList.toggle("open");
+        toggleMobileMenu();
     });
 }
 

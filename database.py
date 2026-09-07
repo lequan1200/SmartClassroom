@@ -10,11 +10,8 @@ DB_NAME = "smartclassroom"
 def ket_noi():
     try:
         return mariadb.connect(
-            host=DB_HOST,
-            port=DB_PORT,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            database=DB_NAME
+            host=DB_HOST, port=DB_PORT, user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
         )
     except mariadb.Error as e:
         print(f"DB ERROR: {e}")
@@ -25,33 +22,23 @@ def tim_sensor_id(room_id, sensor_name):
     conn = ket_noi()
     if conn is None:
         return None
-
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT sensors.id
-            FROM sensors
+        cursor.execute("""
+            SELECT sensors.id FROM sensors
             JOIN rooms ON sensors.room_id = rooms.id
             WHERE rooms.room_id = ? AND sensors.sensor_name = ?
-            """,
-            (room_id, sensor_name)
-        )
+        """, (room_id, sensor_name))
         result = cursor.fetchone()
 
-        # Ho tro chuyen doi tuong thich giua door va RFID
         if result is None:
             alias = "RFID" if str(sensor_name).lower() == "door" else ("door" if str(sensor_name).lower() == "rfid" else None)
             if alias:
-                cursor.execute(
-                    """
-                    SELECT sensors.id
-                    FROM sensors
+                cursor.execute("""
+                    SELECT sensors.id FROM sensors
                     JOIN rooms ON sensors.room_id = rooms.id
                     WHERE rooms.room_id = ? AND sensors.sensor_name = ?
-                    """,
-                    (room_id, alias)
-                )
+                """, (room_id, alias))
                 result = cursor.fetchone()
 
         cursor.close()
@@ -68,13 +55,9 @@ def luu_sensor_data(sensor_id, value):
     conn = ket_noi()
     if conn is None:
         return False
-
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO sensor_data (sensor_id, value) VALUES (?, ?)",
-            (sensor_id, value)
-        )
+        cursor.execute("INSERT INTO sensor_data (sensor_id, value) VALUES (?, ?)", (sensor_id, value))
         conn.commit()
         cursor.close()
         conn.close()
@@ -90,19 +73,15 @@ def cap_nhat_sensor_current(sensor_id, value):
     conn = ket_noi()
     if conn is None:
         return False
-
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            """
+        cursor.execute("""
             INSERT INTO sensor_current (sensor_id, value)
             VALUES (?, ?)
             ON DUPLICATE KEY UPDATE
                 value = VALUES(value),
                 updated_at = CURRENT_TIMESTAMP
-            """,
-            (sensor_id, value)
-        )
+        """, (sensor_id, value))
         conn.commit()
         cursor.close()
         conn.close()
@@ -118,18 +97,13 @@ def tim_device_id(room_id, device_name):
     conn = ket_noi()
     if conn is None:
         return None
-
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT devices.id
-            FROM devices
+        cursor.execute("""
+            SELECT devices.id FROM devices
             JOIN rooms ON devices.room_id = rooms.id
             WHERE rooms.room_id = ? AND devices.device_name = ?
-            """,
-            (room_id, device_name)
-        )
+        """, (room_id, device_name))
         result = cursor.fetchone()
         cursor.close()
         conn.close()
@@ -145,19 +119,15 @@ def cap_nhat_device_current(device_id, state):
     conn = ket_noi()
     if conn is None:
         return False
-
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            """
+        cursor.execute("""
             INSERT INTO device_current (device_id, state)
             VALUES (?, ?)
             ON DUPLICATE KEY UPDATE
                 state = VALUES(state),
                 updated_at = CURRENT_TIMESTAMP
-            """,
-            (device_id, state)
-        )
+        """, (device_id, state))
         conn.commit()
         cursor.close()
         conn.close()
@@ -173,13 +143,9 @@ def luu_device_log(device_id, action):
     conn = ket_noi()
     if conn is None:
         return False
-
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO device_logs (device_id, action) VALUES (?, ?)",
-            (device_id, action)
-        )
+        cursor.execute("INSERT INTO device_logs (device_id, action) VALUES (?, ?)", (device_id, action))
         conn.commit()
         cursor.close()
         conn.close()
@@ -195,32 +161,22 @@ def lay_sensor_hien_tai(room_id):
     conn = ket_noi()
     if conn is None:
         return None
-
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT
-                sensors.sensor_name,
-                sensors.unit,
-                sensor_current.value,
-                sensor_current.updated_at
+        cursor.execute("""
+            SELECT sensors.sensor_name, sensors.unit, sensor_current.value, sensor_current.updated_at
             FROM sensors
             JOIN rooms ON sensors.room_id = rooms.id
             LEFT JOIN sensor_current ON sensors.id = sensor_current.sensor_id
             WHERE rooms.room_id = ?
             ORDER BY sensors.id
-            """,
-            (room_id,)
-        )
+        """, (room_id,))
         rows = cursor.fetchall()
         cursor.close()
         conn.close()
-
         return [
             {
-                "sensor_name": row[0],
-                "unit": row[1],
+                "sensor_name": row[0], "unit": row[1],
                 "value": float(row[2]) if row[2] is not None else None,
                 "updated_at": row[3].isoformat() if row[3] else None
             }
@@ -237,32 +193,22 @@ def lay_device_hien_tai(room_id):
     conn = ket_noi()
     if conn is None:
         return None
-
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT
-                devices.device_name,
-                devices.device_type,
-                device_current.state,
-                device_current.updated_at
+        cursor.execute("""
+            SELECT devices.device_name, devices.device_type, device_current.state, device_current.updated_at
             FROM devices
             JOIN rooms ON devices.room_id = rooms.id
             LEFT JOIN device_current ON devices.id = device_current.device_id
             WHERE rooms.room_id = ?
             ORDER BY devices.id
-            """,
-            (room_id,)
-        )
+        """, (room_id,))
         rows = cursor.fetchall()
         cursor.close()
         conn.close()
-
         return [
             {
-                "device_name": row[0],
-                "device_type": row[1],
+                "device_name": row[0], "device_type": row[1],
                 "state": row[2],
                 "updated_at": row[3].isoformat() if row[3] else None
             }
@@ -279,19 +225,15 @@ def lay_danh_sach_phong():
     conn = ket_noi()
     if conn is None:
         return None
-
     try:
         cursor = conn.cursor()
         cursor.execute("SELECT id, room_id, name, created_at, control_mode FROM rooms ORDER BY id")
         rows = cursor.fetchall()
         cursor.close()
         conn.close()
-
         return [
             {
-                "id": row[0],
-                "room_id": row[1],
-                "name": row[2],
+                "id": row[0], "room_id": row[1], "name": row[2],
                 "created_at": row[3].isoformat() if row[3] else None,
                 "control_mode": row[4] if len(row) > 4 and row[4] else "MANUAL"
             }
@@ -308,24 +250,16 @@ def lay_phong(room_id):
     conn = ket_noi()
     if conn is None:
         return None
-
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, room_id, name, created_at, control_mode FROM rooms WHERE room_id = ?",
-            (room_id,)
-        )
+        cursor.execute("SELECT id, room_id, name, created_at, control_mode FROM rooms WHERE room_id = ?", (room_id,))
         row = cursor.fetchone()
         cursor.close()
         conn.close()
-
         if row is None:
             return None
-
         return {
-            "id": row[0],
-            "room_id": row[1],
-            "name": row[2],
+            "id": row[0], "room_id": row[1], "name": row[2],
             "created_at": row[3].isoformat() if row[3] else None,
             "control_mode": row[4] if len(row) > 4 and row[4] else "MANUAL"
         }
@@ -340,13 +274,9 @@ def lay_che_do_phong(room_id):
     conn = ket_noi()
     if conn is None:
         return "MANUAL"
-
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT control_mode FROM rooms WHERE room_id = ?",
-            (room_id,)
-        )
+        cursor.execute("SELECT control_mode FROM rooms WHERE room_id = ?", (room_id,))
         row = cursor.fetchone()
         cursor.close()
         conn.close()
@@ -364,17 +294,12 @@ def cap_nhat_che_do_phong(room_id, mode):
     mode = str(mode).upper()
     if mode not in ["MANUAL", "AUTO"]:
         return False
-
     conn = ket_noi()
     if conn is None:
         return False
-
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE rooms SET control_mode = ? WHERE room_id = ?",
-            (mode, room_id)
-        )
+        cursor.execute("UPDATE rooms SET control_mode = ? WHERE room_id = ?", (mode, room_id))
         conn.commit()
         cursor.close()
         conn.close()
@@ -387,64 +312,41 @@ def cap_nhat_che_do_phong(room_id, mode):
         return False
 
 
-
 def lay_sensor(room_id, sensor_name):
     conn = ket_noi()
     if conn is None:
         return None
-
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT
-                sensors.id,
-                sensors.sensor_name,
-                sensors.sensor_type,
-                sensors.unit,
-                sensor_current.value,
-                sensor_current.updated_at
+        cursor.execute("""
+            SELECT sensors.id, sensors.sensor_name, sensors.sensor_type, sensors.unit,
+                   sensor_current.value, sensor_current.updated_at
             FROM sensors
             JOIN rooms ON sensors.room_id = rooms.id
             LEFT JOIN sensor_current ON sensors.id = sensor_current.sensor_id
             WHERE rooms.room_id = ? AND sensors.sensor_name = ?
-            """,
-            (room_id, sensor_name)
-        )
+        """, (room_id, sensor_name))
         row = cursor.fetchone()
 
-        # Ho tro alias giua door va RFID
         if row is None:
             alias = "RFID" if str(sensor_name).lower() == "door" else ("door" if str(sensor_name).lower() == "rfid" else None)
             if alias:
-                cursor.execute(
-                    """
-                    SELECT
-                        sensors.id,
-                        sensors.sensor_name,
-                        sensors.sensor_type,
-                        sensors.unit,
-                        sensor_current.value,
-                        sensor_current.updated_at
+                cursor.execute("""
+                    SELECT sensors.id, sensors.sensor_name, sensors.sensor_type, sensors.unit,
+                           sensor_current.value, sensor_current.updated_at
                     FROM sensors
                     JOIN rooms ON sensors.room_id = rooms.id
                     LEFT JOIN sensor_current ON sensors.id = sensor_current.sensor_id
                     WHERE rooms.room_id = ? AND sensors.sensor_name = ?
-                    """,
-                    (room_id, alias)
-                )
+                """, (room_id, alias))
                 row = cursor.fetchone()
 
         cursor.close()
         conn.close()
-
         if row is None:
             return None
-
         return {
-            "id": row[0],
-            "sensor_name": row[1],
-            "sensor_type": row[2],
+            "id": row[0], "sensor_name": row[1], "sensor_type": row[2],
             "unit": row[3],
             "value": float(row[4]) if row[4] is not None else None,
             "updated_at": row[5].isoformat() if row[5] else None
@@ -460,63 +362,43 @@ def lay_sensor_history(room_id, sensor_name, limit=100):
     conn = ket_noi()
     if conn is None:
         return None
-
     try:
         cursor = conn.cursor()
-
         try:
             limit = int(limit)
         except (TypeError, ValueError):
             limit = 100
+        limit = min(max(1, limit), 1000)
 
-        if limit < 1:
-            limit = 1
-        if limit > 1000:
-            limit = 1000
-
-        cursor.execute(
-            """
-            SELECT
-                sensor_data.value,
-                sensor_data.recorded_at
+        cursor.execute("""
+            SELECT sensor_data.value, sensor_data.recorded_at
             FROM sensor_data
             JOIN sensors ON sensor_data.sensor_id = sensors.id
             JOIN rooms ON sensors.room_id = rooms.id
             WHERE rooms.room_id = ? AND sensors.sensor_name = ?
             ORDER BY sensor_data.recorded_at DESC
             LIMIT ?
-            """,
-            (room_id, sensor_name, limit)
-        )
+        """, (room_id, sensor_name, limit))
         rows = cursor.fetchall()
 
         if not rows:
             alias = "RFID" if str(sensor_name).lower() == "door" else ("door" if str(sensor_name).lower() == "rfid" else None)
             if alias:
-                cursor.execute(
-                    """
-                    SELECT
-                        sensor_data.value,
-                        sensor_data.recorded_at
+                cursor.execute("""
+                    SELECT sensor_data.value, sensor_data.recorded_at
                     FROM sensor_data
                     JOIN sensors ON sensor_data.sensor_id = sensors.id
                     JOIN rooms ON sensors.room_id = rooms.id
                     WHERE rooms.room_id = ? AND sensors.sensor_name = ?
                     ORDER BY sensor_data.recorded_at DESC
                     LIMIT ?
-                    """,
-                    (room_id, alias, limit)
-                )
+                """, (room_id, alias, limit))
                 rows = cursor.fetchall()
 
         cursor.close()
         conn.close()
-
         return [
-            {
-                "value": float(row[0]),
-                "recorded_at": row[1].isoformat() if row[1] else None
-            }
+            {"value": float(row[0]), "recorded_at": row[1].isoformat() if row[1] else None}
             for row in rows
         ]
     except mariadb.Error as e:
@@ -530,35 +412,23 @@ def lay_device(room_id, device_name):
     conn = ket_noi()
     if conn is None:
         return None
-
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT
-                devices.id,
-                devices.device_name,
-                devices.device_type,
-                device_current.state,
-                device_current.updated_at
+        cursor.execute("""
+            SELECT devices.id, devices.device_name, devices.device_type,
+                   device_current.state, device_current.updated_at
             FROM devices
             JOIN rooms ON devices.room_id = rooms.id
             LEFT JOIN device_current ON devices.id = device_current.device_id
             WHERE rooms.room_id = ? AND devices.device_name = ?
-            """,
-            (room_id, device_name)
-        )
+        """, (room_id, device_name))
         row = cursor.fetchone()
         cursor.close()
         conn.close()
-
         if row is None:
             return None
-
         return {
-            "id": row[0],
-            "device_name": row[1],
-            "device_type": row[2],
+            "id": row[0], "device_name": row[1], "device_type": row[2],
             "state": row[3],
             "updated_at": row[4].isoformat() if row[4] else None
         }
@@ -566,9 +436,8 @@ def lay_device(room_id, device_name):
         print(f"DB ERROR: {e}")
         if conn:
             conn.close()
-# ============================================================
-# QUẢN LÝ HỌC VIÊN & THẺ RFID
-# ============================================================
+        return None
+
 
 def lay_danh_sach_hoc_vien():
     conn = ket_noi()
@@ -576,25 +445,17 @@ def lay_danh_sach_hoc_vien():
         return None
     try:
         cur = conn.cursor()
-        cur.execute(
-            """
+        cur.execute("""
             SELECT id, student_code, full_name, card_uid, class_name, email, phone, created_at
-            FROM students
-            ORDER BY student_code ASC
-            """
-        )
+            FROM students ORDER BY student_code ASC
+        """)
         rows = cur.fetchall()
         cur.close()
         conn.close()
         return [
             {
-                "id": r[0],
-                "student_code": r[1],
-                "full_name": r[2],
-                "card_uid": r[3],
-                "class_name": r[4],
-                "email": r[5],
-                "phone": r[6],
+                "id": r[0], "student_code": r[1], "full_name": r[2], "card_uid": r[3],
+                "class_name": r[4], "email": r[5], "phone": r[6],
                 "created_at": r[7].isoformat() if r[7] else None
             }
             for r in rows
@@ -614,26 +475,16 @@ def tim_hoc_vien_theo_card(card_uid):
         return None
     try:
         cur = conn.cursor()
-        cur.execute(
-            """
+        cur.execute("""
             SELECT id, student_code, full_name, card_uid, class_name
-            FROM students
-            WHERE UPPER(card_uid) = UPPER(?)
-            """,
-            (card_uid.strip(),)
-        )
+            FROM students WHERE UPPER(card_uid) = UPPER(?)
+        """, (card_uid.strip(),))
         row = cur.fetchone()
         cur.close()
         conn.close()
         if not row:
             return None
-        return {
-            "id": row[0],
-            "student_code": row[1],
-            "full_name": row[2],
-            "card_uid": row[3],
-            "class_name": row[4]
-        }
+        return {"id": row[0], "student_code": row[1], "full_name": row[2], "card_uid": row[3], "class_name": row[4]}
     except mariadb.Error as e:
         print(f"DB ERROR tim_hoc_vien_theo_card: {e}")
         if conn:
@@ -644,22 +495,17 @@ def tim_hoc_vien_theo_card(card_uid):
 def them_hoc_vien(student_code, full_name, class_name=None, card_uid=None, email=None, phone=None):
     if not student_code or not full_name:
         return False, "Thiếu mã học viên hoặc họ tên"
-
     card_uid = card_uid.strip().upper() if card_uid and card_uid.strip() else None
 
     conn = ket_noi()
     if conn is None:
         return False, "Không thể kết nối MariaDB"
-
     try:
         cur = conn.cursor()
-        cur.execute(
-            """
+        cur.execute("""
             INSERT INTO students (student_code, full_name, card_uid, class_name, email, phone)
             VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (student_code.strip(), full_name.strip(), card_uid, class_name, email, phone)
-        )
+        """, (student_code.strip(), full_name.strip(), card_uid, class_name, email, phone))
         conn.commit()
         new_id = cur.lastrowid
         cur.close()
@@ -684,23 +530,18 @@ def them_hoc_vien(student_code, full_name, class_name=None, card_uid=None, email
 def sua_hoc_vien(student_id, student_code, full_name, class_name=None, card_uid=None, email=None, phone=None):
     if not student_code or not full_name:
         return False, "Thiếu mã học viên hoặc họ tên"
-
     card_uid = card_uid.strip().upper() if card_uid and card_uid.strip() else None
 
     conn = ket_noi()
     if conn is None:
         return False, "Không thể kết nối MariaDB"
-
     try:
         cur = conn.cursor()
-        cur.execute(
-            """
+        cur.execute("""
             UPDATE students
             SET student_code = ?, full_name = ?, card_uid = ?, class_name = ?, email = ?, phone = ?
             WHERE id = ?
-            """,
-            (student_code.strip(), full_name.strip(), card_uid, class_name, email, phone, student_id)
-        )
+        """, (student_code.strip(), full_name.strip(), card_uid, class_name, email, phone, student_id))
         conn.commit()
         cur.close()
         conn.close()
@@ -762,10 +603,6 @@ def gan_the_hoc_vien(student_id, card_uid):
         return False, f"Lỗi cơ sở dữ liệu: {e}"
 
 
-# ============================================================
-# QUẢN LÝ ĐIỂM DANH (ATTENDANCE LOGS)
-# ============================================================
-
 def luu_attendance_log(room_id, card_uid, event_type="CHECK_IN", status="DUNG_GIO", recorded_at=None):
     card_uid = card_uid.strip().upper() if card_uid else ""
     if not card_uid:
@@ -774,11 +611,9 @@ def luu_attendance_log(room_id, card_uid, event_type="CHECK_IN", status="DUNG_GI
     conn = ket_noi()
     if conn is None:
         return False
-
     try:
         cur = conn.cursor()
 
-        # 1. Tìm room database id (id số nguyên từ rooms)
         room_db_id = 1
         if isinstance(room_id, int):
             room_db_id = room_id
@@ -788,28 +623,21 @@ def luu_attendance_log(room_id, card_uid, event_type="CHECK_IN", status="DUNG_GI
             if r_row:
                 room_db_id = r_row[0]
 
-        # 2. Tìm student_id từ card_uid
         cur.execute("SELECT id FROM students WHERE UPPER(card_uid) = UPPER(?)", (card_uid,))
         s_row = cur.fetchone()
         student_id = s_row[0] if s_row else None
 
-        # 3. Ghi vào attendance_logs
         if recorded_at:
-            cur.execute(
-                """
+            cur.execute("""
                 INSERT INTO attendance_logs (room_id, student_id, card_uid, event_type, status, recorded_at)
                 VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (room_db_id, student_id, card_uid, event_type, status, recorded_at)
-            )
+            """, (room_db_id, student_id, card_uid, event_type, status, recorded_at))
         else:
-            cur.execute(
-                """
+            cur.execute("""
                 INSERT INTO attendance_logs (room_id, student_id, card_uid, event_type, status)
                 VALUES (?, ?, ?, ?, ?)
-                """,
-                (room_db_id, student_id, card_uid, event_type, status)
-            )
+            """, (room_db_id, student_id, card_uid, event_type, status))
+
         conn.commit()
         cur.close()
         conn.close()
@@ -830,18 +658,8 @@ def lay_danh_sach_diem_danh(room_id=None, limit=50, ngay=None, date_filter=None)
     try:
         cur = conn.cursor()
         query = """
-            SELECT
-                att.id,
-                r.room_id,
-                r.name AS room_name,
-                att.card_uid,
-                att.student_id,
-                st.student_code,
-                st.full_name,
-                st.class_name,
-                att.event_type,
-                att.status,
-                att.recorded_at
+            SELECT att.id, r.room_id, r.name AS room_name, att.card_uid, att.student_id,
+                   st.student_code, st.full_name, st.class_name, att.event_type, att.status, att.recorded_at
             FROM attendance_logs att
             JOIN rooms r ON att.room_id = r.id
             LEFT JOIN students st ON att.student_id = st.id
@@ -855,30 +673,23 @@ def lay_danh_sach_diem_danh(room_id=None, limit=50, ngay=None, date_filter=None)
             query += " AND DATE(att.recorded_at) = ?"
             params.append(str(ngay))
 
-        query += " ORDER BY att.recorded_at DESC LIMIT ?"
         try:
             limit = int(limit)
         except (TypeError, ValueError):
             limit = 50
+        query += " ORDER BY att.recorded_at DESC LIMIT ?"
         params.append(min(max(1, limit), 500))
 
         cur.execute(query, tuple(params))
         rows = cur.fetchall()
         cur.close()
         conn.close()
-
         return [
             {
-                "id": r[0],
-                "room_id": r[1],
-                "room_name": r[2],
-                "card_uid": r[3],
-                "student_id": r[4],
-                "student_code": r[5] or "---",
-                "full_name": r[6] or "Chưa đăng ký thẻ",
-                "class_name": r[7] or "---",
-                "event_type": r[8],
-                "status": r[9] or "NORMAL",
+                "id": r[0], "room_id": r[1], "room_name": r[2], "card_uid": r[3],
+                "student_id": r[4], "student_code": r[5] or "---",
+                "full_name": r[6] or "Chưa đăng ký thẻ", "class_name": r[7] or "---",
+                "event_type": r[8], "status": r[9] or "NORMAL",
                 "recorded_at": r[10].isoformat() if r[10] else None
             }
             for r in rows
@@ -898,11 +709,9 @@ def lay_thong_ke_diem_danh(room_id=None, ngay=None, date_filter=None):
         return None
     try:
         cur = conn.cursor()
-
         import datetime as _dt
         stat_date = str(ngay) if ngay else _dt.date.today().isoformat()
 
-        # 1. Ưu tiên đếm tổng SV từ attendance_records của buổi học hôm nay (chính xác nhất)
         total_q = """
             SELECT COUNT(DISTINCT ar.student_id)
             FROM attendance_sessions ses
@@ -917,7 +726,6 @@ def lay_thong_ke_diem_danh(room_id=None, ngay=None, date_filter=None):
         cur.execute(total_q, tuple(total_p))
         total_students = cur.fetchone()[0] or 0
 
-        # Fallback 1: nếu chưa có buổi học nào trong ngày, đếm từ lịch cố định (schedules)
         if total_students == 0 and room_id:
             cur.execute("""
                 SELECT COUNT(DISTINCT ce.student_id)
@@ -929,12 +737,10 @@ def lay_thong_ke_diem_danh(room_id=None, ngay=None, date_filter=None):
             r_s = cur.fetchone()
             total_students = r_s[0] if r_s and r_s[0] else 0
 
-        # Fallback 2: đếm toàn bộ SV trong hệ thống
         if total_students == 0:
             cur.execute("SELECT COUNT(*) FROM students")
             total_students = cur.fetchone()[0]
 
-        # 2. Thống kê có mặt / muộn từ attendance_logs (real-time raw scans)
         date_cond = "DATE(att.recorded_at) = CURDATE()" if not ngay else "DATE(att.recorded_at) = ?"
         params = [] if not ngay else [str(ngay)]
 
@@ -944,42 +750,31 @@ def lay_thong_ke_diem_danh(room_id=None, ngay=None, date_filter=None):
             room_cond = " AND (r.room_id = ? OR r.id = ?)"
             params_with_room.extend([str(room_id), str(room_id)])
 
-        # Đã quẹt thẻ check-in
-        query_checkin = f"""
+        cur.execute(f"""
             SELECT COUNT(DISTINCT att.student_id), COUNT(DISTINCT att.card_uid)
             FROM attendance_logs att
             JOIN rooms r ON att.room_id = r.id
             WHERE att.event_type = 'CHECK_IN' AND {date_cond} {room_cond}
-        """
-        cur.execute(query_checkin, tuple(params_with_room))
+        """, tuple(params_with_room))
         r_checkin = cur.fetchone()
         present_students = r_checkin[0] or 0
-        unknown_cards = (r_checkin[1] or 0) - present_students
-        if unknown_cards < 0:
-            unknown_cards = 0
+        unknown_cards = max(0, (r_checkin[1] or 0) - present_students)
 
-        # Đi muộn (chấp nhận cả DI_MUON và MUON để tương thích dữ liệu)
-        query_late = f"""
+        cur.execute(f"""
             SELECT COUNT(DISTINCT att.student_id)
             FROM attendance_logs att
             JOIN rooms r ON att.room_id = r.id
             WHERE att.event_type = 'CHECK_IN' AND att.status IN ('DI_MUON', 'MUON') AND {date_cond} {room_cond}
-        """
-        cur.execute(query_late, tuple(params_with_room))
+        """, tuple(params_with_room))
         late_count = cur.fetchone()[0] or 0
 
         absent_count = max(0, total_students - present_students)
-
         cur.close()
         conn.close()
-
         return {
-            "total_students": total_students,
-            "present_students": present_students,
-            "late_count": late_count,
-            "on_time_count": max(0, present_students - late_count),
-            "absent_count": absent_count,
-            "unknown_cards": unknown_cards
+            "total_students": total_students, "present_students": present_students,
+            "late_count": late_count, "on_time_count": max(0, present_students - late_count),
+            "absent_count": absent_count, "unknown_cards": unknown_cards
         }
     except mariadb.Error as e:
         print(f"DB ERROR lay_thong_ke_diem_danh: {e}")
@@ -987,10 +782,6 @@ def lay_thong_ke_diem_danh(room_id=None, ngay=None, date_filter=None):
             conn.close()
         return None
 
-
-# ============================================================
-# PHÂN HỆ ĐIỂM DANH LỚP HỌC (ACADEMIC ATTENDANCE SYSTEM)
-# ============================================================
 
 def lay_danh_sach_mon_hoc():
     conn = ket_noi()
@@ -1004,11 +795,8 @@ def lay_danh_sach_mon_hoc():
         conn.close()
         return [
             {
-                "id": r[0],
-                "subject_code": r[1],
-                "name": r[2],
-                "credits": r[3],
-                "created_at": r[4].isoformat() if r[4] else None
+                "id": r[0], "subject_code": r[1], "name": r[2],
+                "credits": r[3], "created_at": r[4].isoformat() if r[4] else None
             }
             for r in rows
         ]
@@ -1025,10 +813,7 @@ def them_mon_hoc(subject_code, name, credits=3):
         return False, "Khong the ket noi CSDL"
     try:
         cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO subjects (subject_code, name, credits) VALUES (?, ?, ?)",
-            (subject_code.strip(), name.strip(), credits)
-        )
+        cur.execute("INSERT INTO subjects (subject_code, name, credits) VALUES (?, ?, ?)", (subject_code.strip(), name.strip(), credits))
         conn.commit()
         new_id = cur.lastrowid
         cur.close()
@@ -1047,31 +832,22 @@ def lay_danh_sach_lop_hoc_phan():
         return []
     try:
         cur = conn.cursor()
-        query = """
-            SELECT 
-                c.id, c.class_code, c.subject_id, s.subject_code, s.name AS subject_name,
-                c.teacher_name, c.semester,
-                COUNT(ce.student_id) AS total_enrolled
+        cur.execute("""
+            SELECT c.id, c.class_code, c.subject_id, s.subject_code, s.name AS subject_name,
+                   c.teacher_name, c.semester, COUNT(ce.student_id) AS total_enrolled
             FROM course_classes c
             JOIN subjects s ON c.subject_id = s.id
             LEFT JOIN class_enrollments ce ON c.id = ce.class_id
-            GROUP BY c.id
-            ORDER BY c.id ASC
-        """
-        cur.execute(query)
+            GROUP BY c.id ORDER BY c.id ASC
+        """)
         rows = cur.fetchall()
         cur.close()
         conn.close()
         return [
             {
-                "id": r[0],
-                "class_code": r[1],
-                "subject_id": r[2],
-                "subject_code": r[3],
-                "subject_name": r[4],
-                "teacher_name": r[5] or "---",
-                "semester": r[6] or "---",
-                "total_enrolled": r[7]
+                "id": r[0], "class_code": r[1], "subject_id": r[2], "subject_code": r[3],
+                "subject_name": r[4], "teacher_name": r[5] or "---",
+                "semester": r[6] or "---", "total_enrolled": r[7]
             }
             for r in rows
         ]
@@ -1110,10 +886,7 @@ def gan_sinh_vien_vao_lop(class_id, student_id):
         return False, "Khong the ket noi CSDL"
     try:
         cur = conn.cursor()
-        cur.execute(
-            "INSERT IGNORE INTO class_enrollments (class_id, student_id) VALUES (?, ?)",
-            (class_id, student_id)
-        )
+        cur.execute("INSERT IGNORE INTO class_enrollments (class_id, student_id) VALUES (?, ?)", (class_id, student_id))
         conn.commit()
         cur.close()
         conn.close()
@@ -1135,19 +908,15 @@ def lay_sinh_vien_trong_lop(class_id):
             SELECT s.id, s.student_code, s.full_name, s.card_uid, s.class_name, ce.enrolled_at
             FROM class_enrollments ce
             JOIN students s ON ce.student_id = s.id
-            WHERE ce.class_id = ?
-            ORDER BY s.student_code ASC
+            WHERE ce.class_id = ? ORDER BY s.student_code ASC
         """, (class_id,))
         rows = cur.fetchall()
         cur.close()
         conn.close()
         return [
             {
-                "id": r[0],
-                "student_code": r[1],
-                "full_name": r[2],
-                "card_uid": r[3],
-                "class_name": r[4],
+                "id": r[0], "student_code": r[1], "full_name": r[2],
+                "card_uid": r[3], "class_name": r[4],
                 "enrolled_at": r[5].isoformat() if r[5] else None
             }
             for r in rows
@@ -1166,11 +935,10 @@ def lay_thoi_khoa_bieu(room_id=None, class_id=None):
     try:
         cur = conn.cursor()
         query = """
-            SELECT 
-                sc.id, sc.class_id, c.class_code, s.name AS subject_name,
-                sc.room_id, r.room_id AS room_code, r.name AS room_name,
-                sc.day_of_week, sc.start_time, sc.end_time, sc.late_grace_period_mins,
-                c.teacher_name, s.subject_code
+            SELECT sc.id, sc.class_id, c.class_code, s.name AS subject_name,
+                   sc.room_id, r.room_id AS room_code, r.name AS room_name,
+                   sc.day_of_week, sc.start_time, sc.end_time, sc.late_grace_period_mins,
+                   c.teacher_name, s.subject_code
             FROM schedules sc
             JOIN course_classes c ON sc.class_id = c.id
             JOIN subjects s ON c.subject_id = s.id
@@ -1184,7 +952,6 @@ def lay_thoi_khoa_bieu(room_id=None, class_id=None):
         if class_id:
             query += " AND sc.class_id = ?"
             params.append(class_id)
-
         query += " ORDER BY sc.day_of_week ASC, sc.start_time ASC"
         cur.execute(query, tuple(params))
         rows = cur.fetchall()
@@ -1192,19 +959,11 @@ def lay_thoi_khoa_bieu(room_id=None, class_id=None):
         conn.close()
         return [
             {
-                "id": r[0],
-                "class_id": r[1],
-                "class_code": r[2],
-                "subject_name": r[3],
-                "room_id": r[4],
-                "room_code": r[5],
-                "room_name": r[6],
-                "day_of_week": r[7],
-                "start_time": str(r[8]),
-                "end_time": str(r[9]),
+                "id": r[0], "class_id": r[1], "class_code": r[2], "subject_name": r[3],
+                "room_id": r[4], "room_code": r[5], "room_name": r[6],
+                "day_of_week": r[7], "start_time": str(r[8]), "end_time": str(r[9]),
                 "late_grace_period_mins": r[10],
-                "teacher_name": r[11] or "Chưa phân công",
-                "subject_code": r[12]
+                "teacher_name": r[11] or "Chưa phân công", "subject_code": r[12]
             }
             for r in rows
         ]
@@ -1216,10 +975,7 @@ def lay_thoi_khoa_bieu(room_id=None, class_id=None):
 
 
 def tim_hoac_tao_session_hien_tai(room_id, at_datetime=None):
-    """
-    Xác định hoặc khởi tạo Buổi học (attendance_session) đang diễn ra tại phòng học.
-    Đồng thời tự động khởi tạo bản ghi điểm danh (attendance_records) cho toàn bộ SV trong lớp.
-    """
+    """Xác định hoặc khởi tạo buổi học đang diễn ra tại phòng. Tự động tạo attendance_records cho lớp."""
     conn = ket_noi()
     if conn is None:
         return None
@@ -1230,12 +986,11 @@ def tim_hoac_tao_session_hien_tai(room_id, at_datetime=None):
 
     current_date = at_datetime.date()
     current_time = at_datetime.time()
-    day_of_week = at_datetime.weekday()  # 0: Monday, 6: Sunday
+    day_of_week = at_datetime.weekday()
 
     try:
         cur = conn.cursor()
 
-        # 1. Tìm ID số nguyên của room
         cur.execute("SELECT id FROM rooms WHERE room_id = ? OR id = ? LIMIT 1", (str(room_id), str(room_id)))
         r_row = cur.fetchone()
         if not r_row:
@@ -1244,7 +999,6 @@ def tim_hoac_tao_session_hien_tai(room_id, at_datetime=None):
             return None
         room_db_id = r_row[0]
 
-        # 2. Kiểm tra xem đã có session ACTIVE hoặc UPCOMING trong ngày hôm nay ở khung giờ này chưa
         cur.execute("""
             SELECT id, class_id, room_id, session_date, start_time, end_time, status
             FROM attendance_sessions
@@ -1258,17 +1012,10 @@ def tim_hoac_tao_session_hien_tai(room_id, at_datetime=None):
         if s_row:
             cur.close()
             conn.close()
-            return {
-                "id": s_row[0],
-                "class_id": s_row[1],
-                "room_id": s_row[2],
-                "session_date": str(s_row[3]),
-                "start_time": str(s_row[4]),
-                "end_time": str(s_row[5]),
-                "status": s_row[6]
-            }
+            return {"id": s_row[0], "class_id": s_row[1], "room_id": s_row[2],
+                    "session_date": str(s_row[3]), "start_time": str(s_row[4]),
+                    "end_time": str(s_row[5]), "status": s_row[6]}
 
-        # 3. Nếu chưa có session trong DB, tra cứu theo thời khóa biểu (schedules)
         cur.execute("""
             SELECT id, class_id, start_time, end_time, late_grace_period_mins
             FROM schedules
@@ -1285,7 +1032,6 @@ def tim_hoac_tao_session_hien_tai(room_id, at_datetime=None):
 
         sched_id, class_id, start_time, end_time, late_mins = sched_row
 
-        # 4. Tránh race condition: Kiểm tra lại xem session đã được tạo bởi quẹt thẻ khác gần như đồng thời chưa
         cur.execute("""
             SELECT id, class_id, room_id, session_date, start_time, end_time, status
             FROM attendance_sessions
@@ -1297,45 +1043,30 @@ def tim_hoac_tao_session_hien_tai(room_id, at_datetime=None):
         if double_check:
             cur.close()
             conn.close()
-            return {
-                "id": double_check[0],
-                "class_id": double_check[1],
-                "room_id": double_check[2],
-                "session_date": str(double_check[3]),
-                "start_time": str(double_check[4]),
-                "end_time": str(double_check[5]),
-                "status": double_check[6],
-                "late_grace_period_mins": late_mins
-            }
+            return {"id": double_check[0], "class_id": double_check[1], "room_id": double_check[2],
+                    "session_date": str(double_check[3]), "start_time": str(double_check[4]),
+                    "end_time": str(double_check[5]), "status": double_check[6],
+                    "late_grace_period_mins": late_mins}
 
-        # 5. Tự động sinh session mới
         cur.execute("""
             INSERT INTO attendance_sessions (schedule_id, class_id, room_id, session_date, start_time, end_time, status)
             VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE')
         """, (sched_id, class_id, room_db_id, current_date, start_time, end_time))
         session_id = cur.lastrowid
 
-        # 5. Khởi tạo danh sách sinh viên của lớp với trạng thái ABSENT_UNEXCUSED
         cur.execute("""
             INSERT IGNORE INTO attendance_records (session_id, student_id, status, method)
             SELECT ?, student_id, 'ABSENT_UNEXCUSED', 'AUTO_ABSENT'
-            FROM class_enrollments
-            WHERE class_id = ?
+            FROM class_enrollments WHERE class_id = ?
         """, (session_id, class_id))
 
         conn.commit()
         cur.close()
         conn.close()
-
         return {
-            "id": session_id,
-            "class_id": class_id,
-            "room_id": room_db_id,
-            "session_date": str(current_date),
-            "start_time": str(start_time),
-            "end_time": str(end_time),
-            "status": "ACTIVE",
-            "late_grace_period_mins": late_mins
+            "id": session_id, "class_id": class_id, "room_id": room_db_id,
+            "session_date": str(current_date), "start_time": str(start_time),
+            "end_time": str(end_time), "status": "ACTIVE", "late_grace_period_mins": late_mins
         }
 
     except mariadb.Error as e:
@@ -1347,14 +1078,10 @@ def tim_hoac_tao_session_hien_tai(room_id, at_datetime=None):
 
 
 def ghi_nhan_diem_danh_sinh_vien(session_id, student_id, status='PRESENT', method='RFID', note=None):
-    """
-    Ghi nhận hoặc cập nhật kết quả điểm danh cho sinh viên trong buổi học.
-    Đảm bảo mỗi SV chỉ có 1 kết quả duy nhất cho session.
-    """
+    """Ghi nhận hoặc cập nhật kết quả điểm danh. Mỗi SV chỉ có 1 kết quả duy nhất cho session."""
     conn = ket_noi()
     if conn is None:
         return False, "Khong the ket noi CSDL"
-
     try:
         cur = conn.cursor()
         cur.execute("""
@@ -1379,43 +1106,31 @@ def ghi_nhan_diem_danh_sinh_vien(session_id, student_id, status='PRESENT', metho
 
 
 def lay_bang_diem_danh_buoi_hoc(session_id):
-    """
-    Lấy toàn bộ danh sách sinh viên của buổi học kèm trạng thái điểm danh chi tiết.
-    """
+    """Lấy danh sách sinh viên của buổi học kèm trạng thái điểm danh."""
     conn = ket_noi()
     if conn is None:
         return None
-
     try:
         cur = conn.cursor()
-        query = """
-            SELECT 
-                s.id, s.student_code, s.full_name, s.card_uid, s.class_name,
-                ar.id AS record_id, ar.status, ar.checkin_time, ar.method, ar.note
+        cur.execute("""
+            SELECT s.id, s.student_code, s.full_name, s.card_uid, s.class_name,
+                   ar.id AS record_id, ar.status, ar.checkin_time, ar.method, ar.note
             FROM attendance_sessions ses
             JOIN class_enrollments ce ON ses.class_id = ce.class_id
             JOIN students s ON ce.student_id = s.id
             LEFT JOIN attendance_records ar ON ses.id = ar.session_id AND s.id = ar.student_id
-            WHERE ses.id = ?
-            ORDER BY s.student_code ASC
-        """
-        cur.execute(query, (session_id,))
+            WHERE ses.id = ? ORDER BY s.student_code ASC
+        """, (session_id,))
         rows = cur.fetchall()
         cur.close()
         conn.close()
-
         return [
             {
-                "student_id": r[0],
-                "student_code": r[1],
-                "full_name": r[2],
-                "card_uid": r[3],
-                "class_name": r[4],
-                "record_id": r[5],
+                "student_id": r[0], "student_code": r[1], "full_name": r[2],
+                "card_uid": r[3], "class_name": r[4], "record_id": r[5],
                 "status": r[6] or "ABSENT_UNEXCUSED",
                 "checkin_time": r[7].isoformat() if r[7] else None,
-                "method": r[8] or "AUTO_ABSENT",
-                "note": r[9] or ""
+                "method": r[8] or "AUTO_ABSENT", "note": r[9] or ""
             }
             for r in rows
         ]
@@ -1427,16 +1142,12 @@ def lay_bang_diem_danh_buoi_hoc(session_id):
 
 
 def cap_nhat_diem_danh_thu_cong(record_id, status, note=None):
-    """
-    Cho phép Giảng viên / Quản trị viên sửa trạng thái điểm danh thủ công (Overrule).
-    """
+    """Sửa trạng thái điểm danh thủ công (Giảng viên / Quản trị viên)."""
     conn = ket_noi()
     if conn is None:
         return False, "Khong the ket noi CSDL"
-
     try:
         cur = conn.cursor()
-        # Kiểm tra bản ghi có tồn tại không
         cur.execute("SELECT id FROM attendance_records WHERE id = ?", (record_id,))
         if not cur.fetchone():
             cur.close()
@@ -1448,10 +1159,8 @@ def cap_nhat_diem_danh_thu_cong(record_id, status, note=None):
             SET status = ?,
                 method = 'MANUAL_TEACHER',
                 note = ?,
-                -- Nếu GV đánh PRESENT/LATE mà chưa có giờ check-in, set NOW()
                 checkin_time = CASE
-                    WHEN ? IN ('PRESENT', 'LATE') AND checkin_time IS NULL
-                    THEN NOW()
+                    WHEN ? IN ('PRESENT', 'LATE') AND checkin_time IS NULL THEN NOW()
                     ELSE checkin_time
                 END
             WHERE id = ?
@@ -1468,17 +1177,12 @@ def cap_nhat_diem_danh_thu_cong(record_id, status, note=None):
 
 
 def dong_buoi_diem_danh(session_id):
-    """
-    Chốt sổ buổi học: chuyển trạng thái session sang CLOSED.
-    """
+    """Chốt sổ buổi học: chuyển trạng thái session sang CLOSED."""
     conn = ket_noi()
     if conn is None:
         return False, "Khong the ket noi CSDL"
-
     try:
         cur = conn.cursor()
-
-        # Kiểm tra session có tồn tại không
         cur.execute("SELECT id, status FROM attendance_sessions WHERE id = ?", (session_id,))
         row = cur.fetchone()
         if not row:
@@ -1503,26 +1207,21 @@ def dong_buoi_diem_danh(session_id):
 
 
 def lay_danh_sach_sessions(room_id=None, session_date=None, class_id=None):
-    """
-    Lấy danh sách các buổi học kèm số liệu thống kê sĩ số, có mặt, muộn, vắng.
-    """
+    """Lấy danh sách buổi học kèm thống kê sĩ số, có mặt, muộn, vắng."""
     conn = ket_noi()
     if conn is None:
         return None
-
     try:
         cur = conn.cursor()
         query = """
-            SELECT 
-                ses.id, ses.class_id, c.class_code, s.subject_code, s.name AS subject_name,
-                c.teacher_name, c.semester,
-                ses.room_id, r.room_id AS room_code, r.name AS room_name,
-                ses.session_date, ses.start_time, ses.end_time, ses.status,
-                COUNT(ar.id) AS total_enrolled,
-                SUM(CASE WHEN ar.status = 'PRESENT' THEN 1 ELSE 0 END) AS present_count,
-                SUM(CASE WHEN ar.status = 'LATE' THEN 1 ELSE 0 END) AS late_count,
-                SUM(CASE WHEN ar.status = 'ABSENT_EXCUSED' THEN 1 ELSE 0 END) AS excused_count,
-                SUM(CASE WHEN ar.status = 'ABSENT_UNEXCUSED' THEN 1 ELSE 0 END) AS unexcused_count
+            SELECT ses.id, ses.class_id, c.class_code, s.subject_code, s.name AS subject_name,
+                   c.teacher_name, c.semester, ses.room_id, r.room_id AS room_code, r.name AS room_name,
+                   ses.session_date, ses.start_time, ses.end_time, ses.status,
+                   COUNT(ar.id) AS total_enrolled,
+                   SUM(CASE WHEN ar.status = 'PRESENT' THEN 1 ELSE 0 END) AS present_count,
+                   SUM(CASE WHEN ar.status = 'LATE' THEN 1 ELSE 0 END) AS late_count,
+                   SUM(CASE WHEN ar.status = 'ABSENT_EXCUSED' THEN 1 ELSE 0 END) AS excused_count,
+                   SUM(CASE WHEN ar.status = 'ABSENT_UNEXCUSED' THEN 1 ELSE 0 END) AS unexcused_count
             FROM attendance_sessions ses
             JOIN course_classes c ON ses.class_id = c.id
             JOIN subjects s ON c.subject_id = s.id
@@ -1540,34 +1239,20 @@ def lay_danh_sach_sessions(room_id=None, session_date=None, class_id=None):
         if class_id:
             query += " AND ses.class_id = ?"
             params.append(class_id)
-
         query += " GROUP BY ses.id ORDER BY ses.session_date DESC, ses.start_time DESC"
         cur.execute(query, tuple(params))
         rows = cur.fetchall()
         cur.close()
         conn.close()
-
         return [
             {
-                "id": r[0],
-                "class_id": r[1],
-                "class_code": r[2],
-                "subject_code": r[3],
-                "subject_name": r[4],
-                "teacher_name": r[5] or "---",
-                "semester": r[6] or "---",
-                "room_id": r[7],
-                "room_code": r[8],
-                "room_name": r[9],
-                "session_date": str(r[10]),
-                "start_time": str(r[11]),
-                "end_time": str(r[12]),
-                "status": r[13],
-                "total_enrolled": r[14] or 0,
-                "present_count": int(r[15] or 0),
-                "late_count": int(r[16] or 0),
-                "excused_count": int(r[17] or 0),
-                "unexcused_count": int(r[18] or 0)
+                "id": r[0], "class_id": r[1], "class_code": r[2], "subject_code": r[3],
+                "subject_name": r[4], "teacher_name": r[5] or "---", "semester": r[6] or "---",
+                "room_id": r[7], "room_code": r[8], "room_name": r[9],
+                "session_date": str(r[10]), "start_time": str(r[11]), "end_time": str(r[12]),
+                "status": r[13], "total_enrolled": r[14] or 0,
+                "present_count": int(r[15] or 0), "late_count": int(r[16] or 0),
+                "excused_count": int(r[17] or 0), "unexcused_count": int(r[18] or 0)
             }
             for r in rows
         ]
@@ -1579,18 +1264,15 @@ def lay_danh_sach_sessions(room_id=None, session_date=None, class_id=None):
 
 
 def dong_tat_ca_session_qua_gio():
-    """
-    Tự động đóng tất cả các buổi học của ngày cũ hoặc đã qua giờ kết thúc.
-    """
+    """Tự động đóng các buổi học đã qua giờ kết thúc."""
     conn = ket_noi()
     if conn is None:
         return 0
     try:
         cur = conn.cursor()
         cur.execute("""
-            UPDATE attendance_sessions
-            SET status = 'CLOSED'
-            WHERE status = 'ACTIVE' 
+            UPDATE attendance_sessions SET status = 'CLOSED'
+            WHERE status = 'ACTIVE'
               AND (session_date < CURDATE() OR (session_date = CURDATE() AND end_time < CURTIME()))
         """)
         conn.commit()
@@ -1598,14 +1280,12 @@ def dong_tat_ca_session_qua_gio():
         cur.close()
         conn.close()
         return count
-    except mariadb.Error as e:
+    except mariadb.Error:
         return 0
 
 
 def tao_session_moi(room_id, class_id, session_date=None, start_time=None, end_time=None):
-    """
-    Tạo một buổi học mới thủ công hoặc đột xuất, tự động nạp sinh viên của lớp vào sổ điểm danh.
-    """
+    """Tạo buổi học thủ công/đột xuất và tự động nạp sinh viên vào sổ điểm danh."""
     conn = ket_noi()
     if conn is None:
         return False, None, "Không thể kết nối CSDL"
@@ -1613,18 +1293,14 @@ def tao_session_moi(room_id, class_id, session_date=None, start_time=None, end_t
     import datetime
     if not session_date:
         session_date = datetime.date.today()
-    
     now = datetime.datetime.now()
     if not start_time:
         start_time = now.strftime("%H:%M:00")
     if not end_time:
-        # Mặc định kết thúc sau 3 tiếng hoặc 23:59:59
-        end_dt = now + datetime.timedelta(hours=3)
-        end_time = end_dt.strftime("%H:%M:00")
+        end_time = (now + datetime.timedelta(hours=3)).strftime("%H:%M:00")
 
     try:
         cur = conn.cursor()
-        # Tìm ID phòng
         cur.execute("SELECT id FROM rooms WHERE room_id = ? OR id = ? LIMIT 1", (str(room_id), str(room_id)))
         r_row = cur.fetchone()
         if not r_row:
@@ -1633,19 +1309,18 @@ def tao_session_moi(room_id, class_id, session_date=None, start_time=None, end_t
             return False, None, "Phòng học không tồn tại"
         room_db_id = r_row[0]
 
-        # Kiểm tra lớp học phần tồn tại
         cur.execute("SELECT id FROM course_classes WHERE id = ?", (class_id,))
         c_row = cur.fetchone()
         if not c_row:
             cur.close()
             conn.close()
-        # Validate thứ tự giờ
+            return False, None, "Lớp học phần không tồn tại"
+
         if start_time and end_time and start_time >= end_time:
             cur.close()
             conn.close()
             return False, None, "Giờ bắt đầu phải nhỏ hơn giờ kết thúc"
 
-        # Kiểm tra trùng ca học ACTIVE của cùng lớp tại phòng trong ngày
         cur.execute("""
             SELECT id FROM attendance_sessions
             WHERE class_id = ? AND room_id = ? AND session_date = ? AND status = 'ACTIVE'
@@ -1657,19 +1332,16 @@ def tao_session_moi(room_id, class_id, session_date=None, start_time=None, end_t
             conn.close()
             return False, existing_sess[0], "Đã có ca học đang mở (ACTIVE) cho lớp này tại phòng này trong ngày"
 
-        # Tạo session mới
         cur.execute("""
             INSERT INTO attendance_sessions (class_id, room_id, session_date, start_time, end_time, status)
             VALUES (?, ?, ?, ?, ?, 'ACTIVE')
         """, (class_id, room_db_id, session_date, start_time, end_time))
         session_id = cur.lastrowid
 
-        # Tự động nạp sinh viên vào attendance_records
         cur.execute("""
             INSERT IGNORE INTO attendance_records (session_id, student_id, status, method)
             SELECT ?, student_id, 'ABSENT_UNEXCUSED', 'AUTO_ABSENT'
-            FROM class_enrollments
-            WHERE class_id = ?
+            FROM class_enrollments WHERE class_id = ?
         """, (session_id, class_id))
 
         conn.commit()
@@ -1685,19 +1357,13 @@ def tao_session_moi(room_id, class_id, session_date=None, start_time=None, end_t
         return False, None, f"Lỗi tạo buổi học: {e}"
 
 
-# ============================================================
-# SCHEDULE CRUD — THÊM / SỬA / XÓA LỊCH HỌC ĐỊNH KỲ
-# ============================================================
-
 def tao_lich_hoc(class_id, room_id, day_of_week, start_time, end_time, late_grace_period_mins=15):
-    """Tạo mới một lịch học định kỳ hàng tuần. Trả về (success, schedule_id, message)."""
+    """Tạo mới lịch học định kỳ hàng tuần. Trả về (success, schedule_id, message)."""
     conn = ket_noi()
     if conn is None:
         return False, None, "Không thể kết nối CSDL"
     try:
         cur = conn.cursor()
-
-        # Tìm room_db_id từ room_id (string) hoặc id (integer)
         cur.execute("SELECT id FROM rooms WHERE room_id = ? OR id = ? LIMIT 1", (str(room_id), str(room_id)))
         r_row = cur.fetchone()
         if not r_row:
@@ -1705,13 +1371,11 @@ def tao_lich_hoc(class_id, room_id, day_of_week, start_time, end_time, late_grac
             return False, None, "Phòng học không tồn tại"
         room_db_id = r_row[0]
 
-        # Kiểm tra lớp học phần tồn tại
         cur.execute("SELECT id FROM course_classes WHERE id = ?", (int(class_id),))
         if not cur.fetchone():
             cur.close(); conn.close()
             return False, None, "Lớp học phần không tồn tại"
 
-        # Kiểm tra conflict: cùng phòng, cùng thứ, khung giờ trùng nhau
         cur.execute("""
             SELECT s.id FROM schedules s
             WHERE s.room_id = ? AND s.day_of_week = ?
@@ -1743,14 +1407,11 @@ def sua_lich_hoc(schedule_id, class_id, room_id, day_of_week, start_time, end_ti
         return False, "Không thể kết nối CSDL"
     try:
         cur = conn.cursor()
-
-        # Kiểm tra lịch tồn tại
         cur.execute("SELECT id FROM schedules WHERE id = ?", (int(schedule_id),))
         if not cur.fetchone():
             cur.close(); conn.close()
             return False, "Không tìm thấy lịch học"
 
-        # Tìm room_db_id
         cur.execute("SELECT id FROM rooms WHERE room_id = ? OR id = ? LIMIT 1", (str(room_id), str(room_id)))
         r_row = cur.fetchone()
         if not r_row:
@@ -1758,7 +1419,6 @@ def sua_lich_hoc(schedule_id, class_id, room_id, day_of_week, start_time, end_ti
             return False, "Phòng học không tồn tại"
         room_db_id = r_row[0]
 
-        # Kiểm tra conflict (loại trừ chính nó)
         cur.execute("""
             SELECT s.id FROM schedules s
             WHERE s.room_id = ? AND s.day_of_week = ?
@@ -1808,33 +1468,20 @@ def xoa_lich_hoc(schedule_id):
 
 
 if __name__ == "__main__":
-
     conn = ket_noi()
     if conn is None:
         print("MariaDB ERROR")
         raise SystemExit(1)
-
     print("MariaDB OK")
     conn.close()
 
-    sensor_id = tim_sensor_id("room01", "temperature")
-    if sensor_id is not None:
-        print(f"Sensor OK: temperature -> ID {sensor_id}")
-    else:
-        print("Sensor NOT FOUND: room01 / temperature")
+    for label, args in [
+        ("temperature", ("room01", "temperature")),
+        ("RFID", ("room01", "RFID")),
+    ]:
+        sid = tim_sensor_id(*args)
+        print(f"Sensor {'OK: ' + label + ' -> ID ' + str(sid) if sid else 'NOT FOUND: room01 / ' + label}")
 
-    rfid_id = tim_sensor_id("room01", "RFID")
-    if rfid_id is not None:
-        print(f"Sensor OK: RFID -> ID {rfid_id}")
-    else:
-        print("Sensor NOT FOUND: room01 / RFID")
-
-    device_id = tim_device_id("room01", "light1")
-    if device_id is not None:
-        print(f"Device OK: light1 -> ID {device_id}")
-    else:
-        print("Device NOT FOUND: room01 / light1")
-
-    print("================================")
-    print("       TEST HOAN TAT")
-    print("================================")
+    did = tim_device_id("room01", "light1")
+    print(f"Device {'OK: light1 -> ID ' + str(did) if did else 'NOT FOUND: room01 / light1'}")
+    print("================================\n       TEST HOAN TAT\n================================")
