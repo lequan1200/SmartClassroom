@@ -6,7 +6,10 @@ from database import (
     lay_device_hien_tai, lay_device,
     lay_danh_sach_diem_danh
 )
-from mqtt_client import client, ket_noi_mqtt, gui_lenh_thiet_bi, lay_che_do_hien_tai, gui_lenh_che_do
+from mqtt_client import (
+    client, ket_noi_mqtt, gui_lenh_thiet_bi,
+    lay_che_do_hien_tai, gui_lenh_che_do, lay_trang_thai_phong
+)
 import threading
 
 app = Flask(__name__)
@@ -35,6 +38,10 @@ def api_rooms():
     rooms = lay_danh_sach_phong()
     if rooms is None:
         return jsonify({"success": False, "message": "Khong the ket noi hoac truy van MariaDB"}), 500
+    for r in rooms:
+        status = lay_trang_thai_phong(r["room_id"])
+        r["status"] = status
+        r["is_online"] = (status == "ONLINE")
     return jsonify({"success": True, "data": rooms}), 200
 
 
@@ -43,7 +50,21 @@ def api_room(room_id):
     room = lay_phong(room_id)
     if room is None:
         return jsonify({"success": False, "message": "Khong tim thay phong", "room_id": room_id}), 404
+    status = lay_trang_thai_phong(room_id)
+    room["status"] = status
+    room["is_online"] = (status == "ONLINE")
     return jsonify({"success": True, "data": room}), 200
+
+
+@app.route("/api/rooms/<room_id>/status", methods=["GET"])
+def api_room_status(room_id):
+    status = lay_trang_thai_phong(room_id)
+    return jsonify({
+        "success": True,
+        "room_id": room_id,
+        "status": status,
+        "is_online": (status == "ONLINE")
+    }), 200
 
 
 @app.route("/api/rooms/<room_id>/sensors", methods=["GET"])
@@ -129,6 +150,14 @@ def api_device_command(room_id, device_name):
     if command not in ["ON", "OFF"]:
         return jsonify({"success": False, "message": "Command chi chap nhan ON hoac OFF", "command": command}), 400
 
+    if lay_trang_thai_phong(room_id) != "ONLINE":
+        return jsonify({
+            "success": False,
+            "message": f"Phòng {room_id} hiện đang Offline, không thể điều khiển thiết bị!",
+            "room_id": room_id,
+            "status": "OFFLINE"
+        }), 403
+
     device = lay_device(room_id, device_name)
     if device is None:
         return jsonify({
@@ -178,6 +207,14 @@ def api_set_room_mode(room_id):
     room = lay_phong(room_id)
     if room is None:
         return jsonify({"success": False, "message": "Không tìm thấy phòng", "room_id": room_id}), 404
+
+    if lay_trang_thai_phong(room_id) != "ONLINE":
+        return jsonify({
+            "success": False,
+            "message": f"Phòng {room_id} hiện đang Offline, không thể thay đổi chế độ!",
+            "room_id": room_id,
+            "status": "OFFLINE"
+        }), 403
 
     success, message = gui_lenh_che_do(room_id, mode)
     if not success:

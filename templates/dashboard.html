@@ -27,12 +27,17 @@
 
         <span class="nav-section-label">HỆ THỐNG CHÍNH</span>
         <nav class="sidebar-nav">
-            <a href="#dashboard" class="nav-item active" data-tab="dashboard">
+            <a href="#rooms" class="nav-item active" data-tab="rooms" id="nav-rooms">
+                <span class="nav-icon">🏛️</span>
+                <span class="nav-text">Danh sách phòng</span>
+                <span class="nav-tag" id="rooms-online-count-badge" style="background: rgba(16,185,129,0.15); color: var(--success); font-weight:700;">--</span>
+            </a>
+            <a href="#dashboard" class="nav-item" data-tab="dashboard" id="nav-dashboard">
                 <span class="nav-icon">▦</span>
                 <span class="nav-text">Dashboard</span>
                 <span class="nav-tag live">LIVE</span>
             </a>
-            <a href="#rfid" class="nav-item" data-tab="rfid">
+            <a href="#rfid" class="nav-item" data-tab="rfid" id="nav-rfid">
                 <span class="nav-icon">🪪</span>
                 <span class="nav-text">Nhật ký RFID</span>
                 <span class="nav-tag rfid">RFID</span>
@@ -74,8 +79,8 @@
             <div class="topbar-left">
                 <button class="mobile-menu-btn" id="mobile-menu" aria-label="Mở Menu">☰</button>
                 <div class="breadcrumb-nav">
-                    <span class="breadcrumb-trail" id="topbar-breadcrumb">HỆ THỐNG / TỔNG QUAN</span>
-                    <h2 class="topbar-title" id="topbar-page-title">Dashboard Phòng Học Thông Minh</h2>
+                    <span class="breadcrumb-trail" id="topbar-breadcrumb">HỆ THỐNG / CHỌN PHÒNG HỌC</span>
+                    <h2 class="topbar-title" id="topbar-page-title">Danh Sách Phòng Học</h2>
                 </div>
             </div>
 
@@ -97,11 +102,14 @@
 
         <div class="content-wrapper">
 
-            <!-- Multi-room switcher bar -->
-            <div class="multi-room-bar" id="multi-room-bar">
+            <!-- Multi-room switcher bar (Chỉ hiện khi ở Dashboard / RFID) -->
+            <div class="multi-room-bar" id="multi-room-bar" style="display: none;">
                 <div class="multi-room-bar-left">
-                    <span class="multi-room-bar-label">
-                        <span>🏛️</span> PHÒNG HỌC:
+                    <button type="button" class="btn-back-rooms" onclick="switchView('rooms')" title="Quay lại danh sách các phòng">
+                        <span>←</span> Danh sách phòng
+                    </button>
+                    <span class="multi-room-bar-label" style="margin-left: 4px;">
+                        <span>🏛️</span> PHÒNG:
                     </span>
                     <div class="room-tabs-container" id="room-pills-container">
                         <button type="button" class="room-tab-pill active">
@@ -112,16 +120,68 @@
                 </div>
                 <div class="multi-room-bar-right" style="display: flex; align-items: center; gap: 8px;">
                     <span style="font-size: 11px; color: var(--text-muted); font-weight: 700;">CHUYỂN NHANH:</span>
-                    <select id="quick-room-select" class="custom-select" style="min-width: 150px; padding: 6px 12px; font-size: 11px;" onchange="switchRoom(this.value)">
+                    <select id="quick-room-select" class="custom-select" style="min-width: 150px; padding: 6px 12px; font-size: 11px;" onchange="handleQuickSelectRoom(this.value)">
                         <option value="">Đang tải...</option>
                     </select>
                 </div>
             </div>
 
             <!-- ============================================================
+                 PHÂN HỆ 0: DANH SÁCH PHÒNG HỌC (PORTAL CHỌN PHÒNG KHI VÀO WEB)
+                 ============================================================ -->
+            <div class="content-view" id="rooms-view">
+
+                <section class="room-hero-card" style="margin-bottom: 24px;">
+                    <div class="room-hero-inner">
+                        <div class="room-hero-info">
+                            <div class="room-hero-icon" style="background: rgba(37,99,235,0.1); border-color: rgba(37,99,235,0.25); color: var(--primary);">🏛️</div>
+                            <div class="room-hero-details">
+                                <h2>Cổng Quản Lý & Giám Sát Phòng Học</h2>
+                                <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                                    Chọn phòng học đang <strong style="color: var(--success);">ONLINE (Màu xanh)</strong> để truy cập giám sát cảm biến và điều khiển thiết bị. Phòng <strong style="color: #64748b;">OFFLINE (Màu xám)</strong> sẽ bị vô hiệu hóa truy cập.
+                                </p>
+                                <div class="room-meta-tags" style="margin-top: 10px;">
+                                    <span class="meta-chip" id="portal-total-chip">TỔNG SỐ: <strong>--</strong> PHÒNG</span>
+                                    <span class="meta-chip active-chip" id="portal-online-chip">● ONLINE: <strong>--</strong> PHÒNG</span>
+                                    <span class="meta-chip" id="portal-offline-chip" style="background: #f1f5f9; color: #64748b; border-color: #cbd5e1;">○ OFFLINE: <strong>--</strong> PHÒNG</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="room-hero-actions">
+                            <button class="btn btn-secondary" onclick="loadRooms()" title="Làm mới trạng thái các phòng">
+                                🔄 Làm mới danh sách
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="rooms-portal-grid" id="rooms-portal-grid">
+                    <div class="table-empty-cell" style="padding: 40px; text-align: center; color: var(--text-muted);">
+                        Đang tải danh sách phòng học...
+                    </div>
+                </div>
+
+                <footer class="app-footer" style="margin-top: 36px;">
+                    <div>Smart Classroom IoT Management System · Powered by Raspberry Pi 5 & ESP32</div>
+                    <div>Giao thức MQTT LWT (Last Will & Testament) · Kiểm soát kết nối thời gian thực</div>
+                </footer>
+            </div>
+
+            <!-- ============================================================
                  PHÂN HỆ 1: DASHBOARD GIÁM SÁT & ĐIỀU KHIỂN
                  ============================================================ -->
-            <div class="content-view" id="dashboard-view">
+            <div class="content-view" id="dashboard-view" style="display: none;">
+
+                <div class="room-offline-banner" id="room-offline-banner" style="display: none;">
+                    <div class="room-offline-banner-content">
+                        <span class="banner-icon">⚠️</span>
+                        <div>
+                            <strong>Phòng học này hiện đang OFFLINE (Mất kết nối MQTT / ESP32)!</strong>
+                            <span>Các tính năng điều khiển thiết bị tạm thời bị khóa. Vui lòng kiểm tra thiết bị phần cứng tại phòng.</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-sm btn-secondary" onclick="switchView('rooms')">← Chọn phòng khác</button>
+                </div>
 
                 <section class="room-hero-card">
                     <div class="room-hero-inner">
@@ -131,7 +191,7 @@
                                 <h2 id="room-name">Đang tải phòng học...</h2>
                                 <div class="room-meta-tags">
                                     <span class="meta-chip">MÃ PHÒNG: <strong id="room-id" style="color: var(--primary);">--</strong></span>
-                                    <span class="meta-chip active-chip">● ESP32 KẾT NỐI</span>
+                                    <span class="meta-chip active-chip" id="room-status-badge">● ONLINE</span>
                                     <span class="meta-chip" id="chip-control-mode">CHẾ ĐỘ: THỦ CÔNG</span>
                                 </div>
                             </div>

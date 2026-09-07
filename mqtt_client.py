@@ -14,6 +14,16 @@ MQTT_BROKER = "127.0.0.1"
 MQTT_PORT = 1883
 MQTT_TOPIC = "classroom/#"
 
+trang_thai_phong = {}
+
+
+def lay_trang_thai_phong(room_id):
+    return trang_thai_phong.get(room_id, "OFFLINE")
+
+
+def lay_tat_ca_trang_thai_phong():
+    return trang_thai_phong.copy()
+
 
 def phan_tich_topic(topic):
     parts = topic.split("/")
@@ -23,6 +33,8 @@ def phan_tich_topic(topic):
     room_id = parts[1]
     loai = parts[2]
 
+    if loai == "status" and len(parts) == 3:
+        return {"room_id": room_id, "loai": "status"}
     if loai == "sensor" and len(parts) == 4:
         return {"room_id": room_id, "loai": "sensor", "ten": parts[3]}
     if loai == "device" and len(parts) == 5:
@@ -55,6 +67,35 @@ def khi_ngat_ket_noi(client, userdata, disconnect_flags, reason_code, properties
     print(f"MQTT DISCONNECTED: {reason_code}")
 
 
+def xu_ly_status(room_id, payload):
+    status_str = str(payload).strip().strip('"\'').upper()
+    if status_str in ["ONLINE", "1", "TRUE"]:
+        trang_thai_phong[room_id] = "ONLINE"
+        print(f"ROOM STATUS: {room_id} -> ONLINE")
+        return
+    elif status_str in ["OFFLINE", "0", "FALSE"]:
+        trang_thai_phong[room_id] = "OFFLINE"
+        print(f"ROOM STATUS: {room_id} -> OFFLINE")
+        return
+
+    try:
+        data = json.loads(payload)
+        if isinstance(data, dict):
+            val = str(data.get("status") or data.get("state") or "").strip().upper()
+            if val in ["ONLINE", "1", "TRUE"]:
+                trang_thai_phong[room_id] = "ONLINE"
+                print(f"ROOM STATUS (JSON): {room_id} -> ONLINE")
+                return
+            elif val in ["OFFLINE", "0", "FALSE"]:
+                trang_thai_phong[room_id] = "OFFLINE"
+                print(f"ROOM STATUS (JSON): {room_id} -> OFFLINE")
+                return
+    except Exception:
+        pass
+
+    print(f"ROOM STATUS UNKNOWN: {room_id} -> {payload}")
+
+
 def khi_nhan_message(client, userdata, message):
     topic = message.topic
     try:
@@ -71,6 +112,16 @@ def khi_nhan_message(client, userdata, message):
         print("TOPIC IGNORED")
         return
 
+    room_id = thong_tin["room_id"]
+    loai = thong_tin["loai"]
+
+    if loai == "status":
+        xu_ly_status(room_id, payload)
+        return
+
+    # Mọi bản tin cảm biến, thiết bị, điểm danh từ phòng đều xác nhận phòng đang ONLINE
+    trang_thai_phong[room_id] = "ONLINE"
+
     try:
         data = json.loads(payload)
     except json.JSONDecodeError:
@@ -81,7 +132,6 @@ def khi_nhan_message(client, userdata, message):
         print("JSON ERROR: payload phai la object")
         return
 
-    loai = thong_tin["loai"]
     if loai == "sensor":
         xu_ly_sensor(thong_tin, data)
     elif loai == "device":
