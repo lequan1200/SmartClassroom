@@ -6,9 +6,8 @@ import paho.mqtt.client as mqtt
 from database import (
     tim_sensor_id, luu_sensor_data, cap_nhat_sensor_current,
     tim_device_id, cap_nhat_device_current, luu_device_log,
-    luu_attendance_log, tim_hoc_vien_theo_card, lay_che_do_phong,
-    cap_nhat_che_do_phong, tim_hoac_tao_session_hien_tai,
-    lay_sinh_vien_trong_lop, ghi_nhan_diem_danh_sinh_vien
+    luu_attendance_log, tim_hoc_vien_theo_card,
+    lay_che_do_phong, cap_nhat_che_do_phong
 )
 
 MQTT_BROKER = "127.0.0.1"
@@ -26,19 +25,14 @@ def phan_tich_topic(topic):
 
     if loai == "sensor" and len(parts) == 4:
         return {"room_id": room_id, "loai": "sensor", "ten": parts[3]}
-
     if loai == "device" and len(parts) == 5:
         return {"room_id": room_id, "loai": "device", "ten": parts[3], "hanh_dong": parts[4]}
-
     if loai == "attendance" and len(parts) == 4 and parts[3] == "feedback":
-        return None  # Bỏ qua feedback để tránh vòng lặp
-
+        return None
     if loai == "attendance" and len(parts) == 3:
         return {"room_id": room_id, "loai": "attendance"}
-
     if loai == "alert" and len(parts) == 3:
         return {"room_id": room_id, "loai": "alert"}
-
     if loai == "mode" and len(parts) == 4:
         return {"room_id": room_id, "loai": "mode", "hanh_dong": parts[3]}
 
@@ -63,7 +57,6 @@ def khi_ngat_ket_noi(client, userdata, disconnect_flags, reason_code, properties
 
 def khi_nhan_message(client, userdata, message):
     topic = message.topic
-
     try:
         payload = message.payload.decode("utf-8")
     except UnicodeDecodeError:
@@ -75,7 +68,7 @@ def khi_nhan_message(client, userdata, message):
 
     thong_tin = phan_tich_topic(topic)
     if thong_tin is None:
-        print("TOPIC ERROR")
+        print("TOPIC IGNORED")
         return
 
     try:
@@ -190,18 +183,19 @@ def gui_phan_hoi_diem_danh(room_id, feedback_data):
     try:
         payload_str = json.dumps(feedback_data, ensure_ascii=False)
         client.publish(topic, payload_str, qos=0)
-        print(f"ATTENDANCE FEEDBACK TX -> {topic}: {payload_str}")
+        print(f"RFID FEEDBACK TX -> {topic}: {payload_str}")
     except Exception as e:
-        print(f"ATTENDANCE FEEDBACK ERROR: {e}")
+        print(f"RFID FEEDBACK ERROR: {e}")
 
 
 def xu_ly_attendance(thong_tin, data):
+    """Ghi nhận quét thẻ RFID vào attendance_logs và gửi phản hồi về ESP32."""
     room_id = thong_tin["room_id"]
     card_uid = (data.get("card_uid") or data.get("uid") or data.get("card") or "").strip().upper()
     timestamp_str = data.get("timestamp")
 
     if not card_uid:
-        print(f"ATTENDANCE ERROR: Missing card_uid for room {room_id}")
+        print(f"RFID ERROR: Missing card_uid for room {room_id}")
         return
 
     scan_dt = datetime.now()
@@ -212,70 +206,28 @@ def xu_ly_attendance(thong_tin, data):
             pass
 
     time_str = scan_dt.strftime("%Y-%m-%d %H:%M:%S")
-    print(f"\n========== ATTENDANCE SCAN ==========\nRoom      : {room_id}\nCard UID  : {card_uid}\nScan Time : {time_str}")
+    print(f"\n========== RFID SCAN ==========\nRoom      : {room_id}\nCard UID  : {card_uid}\nScan Time : {time_str}")
 
     student = tim_hoc_vien_theo_card(card_uid)
     if not student:
-        print(f"ATTENDANCE ALERT: Thẻ {card_uid} chưa được gán cho học viên nào!")
+        print(f"RFID ALERT: Thẻ {card_uid} chưa được gán cho học viên nào!")
         luu_attendance_log(room_id=room_id, card_uid=card_uid, event_type="CHECK_IN", status="CHUA_DANG_KY", recorded_at=time_str)
         gui_phan_hoi_diem_danh(room_id, {"status": "UNKNOWN_CARD", "card_uid": card_uid, "message": "Thẻ chưa đăng ký học viên", "beeps": 3})
-        print("=====================================\n")
+        print("===============================\n")
         return
 
-    student_id = student["id"]
     student_name = student["full_name"]
     student_code = student["student_code"]
 
-    session = tim_hoac_tao_session_hien_tai(room_id, at_datetime=scan_dt)
+    luu_attendance_log(room_id=room_id, card_uid=card_uid, event_type="CHECK_IN", status="DUNG_GIO", recorded_at=time_str)
+    gui_phan_hoi_diem_danh(room_id, {
+        "status": "SUCCESS", "attendance_status": "DUNG_GIO",
+        "student_name": student_name, "student_code": student_code,
+        "message": "Đã ghi nhận quét thẻ", "beeps": 1
+    })
 
-    if session:
-        class_id = session["class_id"]
-        students_in_class = lay_sinh_vien_trong_lop(class_id)
-        enrolled_ids = [s["id"] for s in students_in_class]
-
-        if student_id not in enrolled_ids:
-            print(f"ATTENDANCE REJECT: {student_name} ({student_code}) không thuộc lớp học phần ID={class_id} tại {room_id}!")
-            luu_attendance_log(room_id=room_id, card_uid=card_uid, event_type="CHECK_IN", status="KHONG_THUOC_LOP", recorded_at=time_str)
-            gui_phan_hoi_diem_danh(room_id, {"status": "NOT_IN_CLASS", "student_name": student_name, "student_code": student_code, "message": "Không thuộc lớp này", "beeps": 3})
-            print("=====================================\n")
-            return
-
-        start_time_str = session["start_time"]
-        late_grace_mins = session.get("late_grace_period_mins") or 15
-
-        try:
-            start_parts = [int(p) for p in str(start_time_str).split(":")]
-            session_start_dt = scan_dt.replace(hour=start_parts[0], minute=start_parts[1], second=start_parts[2])
-        except Exception:
-            session_start_dt = scan_dt
-
-        from datetime import timedelta
-        grace_limit_dt = session_start_dt + timedelta(minutes=late_grace_mins)
-
-        if scan_dt <= grace_limit_dt:
-            rec_status, log_status, msg, beeps = "PRESENT", "DUNG_GIO", "Điểm danh đúng giờ", 1
-        else:
-            rec_status, log_status, msg, beeps = "LATE", "DI_MUON", "Điểm danh muộn", 2
-
-        ghi_nhan_diem_danh_sinh_vien(session_id=session["id"], student_id=student_id, status=rec_status, method="RFID")
-
-        log_id = luu_attendance_log(room_id=room_id, card_uid=card_uid, event_type="CHECK_IN", status=log_status, recorded_at=time_str)
-        print(f"ATTENDANCE OK: {student_name} ({student_code}) | {log_status} ({rec_status}) | LogID: {log_id}")
-
-        gui_phan_hoi_diem_danh(room_id, {
-            "status": "SUCCESS", "attendance_status": log_status,
-            "student_name": student_name, "student_code": student_code, "message": msg, "beeps": beeps
-        })
-
-    else:
-        print(f"ATTENDANCE FREE: Phòng {room_id} không có ca học | {student_name} ({student_code})")
-        luu_attendance_log(room_id=room_id, card_uid=card_uid, event_type="CHECK_IN", status="DUNG_GIO", recorded_at=time_str)
-        gui_phan_hoi_diem_danh(room_id, {
-            "status": "FREE_ACCESS", "attendance_status": "DUNG_GIO",
-            "student_name": student_name, "student_code": student_code, "message": "Quẹt ngoài giờ", "beeps": 1
-        })
-
-    print("=====================================\n")
+    print(f"RFID OK: {student_name} ({student_code}) | Phòng: {room_id}")
+    print("===============================\n")
 
 
 def xu_ly_alert(thong_tin, data):
@@ -341,7 +293,6 @@ def gui_lenh_thiet_bi(room_id, device_name, command):
         if result.rc != mqtt.MQTT_ERR_SUCCESS:
             print(f"MQTT PUBLISH ERROR: {result.rc}")
             return False, "Khong the publish MQTT"
-
         print(f"\n========== MQTT TX ==========\nTopic: {topic}\nPayload: {payload_json}\n=============================")
         return True, "Command da gui"
     except Exception as e:
