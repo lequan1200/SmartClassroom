@@ -899,11 +899,42 @@ def lay_thong_ke_diem_danh(room_id=None, ngay=None, date_filter=None):
     try:
         cur = conn.cursor()
 
-        # 1. Tổng số học viên
-        cur.execute("SELECT COUNT(*) FROM students")
-        total_students = cur.fetchone()[0]
+        import datetime as _dt
+        stat_date = str(ngay) if ngay else _dt.date.today().isoformat()
 
-        # 2. Thống kê theo ngày (mặc định hôm nay)
+        # 1. Ưu tiên đếm tổng SV từ attendance_records của buổi học hôm nay (chính xác nhất)
+        total_q = """
+            SELECT COUNT(DISTINCT ar.student_id)
+            FROM attendance_sessions ses
+            JOIN attendance_records ar ON ses.id = ar.session_id
+            JOIN rooms r ON ses.room_id = r.id
+            WHERE ses.session_date = ?
+        """
+        total_p = [stat_date]
+        if room_id:
+            total_q += " AND (r.room_id = ? OR r.id = ?)"
+            total_p.extend([str(room_id), str(room_id)])
+        cur.execute(total_q, tuple(total_p))
+        total_students = cur.fetchone()[0] or 0
+
+        # Fallback 1: nếu chưa có buổi học nào trong ngày, đếm từ lịch cố định (schedules)
+        if total_students == 0 and room_id:
+            cur.execute("""
+                SELECT COUNT(DISTINCT ce.student_id)
+                FROM schedules sc
+                JOIN rooms r ON sc.room_id = r.id
+                JOIN class_enrollments ce ON sc.class_id = ce.class_id
+                WHERE (r.room_id = ? OR r.id = ?)
+            """, (str(room_id), str(room_id)))
+            r_s = cur.fetchone()
+            total_students = r_s[0] if r_s and r_s[0] else 0
+
+        # Fallback 2: đếm toàn bộ SV trong hệ thống
+        if total_students == 0:
+            cur.execute("SELECT COUNT(*) FROM students")
+            total_students = cur.fetchone()[0]
+
+        # 2. Thống kê có mặt / muộn từ attendance_logs (real-time raw scans)
         date_cond = "DATE(att.recorded_at) = CURDATE()" if not ngay else "DATE(att.recorded_at) = ?"
         params = [] if not ngay else [str(ngay)]
 
@@ -936,19 +967,6 @@ def lay_thong_ke_diem_danh(room_id=None, ngay=None, date_filter=None):
         """
         cur.execute(query_late, tuple(params_with_room))
         late_count = cur.fetchone()[0] or 0
-
-        # Vắng mặt: Nếu lọc theo phòng, lấy số lượng sinh viên của các lớp có lịch học trong phòng đó
-        if room_id:
-            cur.execute("""
-                SELECT COUNT(DISTINCT ce.student_id)
-                FROM schedules sc
-                JOIN rooms r ON sc.room_id = r.id
-                JOIN class_enrollments ce ON sc.class_id = ce.class_id
-                WHERE (r.room_id = ? OR r.id = ?)
-            """, (str(room_id), str(room_id)))
-            r_sched = cur.fetchone()
-            if r_sched and r_sched[0] > 0:
-                total_students = r_sched[0]
 
         absent_count = max(0, total_students - present_students)
 
@@ -1267,7 +1285,30 @@ def tim_hoac_tao_session_hien_tai(room_id, at_datetime=None):
 
         sched_id, class_id, start_time, end_time, late_mins = sched_row
 
-        # 4. Tự động sinh session mới
+        # 4. Tránh race condition: Kiểm tra lại xem session đã được tạo bởi quẹt thẻ khác gần như đồng thời chưa
+        cur.execute("""
+            SELECT id, class_id, room_id, session_date, start_time, end_time, status
+            FROM attendance_sessions
+            WHERE room_id = ? AND session_date = ? AND class_id = ?
+              AND status IN ('ACTIVE', 'UPCOMING')
+            LIMIT 1
+        """, (room_db_id, current_date, class_id))
+        double_check = cur.fetchone()
+        if double_check:
+            cur.close()
+            conn.close()
+            return {
+                "id": double_check[0],
+                "class_id": double_check[1],
+                "room_id": double_check[2],
+                "session_date": str(double_check[3]),
+                "start_time": str(double_check[4]),
+                "end_time": str(double_check[5]),
+                "status": double_check[6],
+                "late_grace_period_mins": late_mins
+            }
+
+        # 5. Tự động sinh session mới
         cur.execute("""
             INSERT INTO attendance_sessions (schedule_id, class_id, room_id, session_date, start_time, end_time, status)
             VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE')
@@ -1404,9 +1445,17 @@ def cap_nhat_diem_danh_thu_cong(record_id, status, note=None):
 
         cur.execute("""
             UPDATE attendance_records
-            SET status = ?, method = 'MANUAL_TEACHER', note = ?
+            SET status = ?,
+                method = 'MANUAL_TEACHER',
+                note = ?,
+                -- Nếu GV đánh PRESENT/LATE mà chưa có giờ check-in, set NOW()
+                checkin_time = CASE
+                    WHEN ? IN ('PRESENT', 'LATE') AND checkin_time IS NULL
+                    THEN NOW()
+                    ELSE checkin_time
+                END
             WHERE id = ?
-        """, (status, note, record_id))
+        """, (status, note, status, record_id))
         conn.commit()
         cur.close()
         conn.close()
@@ -1428,6 +1477,19 @@ def dong_buoi_diem_danh(session_id):
 
     try:
         cur = conn.cursor()
+
+        # Kiểm tra session có tồn tại không
+        cur.execute("SELECT id, status FROM attendance_sessions WHERE id = ?", (session_id,))
+        row = cur.fetchone()
+        if not row:
+            cur.close()
+            conn.close()
+            return False, "Không tìm thấy buổi điểm danh"
+        if row[1] == "CLOSED":
+            cur.close()
+            conn.close()
+            return False, "Buổi điểm danh đã được chốt trước đó"
+
         cur.execute("UPDATE attendance_sessions SET status = 'CLOSED' WHERE id = ?", (session_id,))
         conn.commit()
         cur.close()
@@ -1446,7 +1508,7 @@ def lay_danh_sach_sessions(room_id=None, session_date=None, class_id=None):
     """
     conn = ket_noi()
     if conn is None:
-        return []
+        return None
 
     try:
         cur = conn.cursor()
@@ -1513,7 +1575,7 @@ def lay_danh_sach_sessions(room_id=None, session_date=None, class_id=None):
         print(f"DB ERROR lay_danh_sach_sessions: {e}")
         if conn:
             conn.close()
-        return []
+        return None
 
 
 def dong_tat_ca_session_qua_gio():
@@ -1577,7 +1639,23 @@ def tao_session_moi(room_id, class_id, session_date=None, start_time=None, end_t
         if not c_row:
             cur.close()
             conn.close()
-            return False, None, "Lớp học phần không tồn tại"
+        # Validate thứ tự giờ
+        if start_time and end_time and start_time >= end_time:
+            cur.close()
+            conn.close()
+            return False, None, "Giờ bắt đầu phải nhỏ hơn giờ kết thúc"
+
+        # Kiểm tra trùng ca học ACTIVE của cùng lớp tại phòng trong ngày
+        cur.execute("""
+            SELECT id FROM attendance_sessions
+            WHERE class_id = ? AND room_id = ? AND session_date = ? AND status = 'ACTIVE'
+            LIMIT 1
+        """, (int(class_id), room_db_id, session_date))
+        existing_sess = cur.fetchone()
+        if existing_sess:
+            cur.close()
+            conn.close()
+            return False, existing_sess[0], "Đã có ca học đang mở (ACTIVE) cho lớp này tại phòng này trong ngày"
 
         # Tạo session mới
         cur.execute("""
@@ -1605,6 +1683,128 @@ def tao_session_moi(room_id, class_id, session_date=None, start_time=None, end_t
             conn.rollback()
             conn.close()
         return False, None, f"Lỗi tạo buổi học: {e}"
+
+
+# ============================================================
+# SCHEDULE CRUD — THÊM / SỬA / XÓA LỊCH HỌC ĐỊNH KỲ
+# ============================================================
+
+def tao_lich_hoc(class_id, room_id, day_of_week, start_time, end_time, late_grace_period_mins=15):
+    """Tạo mới một lịch học định kỳ hàng tuần. Trả về (success, schedule_id, message)."""
+    conn = ket_noi()
+    if conn is None:
+        return False, None, "Không thể kết nối CSDL"
+    try:
+        cur = conn.cursor()
+
+        # Tìm room_db_id từ room_id (string) hoặc id (integer)
+        cur.execute("SELECT id FROM rooms WHERE room_id = ? OR id = ? LIMIT 1", (str(room_id), str(room_id)))
+        r_row = cur.fetchone()
+        if not r_row:
+            cur.close(); conn.close()
+            return False, None, "Phòng học không tồn tại"
+        room_db_id = r_row[0]
+
+        # Kiểm tra lớp học phần tồn tại
+        cur.execute("SELECT id FROM course_classes WHERE id = ?", (int(class_id),))
+        if not cur.fetchone():
+            cur.close(); conn.close()
+            return False, None, "Lớp học phần không tồn tại"
+
+        # Kiểm tra conflict: cùng phòng, cùng thứ, khung giờ trùng nhau
+        cur.execute("""
+            SELECT s.id FROM schedules s
+            WHERE s.room_id = ? AND s.day_of_week = ?
+              AND s.start_time < ? AND s.end_time > ?
+        """, (room_db_id, int(day_of_week), end_time, start_time))
+        conflict = cur.fetchone()
+        if conflict:
+            cur.close(); conn.close()
+            return False, None, f"Trùng khung giờ tại phòng này (conflict với lịch ID={conflict[0]})"
+
+        cur.execute("""
+            INSERT INTO schedules (class_id, room_id, day_of_week, start_time, end_time, late_grace_period_mins)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (int(class_id), room_db_id, int(day_of_week), start_time, end_time, int(late_grace_period_mins)))
+        conn.commit()
+        new_id = cur.lastrowid
+        cur.close(); conn.close()
+        return True, new_id, "Tạo lịch học thành công"
+    except mariadb.Error as e:
+        print(f"DB ERROR tao_lich_hoc: {e}")
+        if conn: conn.rollback(); conn.close()
+        return False, None, f"Lỗi tạo lịch học: {e}"
+
+
+def sua_lich_hoc(schedule_id, class_id, room_id, day_of_week, start_time, end_time, late_grace_period_mins=15):
+    """Cập nhật lịch học. Trả về (success, message)."""
+    conn = ket_noi()
+    if conn is None:
+        return False, "Không thể kết nối CSDL"
+    try:
+        cur = conn.cursor()
+
+        # Kiểm tra lịch tồn tại
+        cur.execute("SELECT id FROM schedules WHERE id = ?", (int(schedule_id),))
+        if not cur.fetchone():
+            cur.close(); conn.close()
+            return False, "Không tìm thấy lịch học"
+
+        # Tìm room_db_id
+        cur.execute("SELECT id FROM rooms WHERE room_id = ? OR id = ? LIMIT 1", (str(room_id), str(room_id)))
+        r_row = cur.fetchone()
+        if not r_row:
+            cur.close(); conn.close()
+            return False, "Phòng học không tồn tại"
+        room_db_id = r_row[0]
+
+        # Kiểm tra conflict (loại trừ chính nó)
+        cur.execute("""
+            SELECT s.id FROM schedules s
+            WHERE s.room_id = ? AND s.day_of_week = ?
+              AND s.start_time < ? AND s.end_time > ?
+              AND s.id != ?
+        """, (room_db_id, int(day_of_week), end_time, start_time, int(schedule_id)))
+        conflict = cur.fetchone()
+        if conflict:
+            cur.close(); conn.close()
+            return False, f"Trùng khung giờ tại phòng này (conflict với lịch ID={conflict[0]})"
+
+        cur.execute("""
+            UPDATE schedules
+            SET class_id = ?, room_id = ?, day_of_week = ?,
+                start_time = ?, end_time = ?, late_grace_period_mins = ?
+            WHERE id = ?
+        """, (int(class_id), room_db_id, int(day_of_week),
+               start_time, end_time, int(late_grace_period_mins), int(schedule_id)))
+        conn.commit()
+        cur.close(); conn.close()
+        return True, "Cập nhật lịch học thành công"
+    except mariadb.Error as e:
+        print(f"DB ERROR sua_lich_hoc: {e}")
+        if conn: conn.rollback(); conn.close()
+        return False, f"Lỗi cập nhật lịch học: {e}"
+
+
+def xoa_lich_hoc(schedule_id):
+    """Xóa lịch học. Trả về (success, message)."""
+    conn = ket_noi()
+    if conn is None:
+        return False, "Không thể kết nối CSDL"
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM schedules WHERE id = ?", (int(schedule_id),))
+        if not cur.fetchone():
+            cur.close(); conn.close()
+            return False, "Không tìm thấy lịch học"
+        cur.execute("DELETE FROM schedules WHERE id = ?", (int(schedule_id),))
+        conn.commit()
+        cur.close(); conn.close()
+        return True, "Xóa lịch học thành công"
+    except mariadb.Error as e:
+        print(f"DB ERROR xoa_lich_hoc: {e}")
+        if conn: conn.rollback(); conn.close()
+        return False, f"Lỗi xóa lịch học: {e}"
 
 
 if __name__ == "__main__":

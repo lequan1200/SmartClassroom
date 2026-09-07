@@ -158,6 +158,18 @@ async function loadRooms() {
             select.appendChild(option);
         });
 
+        // Đồng bộ danh sách phòng vào filter TKB (thay hardcode HTML)
+        const schedRoomFilter = $("schedule-room-filter");
+        if (schedRoomFilter) {
+            schedRoomFilter.innerHTML = `<option value="">Tất cả phòng</option>`;
+            rooms.forEach(room => {
+                const opt = document.createElement("option");
+                opt.value = room.room_id;
+                opt.textContent = room.name ? `${room.name} (${room.room_id})` : room.room_id;
+                schedRoomFilter.appendChild(opt);
+            });
+        }
+
         if (!currentRoom) {
             currentRoom = rooms[0].room_id;
             select.value = currentRoom;
@@ -689,6 +701,9 @@ function switchView(tabName) {
     } else if (tabName === "schedule") {
         if (scheduleView) {
             scheduleView.style.display = "block";
+            // Sync filter phòng TKB với phòng đang chọn ở sidebar
+            const schedRoomFilter = $("schedule-room-filter");
+            if (schedRoomFilter && currentRoom) schedRoomFilter.value = currentRoom;
             loadScheduleView();
         }
         if (breadcrumb) breadcrumb.textContent = "HỆ THỐNG / THỜI KHÓA BIỂU";
@@ -990,10 +1005,14 @@ async function loadAttendanceData() {
 
     try {
         const queryParams = dateFilter ? `?date=${encodeURIComponent(dateFilter)}` : "";
+        // Sửa lỗi URL: khi không có date filter, cần dùng '?' thay vì '&'
+        const logsQuery = dateFilter
+            ? `?date=${encodeURIComponent(dateFilter)}&limit=50`
+            : `?limit=50`;
 
         const [statsRes, logsRes] = await Promise.all([
             fetch(`/api/attendance/stats${queryParams}`),
-            fetch(`/api/attendance${queryParams}&limit=50`)
+            fetch(`/api/attendance${logsQuery}`)
         ]);
 
         if (statsRes.ok) {
@@ -1083,8 +1102,8 @@ function toggleAllDates(isAll) {
     if (dateInput) {
         dateInput.disabled = isAll;
     }
-    loadAttendanceSessions();
-    loadAttendanceLogs();
+    // loadAttendanceData() đã gọi cả loadAttendanceSessions() bên trong
+    loadAttendanceData();
 }
 
 async function loadAttendanceSessions() {
@@ -1260,7 +1279,7 @@ function renderRollCallSheet(records, session) {
                 <td>${methodStr}</td>
                 <td>${noteStr}</td>
                 <td style="text-align:center;">
-                    <button class="btn btn-secondary btn-sm" onclick="openEditRecordModal(${r.record_id}, decodeURIComponent('${encodedName}'), '${r.status}', decodeURIComponent('${encodedNote}'))" title="Sửa điểm danh thủ công">
+                    <button class="btn btn-secondary btn-sm" onclick="openEditRecordModal(${r.record_id || 'null'}, decodeURIComponent('${encodedName}'), '${r.status}', decodeURIComponent('${encodedNote}'), ${r.student_id})" title="Sửa điểm danh">
                         <span>✍️</span> Sửa
                     </button>
                 </td>
@@ -1270,12 +1289,14 @@ function renderRollCallSheet(records, session) {
 }
 
 // EDIT RECORD MODAL (MANUAL OVERRIDE)
-function openEditRecordModal(recordId, studentName, currentStatus, currentNote) {
-    if (!recordId) {
-        showToast("Lỗi", "Bản ghi điểm danh chưa được tạo", false);
-        return;
-    }
-    $("edit-record-id").value = recordId;
+let editRecordStudentId = null;
+let editRecordSessionId = null;
+
+function openEditRecordModal(recordId, studentName, currentStatus, currentNote, studentId) {
+    $("edit-record-id").value = recordId || "";
+    editRecordStudentId = studentId || null;
+    editRecordSessionId = selectedSessionId || null;
+
     $("edit-record-student-name").textContent = `Sinh viên: ${studentName}`;
     $("edit-record-status").value = currentStatus || "PRESENT";
     $("edit-record-note").value = currentNote || "";
@@ -1294,8 +1315,19 @@ async function handleSaveEditRecord(e) {
     const note = $("edit-record-note").value.trim();
 
     try {
-        const res = await fetch(`/api/attendance/records/${recordId}`, {
-            method: "PUT",
+        let url = "";
+        let method = "PUT";
+
+        if (recordId) {
+            url = `/api/attendance/records/${recordId}`;
+        } else if (editRecordSessionId && editRecordStudentId) {
+            url = `/api/attendance/sessions/${editRecordSessionId}/students/${editRecordStudentId}/record`;
+        } else {
+            throw new Error("Không xác định được buổi học hoặc sinh viên để cập nhật");
+        }
+
+        const res = await fetch(url, {
+            method,
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ status, note })
         });
@@ -1469,6 +1501,7 @@ async function handleCreateSession(e) {
 // TIMETABLE & SCHEDULE MANAGEMENT
 // ============================================================
 let courseClassesCache = [];
+let currentSchedules = []; // Cache lịch học để dùng cho Edit modal
 
 async function loadScheduleView() {
     const container = $("schedule-grid-container");
@@ -1503,6 +1536,28 @@ async function loadScheduleView() {
         const json = await res.json();
         const schedules = json.data || [];
 
+        // Lấy danh sách session hôm nay để gắn badge trạng thái (ACTIVE / CLOSED / ...)
+        try {
+            const todayStr = new Date().toISOString().split("T")[0];
+            let sessUrl = `/api/attendance/sessions?date=${todayStr}`;
+            if (selectedRoom) sessUrl += `&room_id=${encodeURIComponent(selectedRoom)}`;
+            const sessRes = await fetch(sessUrl);
+            if (sessRes.ok) {
+                const sessJson = await sessRes.json();
+                const todaySessions = sessJson.data || [];
+                // Ghép session hôm nay vào schedule tương ứng
+                schedules.forEach(s => {
+                    const match = todaySessions.find(sess =>
+                        sess.class_id === s.class_id &&
+                        (sess.room_id === s.room_id || sess.room_code === s.room_code)
+                    );
+                    if (match) s.todaySession = match;
+                });
+            }
+        } catch (sessErr) {
+            console.warn("Không thể lấy session hôm nay:", sessErr);
+        }
+
         renderScheduleGrid(schedules);
 
     } catch (err) {
@@ -1514,6 +1569,9 @@ async function loadScheduleView() {
 function renderScheduleGrid(schedules) {
     const container = $("schedule-grid-container");
     if (!container) return;
+
+    // Cập nhật cache để dùng cho Edit/Delete modal
+    currentSchedules = schedules;
 
     const DAYS = [
         { day: 0, title: "Thứ Hai", short: "T2" },
@@ -1535,7 +1593,6 @@ function renderScheduleGrid(schedules) {
         const cardsHtml = daySchedules.length === 0
             ? `<div class="schedule-empty-day">Không có ca học</div>`
             : daySchedules.map(s => {
-                // Xác định ca học
                 const startHour = parseInt(s.start_time.split(":")[0], 10);
                 let shiftClass = "shift-morning";
                 let shiftIcon = "☀️";
@@ -1552,6 +1609,22 @@ function renderScheduleGrid(schedules) {
 
                 const startTimeStr = s.start_time.slice(0, 5);
                 const endTimeStr = s.end_time.slice(0, 5);
+                const graceMins = s.late_grace_period_mins ?? 15;
+
+                // Badge trạng thái buổi học hôm nay
+                let sessionBadge = "";
+                const todayWeekdayForCard = (new Date().getDay() + 6) % 7;
+                if (d.day === todayWeekdayForCard) {
+                    if (s.todaySession) {
+                        if (s.todaySession.status === "ACTIVE") {
+                            sessionBadge = `<span style="display:inline-block; background:#10b981; color:#fff; border-radius:6px; font-size:10px; padding:2px 7px; font-weight:700; letter-spacing:0.5px; animation: pulse-glow 2s infinite;">🟢 ĐANG DIỄN RA</span>`;
+                        } else if (s.todaySession.status === "CLOSED") {
+                            sessionBadge = `<span style="display:inline-block; background:rgba(100,100,100,0.35); color:var(--text-muted); border-radius:6px; font-size:10px; padding:2px 7px; font-weight:600;">⏹️ ĐÃ ĐÓNG</span>`;
+                        }
+                    } else {
+                        sessionBadge = `<span style="display:inline-block; background:rgba(250,204,21,0.2); color:#fbbf24; border-radius:6px; font-size:10px; padding:2px 7px; font-weight:600;">🗓️ HÔM NAY</span>`;
+                    }
+                }
 
                 return `
                     <div class="schedule-item-card ${shiftClass}">
@@ -1559,15 +1632,30 @@ function renderScheduleGrid(schedules) {
                             <span>${shiftIcon} ${startTimeStr} - ${endTimeStr}</span>
                             <span class="mini-pill" style="font-size: 10px; padding: 1px 6px;">${shiftLabel}</span>
                         </div>
+                        ${sessionBadge ? `<div style="margin:4px 0;">${sessionBadge}</div>` : ""}
                         <div class="schedule-item-subject">${escapeHtml(s.subject_name)}</div>
                         <div class="schedule-item-class">${escapeHtml(s.class_code)}</div>
                         <div class="schedule-item-meta">
                             <span>👨‍🏫 ${escapeHtml(s.teacher_name || 'Chưa phân công')}</span>
                             <span>📍 ${escapeHtml(s.room_name)} (${escapeHtml(s.room_code)})</span>
                         </div>
-                        <button class="btn btn-secondary btn-xs" style="margin-top: 6px; width: 100%; justify-content: center;" onclick="goToAttendance('${escapeHtml(s.room_code)}')">
-                            <span>🪪</span> Điểm danh phòng này
-                        </button>
+                        <div style="font-size:11px; color:var(--text-muted); margin:4px 0;">
+                            ⏰ Cho phép muộn: <strong>${graceMins} phút</strong>
+                        </div>
+                        <div style="display:flex; gap:6px; margin-top:6px;">
+                            <button class="btn btn-secondary btn-xs" style="flex:1; justify-content:center;"
+                                onclick="goToAttendance('${escapeHtml(s.room_code)}')">
+                                🪪 Điểm danh
+                            </button>
+                            <button class="btn btn-accent btn-xs" style="padding:4px 10px;"
+                                onclick="openEditScheduleModal(${s.id})" title="Sửa lịch học">
+                                ✏️
+                            </button>
+                            <button class="btn btn-secondary btn-xs" style="padding:4px 10px; border-color:var(--danger); color:var(--danger);"
+                                onclick="deleteSchedule(${s.id})" title="Xóa lịch học">
+                                🗑️
+                            </button>
+                        </div>
                     </div>
                 `;
             }).join("");
@@ -1586,6 +1674,7 @@ function renderScheduleGrid(schedules) {
     }).join("");
 }
 
+
 function goToAttendance(roomCode) {
     if (roomCode) {
         currentRoom = roomCode;
@@ -1595,6 +1684,139 @@ function goToAttendance(roomCode) {
     const attendanceNav = document.querySelector(".sidebar-nav .nav-item[data-tab='attendance']");
     switchView("attendance");
     setActiveNav(attendanceNav);
+}
+
+// ============================================================
+// SCHEDULE CRUD FUNCTIONS (THÊM / SỬA / XÓA LỊCH HỌC)
+// ============================================================
+async function openCreateScheduleModal() {
+    $("schedule-id-input").value = "";
+    $("schedule-modal-title").textContent = "Thêm lịch học mới";
+    $("schedule-modal-subtitle").textContent = "Tạo lịch học định kỳ hàng tuần cho lớp học phần";
+
+    // Reset form
+    const form = $("schedule-form");
+    if (form) form.reset();
+    $("schedule-grace-input").value = "15";
+
+    // Auto-điền phòng hiện tại
+    if (currentRoom) {
+        const roomInput = $("schedule-room-input");
+        if (roomInput) roomInput.value = currentRoom;
+    }
+
+    await _loadScheduleModalData();
+    $("schedule-modal").style.display = "flex";
+}
+
+async function openEditScheduleModal(scheduleId) {
+    const s = currentSchedules.find(x => x.id === scheduleId);
+    if (!s) {
+        showToast("Lỗi", "Không tìm thấy thông tin lịch học", false);
+        return;
+    }
+    $("schedule-id-input").value = s.id;
+    $("schedule-modal-title").textContent = "Sửa lịch học";
+    $("schedule-modal-subtitle").textContent = `Đang sửa: ${escapeHtml(s.class_code)} — ${escapeHtml(s.subject_name)}`;
+
+    await _loadScheduleModalData();
+
+    // Điền giá trị hiện tại vào form
+    const classInput = $("schedule-class-input");
+    const roomInput = $("schedule-room-input");
+    if (classInput) classInput.value = s.class_id;
+    if (roomInput) roomInput.value = s.room_code || s.room_id;
+    $("schedule-day-input").value = s.day_of_week;
+    $("schedule-start-input").value = (s.start_time || "").slice(0, 5);
+    $("schedule-end-input").value = (s.end_time || "").slice(0, 5);
+    $("schedule-grace-input").value = s.late_grace_period_mins ?? 15;
+
+    $("schedule-modal").style.display = "flex";
+}
+
+async function _loadScheduleModalData() {
+    // Load lớp học phần
+    try {
+        const res = await fetch("/api/course-classes");
+        const json = await res.json();
+        const classes = json.data || [];
+        const classInput = $("schedule-class-input");
+        if (classInput) {
+            classInput.innerHTML = `<option value="">-- Chọn lớp học phần --</option>` +
+                classes.map(c => `<option value="${c.id}">${escapeHtml(c.class_code)}: ${escapeHtml(c.subject_name)}</option>`).join("");
+        }
+    } catch (e) { console.error("Load classes error:", e); }
+
+    // Load phòng học
+    try {
+        const res = await fetch("/api/rooms");
+        const json = await res.json();
+        const rooms = Array.isArray(json) ? json : (json.data || json.rooms || []);
+        const roomInput = $("schedule-room-input");
+        if (roomInput) {
+            roomInput.innerHTML = `<option value="">-- Chọn phòng --</option>` +
+                rooms.map(r => `<option value="${escapeHtml(r.room_id)}">${escapeHtml(r.name || r.room_id)} (${escapeHtml(r.room_id)})</option>`).join("");
+        }
+    } catch (e) { console.error("Load rooms error:", e); }
+}
+
+function closeScheduleModal() {
+    const modal = $("schedule-modal");
+    if (modal) modal.style.display = "none";
+}
+
+async function handleSaveSchedule(e) {
+    e.preventDefault();
+    const scheduleId = $("schedule-id-input").value;
+    const payload = {
+        class_id: parseInt($("schedule-class-input").value, 10),
+        room_id: $("schedule-room-input").value,
+        day_of_week: parseInt($("schedule-day-input").value, 10),
+        start_time: $("schedule-start-input").value + ":00",
+        end_time: $("schedule-end-input").value + ":00",
+        late_grace_period_mins: parseInt($("schedule-grace-input").value, 10) || 15
+    };
+
+    if (!payload.class_id || !payload.room_id) {
+        showToast("Thiếu thông tin", "Vui lòng chọn lớp học phần và phòng học", false);
+        return;
+    }
+
+    try {
+        const url = scheduleId ? `/api/schedules/${scheduleId}` : "/api/schedules";
+        const method = scheduleId ? "PUT" : "POST";
+        const res = await fetch(url, {
+            method,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || "Lưu lịch học thất bại");
+
+        showToast("Thành công", data.message || "Đã lưu lịch học", true);
+        closeScheduleModal();
+        await loadScheduleView();
+    } catch (err) {
+        console.error("SAVE SCHEDULE ERROR:", err);
+        showToast("Lỗi lưu lịch học", err.message, false);
+    }
+}
+
+async function deleteSchedule(scheduleId) {
+    const s = currentSchedules.find(x => x.id === scheduleId);
+    const label = s ? `"${s.class_code} — ${s.subject_name}"` : `ID ${scheduleId}`;
+    if (!confirm(`Xóa lịch học ${label}?\nLưu ý: Các buổi học (attendance_sessions) đã tạo từ lịch này sẽ không bị xóa.`)) return;
+
+    try {
+        const res = await fetch(`/api/schedules/${scheduleId}`, { method: "DELETE" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || "Xóa thất bại");
+        showToast("Đã xóa", data.message, true);
+        await loadScheduleView();
+    } catch (err) {
+        console.error("DELETE SCHEDULE ERROR:", err);
+        showToast("Lỗi xóa", err.message, false);
+    }
 }
 
 // Close modal when clicking outside
@@ -1611,6 +1833,10 @@ window.addEventListener("click", function (event) {
     if (createModal && event.target === createModal) {
         closeCreateSessionModal();
     }
+    const scheduleModal = $("schedule-modal");
+    if (scheduleModal && event.target === scheduleModal) {
+        closeScheduleModal();
+    }
 });
 
 async function initializeDashboard() {
@@ -1626,6 +1852,9 @@ async function initializeDashboard() {
             await Promise.all([loadSensors(), loadDevices(), loadRoomMode()]);
         } else if (currentTab === "attendance") {
             await loadAttendanceData();
+        } else if (currentTab === "schedule") {
+            // Auto-refresh TKB để cập nhật badge trạng thái buổi học
+            await loadScheduleView();
         }
     }, REFRESH_INTERVAL);
 

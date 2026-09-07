@@ -821,8 +821,7 @@
                                 <label for="schedule-room-filter">📍 Phòng:</label>
                                 <select id="schedule-room-filter" class="custom-select" onchange="loadScheduleView()" style="min-width: 170px;">
                                     <option value="">Tất cả phòng</option>
-                                    <option value="room01">Phòng học 01 (room01)</option>
-                                    <option value="room02">Phòng học 02 (room02)</option>
+                                    <!-- Danh sách phòng được load động từ /api/rooms qua loadRooms() -->
                                 </select>
                             </div>
                             <div class="filter-input-group">
@@ -831,11 +830,14 @@
                                     <option value="">Tất cả lớp học phần</option>
                                 </select>
                             </div>
+                            <button class="btn btn-accent" onclick="openCreateScheduleModal()" title="Thêm lịch học định kỳ mới">
+                                <span>&#43;</span> Thêm lịch học
+                            </button>
                             <button class="btn btn-primary" onclick="openCreateSessionModal()" title="Khởi tạo ca học mới ngay">
-                                <span>📚</span> Mở ca học ngay
+                                <span>&#128218;</span> Mở ca học ngay
                             </button>
                             <button class="btn btn-secondary" onclick="loadScheduleView()" title="Làm mới thời khóa biểu">
-                                <span>🔄</span> Làm mới
+                                <span>&#128260;</span> Làm mới
                             </button>
                         </div>
                     </div>
@@ -1031,6 +1033,80 @@
             <div class="modal-footer-actions" style="display: flex; justify-content: flex-end; gap: 10px;">
                 <button type="button" class="btn btn-secondary" onclick="closeCreateSessionModal()">Hủy bỏ</button>
                 <button type="submit" class="btn btn-primary"><span>🚀</span> Bắt đầu ca học</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- ============================================================
+     MODAL: THÊM / SỬA LỊCH HỌC ĐỊNH KỲ (SCHEDULE CRUD)
+     ============================================================ -->
+<div class="modal-backdrop" id="schedule-modal" style="display: none;">
+    <div class="modal-dialog" style="max-width: 520px;">
+        <div class="modal-top">
+            <div class="modal-title-group">
+                <div class="modal-avatar-icon" style="background: rgba(168,85,247,0.15); border-color: rgba(168,85,247,0.3); color: #c084fc;">&#128197;</div>
+                <div>
+                    <h3 id="schedule-modal-title">Thêm lịch học mới</h3>
+                    <p id="schedule-modal-subtitle">Tạo lịch học định kỳ hàng tuần cho lớp học phần</p>
+                </div>
+            </div>
+            <button class="modal-close-btn" onclick="closeScheduleModal()">&times;</button>
+        </div>
+
+        <form id="schedule-form" onsubmit="handleSaveSchedule(event)">
+            <input type="hidden" id="schedule-id-input">
+
+            <div class="form-grid-2" style="margin-bottom: 14px;">
+                <div class="form-field">
+                    <label for="schedule-class-input">Lớp học phần <span style="color:var(--danger)">*</span></label>
+                    <select id="schedule-class-input" class="custom-select" required
+                        style="width:100%; padding:10px; border-radius:8px; background:var(--bg-card); border:1px solid var(--border-color); color:var(--text-pure);">
+                        <option value="">-- Đang tải --</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label for="schedule-room-input">Phòng học <span style="color:var(--danger)">*</span></label>
+                    <select id="schedule-room-input" class="custom-select" required
+                        style="width:100%; padding:10px; border-radius:8px; background:var(--bg-card); border:1px solid var(--border-color); color:var(--text-pure);">
+                        <option value="">-- Đang tải --</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-field" style="margin-bottom: 14px;">
+                <label for="schedule-day-input">Thứ trong tuần <span style="color:var(--danger)">*</span></label>
+                <select id="schedule-day-input" class="custom-select" required
+                    style="width:100%; padding:10px; border-radius:8px; background:var(--bg-card); border:1px solid var(--border-color); color:var(--text-pure);">
+                    <option value="0">Thứ Hai</option>
+                    <option value="1">Thứ Ba</option>
+                    <option value="2">Thứ Tư</option>
+                    <option value="3">Thứ Năm</option>
+                    <option value="4">Thứ Sáu</option>
+                    <option value="5">Thứ Bảy</option>
+                    <option value="6">Chủ Nhật</option>
+                </select>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; margin-bottom:18px;">
+                <div class="form-field">
+                    <label for="schedule-start-input">Giờ bắt đầu <span style="color:var(--danger)">*</span></label>
+                    <input type="time" id="schedule-start-input" class="custom-input" required style="width:100%;">
+                </div>
+                <div class="form-field">
+                    <label for="schedule-end-input">Giờ kết thúc <span style="color:var(--danger)">*</span></label>
+                    <input type="time" id="schedule-end-input" class="custom-input" required style="width:100%;">
+                </div>
+                <div class="form-field">
+                    <label for="schedule-grace-input">Muộn tối đa (phút)</label>
+                    <input type="number" id="schedule-grace-input" class="custom-input" value="15" min="0" max="120" style="width:100%;">
+                </div>
+            </div>
+
+            <div class="modal-footer-actions" style="display:flex; justify-content:flex-end; gap:10px;">
+                <button type="button" class="btn btn-secondary" onclick="closeScheduleModal()">Hủy bỏ</button>
+                <button type="submit" class="btn btn-primary"><span>&#128190;</span> Lưu lịch học</button>
             </div>
         </form>
     </div>

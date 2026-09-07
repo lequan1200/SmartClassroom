@@ -27,7 +27,11 @@ from database import (
     lay_danh_sach_lop_hoc_phan,
     lay_danh_sach_mon_hoc,
     lay_thoi_khoa_bieu,
-    tao_session_moi
+    tao_session_moi,
+    ghi_nhan_diem_danh_sinh_vien,
+    tao_lich_hoc,
+    sua_lich_hoc,
+    xoa_lich_hoc
 )
 
 from mqtt_client import (
@@ -289,7 +293,7 @@ def api_add_student():
     if not student_code or not full_name:
         return jsonify({"success": False, "message": "Ma hoc vien va ho ten la bat buoc"}), 400
 
-    success, result = them_hoc_vien(student_code, full_name, card_uid, class_name, email, phone)
+    success, result = them_hoc_vien(student_code, full_name, class_name, card_uid, email, phone)
     if not success:
         return jsonify({"success": False, "message": result}), 400
 
@@ -406,6 +410,8 @@ def api_attendance_sessions():
     class_id = request.args.get("class_id", type=int)
 
     sessions = lay_danh_sach_sessions(room_id=room_id, session_date=date_filter, class_id=class_id)
+    if sessions is None:
+        return jsonify({"success": False, "message": "Không thể tải danh sách ca học do lỗi CSDL"}), 500
     return jsonify({"success": True, "data": sessions}), 200
 
 
@@ -423,6 +429,10 @@ def api_create_session():
 
     if not room_id or not class_id:
         return jsonify({"success": False, "message": "Vui lòng cung cấp room_id và class_id"}), 400
+
+    # Validate thứ tự giờ nếu được cung cấp
+    if start_time and end_time and start_time >= end_time:
+        return jsonify({"success": False, "message": "Giờ bắt đầu phải nhỏ hơn giờ kết thúc"}), 400
 
     success, session_id, message = tao_session_moi(
         room_id=room_id,
@@ -463,6 +473,36 @@ def api_update_record(record_id):
         }), 400
 
     success, message = cap_nhat_diem_danh_thu_cong(record_id, new_status, note)
+    if not success:
+        return jsonify({"success": False, "message": message}), 400
+
+    return jsonify({"success": True, "message": message}), 200
+
+
+@app.route("/api/attendance/sessions/<int:session_id>/students/<int:student_id>/record", methods=["PUT", "POST"])
+def api_upsert_student_session_record(session_id, student_id):
+    """Cập nhật hoặc tạo mới bản ghi điểm danh cho sinh viên trong buổi học (áp dụng khi record_id chưa có)."""
+    if not request.is_json:
+        return jsonify({"success": False, "message": "Content-Type phải là application/json"}), 400
+
+    data = request.get_json(silent=True) or {}
+    new_status = data.get("status")
+    note = data.get("note")
+
+    valid_statuses = ["PRESENT", "LATE", "ABSENT_EXCUSED", "ABSENT_UNEXCUSED"]
+    if new_status not in valid_statuses:
+        return jsonify({
+            "success": False,
+            "message": f"Trạng thái không hợp lệ. Chỉ chấp nhận: {', '.join(valid_statuses)}"
+        }), 400
+
+    success, message = ghi_nhan_diem_danh_sinh_vien(
+        session_id=session_id,
+        student_id=student_id,
+        status=new_status,
+        method="MANUAL_TEACHER",
+        note=note
+    )
     if not success:
         return jsonify({"success": False, "message": message}), 400
 
@@ -554,6 +594,99 @@ def api_schedules():
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({"success": False, "message": "API khong ton tai"}), 404
+
+
+# ============================================================
+# SCHEDULE CRUD API — THÊM / SỬA / XÓA LỊCH HỌC
+# ============================================================
+
+@app.route("/api/schedules", methods=["POST"])
+def api_create_schedule():
+    """Tạo mới lịch học định kỳ."""
+    if not request.is_json:
+        return jsonify({"success": False, "message": "Content-Type phải là application/json"}), 400
+    data = request.get_json(silent=True) or {}
+
+    class_id = data.get("class_id")
+    room_id = data.get("room_id")
+    day_of_week = data.get("day_of_week")
+    start_time = (data.get("start_time") or "").strip()
+    end_time = (data.get("end_time") or "").strip()
+    late_grace = data.get("late_grace_period_mins", 15)
+
+    if class_id is None or room_id is None or day_of_week is None:
+        return jsonify({"success": False, "message": "Thiếu class_id, room_id hoặc day_of_week"}), 400
+    if not start_time or not end_time:
+        return jsonify({"success": False, "message": "Thiếu start_time hoặc end_time"}), 400
+    if start_time >= end_time:
+        return jsonify({"success": False, "message": "start_time phải nhỏ hơn end_time"}), 400
+    if int(day_of_week) not in range(0, 7):
+        return jsonify({"success": False, "message": "day_of_week phải từ 0 (Thứ Hai) đến 6 (Chủ Nhật)"}), 400
+
+    try:
+        success, new_id, message = tao_lich_hoc(
+            class_id=int(class_id),
+            room_id=room_id,
+            day_of_week=int(day_of_week),
+            start_time=start_time,
+            end_time=end_time,
+            late_grace_period_mins=int(late_grace)
+        )
+        if not success:
+            return jsonify({"success": False, "message": message}), 400
+        return jsonify({"success": True, "message": message, "schedule_id": new_id}), 201
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/schedules/<int:schedule_id>", methods=["PUT"])
+def api_update_schedule(schedule_id):
+    """Cập nhật lịch học."""
+    if not request.is_json:
+        return jsonify({"success": False, "message": "Content-Type phải là application/json"}), 400
+    data = request.get_json(silent=True) or {}
+
+    class_id = data.get("class_id")
+    room_id = data.get("room_id")
+    day_of_week = data.get("day_of_week")
+    start_time = (data.get("start_time") or "").strip()
+    end_time = (data.get("end_time") or "").strip()
+    late_grace = data.get("late_grace_period_mins", 15)
+
+    if class_id is None or room_id is None or day_of_week is None:
+        return jsonify({"success": False, "message": "Thiếu class_id, room_id hoặc day_of_week"}), 400
+    if not start_time or not end_time:
+        return jsonify({"success": False, "message": "Thiếu start_time hoặc end_time"}), 400
+    if start_time >= end_time:
+        return jsonify({"success": False, "message": "start_time phải nhỏ hơn end_time"}), 400
+
+    try:
+        success, message = sua_lich_hoc(
+            schedule_id=schedule_id,
+            class_id=int(class_id),
+            room_id=room_id,
+            day_of_week=int(day_of_week),
+            start_time=start_time,
+            end_time=end_time,
+            late_grace_period_mins=int(late_grace)
+        )
+        if not success:
+            return jsonify({"success": False, "message": message}), 400
+        return jsonify({"success": True, "message": message}), 200
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/schedules/<int:schedule_id>", methods=["DELETE"])
+def api_delete_schedule(schedule_id):
+    """Xóa lịch học."""
+    try:
+        success, message = xoa_lich_hoc(schedule_id)
+        if not success:
+            return jsonify({"success": False, "message": message}), 400
+        return jsonify({"success": True, "message": message}), 200
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
 
 
 @app.errorhandler(500)
