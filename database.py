@@ -1,4 +1,5 @@
 import mariadb
+from datetime import datetime, timedelta
 
 DB_HOST = "127.0.0.1"
 DB_PORT = 3306
@@ -502,9 +503,10 @@ def luu_attendance_log(room_id, card_uid, event_type="CHECK_IN", status="DUNG_GI
             """, (room_db_id, student_id, card_uid, event_type, status))
 
         conn.commit()
+        log_id = cur.lastrowid
         cur.close()
         conn.close()
-        return True
+        return log_id
     except mariadb.Error as e:
         print(f"DB ERROR luu_attendance_log: {e}")
         conn.rollback()
@@ -529,38 +531,256 @@ def lay_danh_sach_diem_danh(room_id=None, limit=100, ngay=None):
         """
         params = []
         if room_id:
-            query += " AND r.room_id = ?"
-            params.append(str(room_id))
+            query += " AND r.room_id = ?"; params.append(str(room_id))
         if ngay:
-            query += " AND DATE(att.recorded_at) = ?"
-            params.append(str(ngay))
-
-        try:
-            limit = int(limit)
-        except (TypeError, ValueError):
-            limit = 100
+            query += " AND DATE(att.recorded_at) = ?"; params.append(str(ngay))
         query += " ORDER BY att.recorded_at DESC LIMIT ?"
-        params.append(min(max(1, limit), 500))
-
-        cur.execute(query, tuple(params))
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
-        return [
-            {
-                "id": r[0], "room_id": r[1], "room_name": r[2], "card_uid": r[3],
-                "student_id": r[4], "student_code": r[5] or "---",
-                "full_name": r[6] or "Thẻ chưa đăng ký", "class_name": r[7] or "---",
-                "event_type": r[8], "status": r[9] or "NORMAL",
-                "recorded_at": r[10].isoformat() if r[10] else None
-            }
-            for r in rows
-        ]
-    except mariadb.Error as e:
+        params.append(min(max(1, int(limit or 100)), 500))
+        cur.execute(query, tuple(params)); rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": r[0], "room_id": r[1], "room_name": r[2], "card_uid": r[3],
+                 "student_id": r[4], "student_code": r[5] or "---", "full_name": r[6] or "Thẻ chưa đăng ký",
+                 "class_name": r[7] or "---", "event_type": r[8], "status": r[9] or "NORMAL",
+                 "recorded_at": r[10].isoformat() if r[10] else None} for r in rows]
+    except (mariadb.Error, ValueError) as e:
         print(f"DB ERROR lay_danh_sach_diem_danh: {e}")
-        if conn:
-            conn.close()
+        if conn: conn.close()
         return None
+
+
+# ===== THỜI KHÓA BIỂU VÀ ĐIỂM DANH THEO BUỔI =====
+
+def _rows_as_dicts(rows, columns):
+    return [dict(zip(columns, row)) for row in rows]
+
+
+def lay_danh_sach_lop():
+    conn = ket_noi()
+    if not conn:
+        return None
+    try:
+        cur = conn.cursor()
+        cur.execute("""SELECT c.id, c.class_code, c.class_name, c.academic_year, c.description,
+                       c.is_active, COUNT(cs.student_id) AS student_count
+                       FROM classes c LEFT JOIN class_students cs
+                       ON cs.class_id = c.id AND cs.status = 'ACTIVE'
+                       GROUP BY c.id ORDER BY c.class_code""")
+        rows = _rows_as_dicts(cur.fetchall(), ["id", "class_code", "class_name", "academic_year", "description", "is_active", "student_count"])
+        cur.close(); conn.close()
+        return rows
+    except mariadb.Error as e:
+        print(f"DB ERROR lay_danh_sach_lop: {e}"); conn.close(); return None
+
+
+def tao_lop(class_code, class_name, academic_year=None, description=None):
+    conn = ket_noi()
+    if not conn:
+        return None
+    try:
+        cur = conn.cursor()
+        cur.execute("INSERT INTO classes (class_code, class_name, academic_year, description) VALUES (?, ?, ?, ?)",
+                    (class_code, class_name, academic_year, description))
+        conn.commit(); result = cur.lastrowid
+        cur.close(); conn.close()
+        return result
+    except mariadb.Error as e:
+        print(f"DB ERROR tao_lop: {e}"); conn.rollback(); conn.close(); return None
+
+
+def lay_danh_sach_mon_hoc():
+    conn = ket_noi()
+    if not conn:
+        return None
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, subject_code, subject_name, description, is_active FROM subjects ORDER BY subject_code")
+        rows = _rows_as_dicts(cur.fetchall(), ["id", "subject_code", "subject_name", "description", "is_active"])
+        cur.close(); conn.close(); return rows
+    except mariadb.Error as e:
+        print(f"DB ERROR lay_danh_sach_mon_hoc: {e}"); conn.close(); return None
+
+
+def tao_mon_hoc(subject_code, subject_name, description=None):
+    conn = ket_noi()
+    if not conn:
+        return None
+    try:
+        cur = conn.cursor()
+        cur.execute("INSERT INTO subjects (subject_code, subject_name, description) VALUES (?, ?, ?)",
+                    (subject_code, subject_name, description))
+        conn.commit(); result = cur.lastrowid
+        cur.close(); conn.close(); return result
+    except mariadb.Error as e:
+        print(f"DB ERROR tao_mon_hoc: {e}"); conn.rollback(); conn.close(); return None
+
+
+def gan_hoc_vien_vao_lop(class_id, student_id):
+    conn = ket_noi()
+    if not conn:
+        return False
+    try:
+        cur = conn.cursor()
+        cur.execute("""INSERT INTO class_students (class_id, student_id, status, left_at)
+                       VALUES (?, ?, 'ACTIVE', NULL)
+                       ON DUPLICATE KEY UPDATE status = 'ACTIVE', left_at = NULL""", (class_id, student_id))
+        conn.commit(); cur.close(); conn.close(); return True
+    except mariadb.Error as e:
+        print(f"DB ERROR gan_hoc_vien_vao_lop: {e}"); conn.rollback(); conn.close(); return False
+
+
+def lay_hoc_vien_cua_lop(class_id):
+    conn = ket_noi()
+    if not conn:
+        return None
+    try:
+        cur = conn.cursor()
+        cur.execute("""SELECT st.id, st.student_code, st.full_name, st.card_uid, cs.status
+                       FROM class_students cs JOIN students st ON st.id = cs.student_id
+                       WHERE cs.class_id = ? ORDER BY st.student_code""", (class_id,))
+        rows = _rows_as_dicts(cur.fetchall(), ["id", "student_code", "full_name", "card_uid", "status"])
+        cur.close(); conn.close(); return rows
+    except mariadb.Error as e:
+        print(f"DB ERROR lay_hoc_vien_cua_lop: {e}"); conn.close(); return None
+
+
+def tao_thoi_khoa_bieu(class_id, subject_id, room_id, weekday, start_time, end_time,
+                       active_from, active_to=None, checkin_open_minutes=15, late_after_minutes=10):
+    conn = ket_noi()
+    if not conn:
+        return None
+    try:
+        cur = conn.cursor()
+        cur.execute("""INSERT INTO schedules
+                       (class_id, subject_id, room_id, weekday, start_time, end_time,
+                        checkin_open_minutes, late_after_minutes, active_from, active_to)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (class_id, subject_id, room_id, weekday, start_time, end_time,
+                     checkin_open_minutes, late_after_minutes, active_from, active_to))
+        conn.commit(); result = cur.lastrowid
+        cur.close(); conn.close(); return result
+    except mariadb.Error as e:
+        print(f"DB ERROR tao_thoi_khoa_bieu: {e}"); conn.rollback(); conn.close(); return None
+
+
+def lay_thoi_khoa_bieu(class_id=None):
+    conn = ket_noi()
+    if not conn:
+        return None
+    try:
+        cur = conn.cursor()
+        query = """SELECT s.id, s.class_id, c.class_code, s.subject_id, sub.subject_name,
+                   r.room_id, s.weekday, s.start_time, s.end_time, s.checkin_open_minutes,
+                   s.late_after_minutes, s.active_from, s.active_to, s.is_active
+                   FROM schedules s JOIN classes c ON c.id=s.class_id
+                   JOIN subjects sub ON sub.id=s.subject_id JOIN rooms r ON r.id=s.room_id"""
+        params = ()
+        if class_id is not None:
+            query += " WHERE s.class_id = ?"; params = (class_id,)
+        query += " ORDER BY s.weekday, s.start_time"
+        cur.execute(query, params)
+        columns = ["id", "class_id", "class_code", "subject_id", "subject_name", "room_id", "weekday", "start_time", "end_time", "checkin_open_minutes", "late_after_minutes", "active_from", "active_to", "is_active"]
+        rows = _rows_as_dicts(cur.fetchall(), columns)
+        for row in rows:
+            for key in ("start_time", "end_time", "active_from", "active_to"):
+                if row[key] is not None: row[key] = row[key].isoformat()
+        cur.close(); conn.close(); return rows
+    except mariadb.Error as e:
+        print(f"DB ERROR lay_thoi_khoa_bieu: {e}"); conn.close(); return None
+
+
+def lay_hoac_tao_buoi_hoc_hien_tai(room_code, moment=None):
+    """Tìm lịch tại phòng đang trong cửa sổ check-in và tạo session của ngày nếu chưa có."""
+    moment = moment or datetime.now()
+    conn = ket_noi()
+    if not conn:
+        return None
+    try:
+        cur = conn.cursor()
+        cur.execute("""SELECT s.id, s.class_id, s.subject_id, s.room_id, s.start_time, s.end_time,
+                       s.checkin_open_minutes, s.late_after_minutes
+                       FROM schedules s JOIN rooms r ON r.id=s.room_id
+                       WHERE r.room_id=? AND s.weekday=? AND s.is_active=1
+                         AND s.active_from <= ? AND (s.active_to IS NULL OR s.active_to >= ?)""",
+                    (room_code, moment.isoweekday(), moment.date(), moment.date()))
+        schedule = None
+        for row in cur.fetchall():
+            start = datetime.combine(moment.date(), row[4])
+            end = datetime.combine(moment.date(), row[5])
+            opens = start - timedelta(minutes=row[6])
+            if opens <= moment <= end:
+                schedule = row; break
+        if not schedule:
+            cur.close(); conn.close(); return None
+        schedule_id, class_id, subject_id, room_id, start_time, end_time, open_minutes, late_minutes = schedule
+        cur.execute("SELECT id, starts_at, ends_at, checkin_opens_at, late_after_at, status FROM class_sessions WHERE schedule_id=? AND session_date=?",
+                    (schedule_id, moment.date()))
+        existing = cur.fetchone()
+        if existing:
+            cur.execute("UPDATE class_sessions SET status='OPEN' WHERE id=? AND status='SCHEDULED'", (existing[0],))
+            conn.commit(); session_id = existing[0]
+        else:
+            starts_at = datetime.combine(moment.date(), start_time)
+            ends_at = datetime.combine(moment.date(), end_time)
+            checkin_opens_at = starts_at - timedelta(minutes=open_minutes)
+            late_after_at = starts_at + timedelta(minutes=late_minutes)
+            cur.execute("""INSERT INTO class_sessions
+                           (schedule_id, class_id, subject_id, room_id, session_date, starts_at, ends_at,
+                            checkin_opens_at, late_after_at, status)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN')""",
+                        (schedule_id, class_id, subject_id, room_id, moment.date(), starts_at, ends_at,
+                         checkin_opens_at, late_after_at))
+            conn.commit(); session_id = cur.lastrowid
+        cur.execute("""SELECT cs.id, cs.class_id, cs.late_after_at, c.class_code, sub.subject_name
+                       FROM class_sessions cs JOIN classes c ON c.id=cs.class_id
+                       JOIN subjects sub ON sub.id=cs.subject_id WHERE cs.id=?""", (session_id,))
+        row = cur.fetchone(); cur.close(); conn.close()
+        return {"id": row[0], "class_id": row[1], "late_after_at": row[2], "class_code": row[3], "subject_name": row[4]}
+    except mariadb.Error as e:
+        print(f"DB ERROR lay_hoac_tao_buoi_hoc_hien_tai: {e}"); conn.rollback(); conn.close(); return None
+
+
+def hoc_vien_thuoc_lop(student_id, class_id):
+    conn = ket_noi()
+    if not conn:
+        return False
+    try:
+        cur = conn.cursor(); cur.execute("SELECT 1 FROM class_students WHERE student_id=? AND class_id=? AND status='ACTIVE'", (student_id, class_id))
+        result = cur.fetchone() is not None; cur.close(); conn.close(); return result
+    except mariadb.Error as e:
+        print(f"DB ERROR hoc_vien_thuoc_lop: {e}"); conn.close(); return False
+
+
+def ghi_nhan_diem_danh(session_id, student_id, checkin_at, status, raw_log_id=None):
+    """Trả về True nếu vừa ghi lần quét đầu tiên, False nếu học viên đã điểm danh."""
+    conn = ket_noi()
+    if not conn:
+        return None
+    try:
+        cur = conn.cursor(); cur.execute("SELECT id FROM attendance_records WHERE session_id=? AND student_id=?", (session_id, student_id))
+        if cur.fetchone():
+            cur.close(); conn.close(); return False
+        cur.execute("""INSERT INTO attendance_records (session_id, student_id, checkin_at, status, source, raw_log_id)
+                       VALUES (?, ?, ?, ?, 'RFID', ?)""", (session_id, student_id, checkin_at, status, raw_log_id))
+        conn.commit(); cur.close(); conn.close(); return True
+    except mariadb.Error as e:
+        print(f"DB ERROR ghi_nhan_diem_danh: {e}"); conn.rollback(); conn.close(); return None
+
+
+def lay_diem_danh_buoi_hoc(session_id):
+    conn = ket_noi()
+    if not conn:
+        return None
+    try:
+        cur = conn.cursor()
+        cur.execute("""SELECT ar.id, st.student_code, st.full_name, ar.status, ar.checkin_at, ar.source
+                       FROM attendance_records ar JOIN students st ON st.id=ar.student_id
+                       WHERE ar.session_id=? ORDER BY ar.checkin_at, st.student_code""", (session_id,))
+        rows = _rows_as_dicts(cur.fetchall(), ["id", "student_code", "full_name", "status", "checkin_at", "source"])
+        for row in rows:
+            if row["checkin_at"]: row["checkin_at"] = row["checkin_at"].isoformat()
+        cur.close(); conn.close(); return rows
+    except mariadb.Error as e:
+        print(f"DB ERROR lay_diem_danh_buoi_hoc: {e}"); conn.close(); return None
 
 
 if __name__ == "__main__":

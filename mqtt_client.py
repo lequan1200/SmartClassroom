@@ -8,7 +8,8 @@ from database import (
     tim_sensor_id, luu_sensor_data, cap_nhat_sensor_current,
     tim_device_id, cap_nhat_device_current, luu_device_log,
     luu_attendance_log, tim_hoc_vien_theo_card,
-    lay_che_do_phong, cap_nhat_che_do_phong
+    lay_che_do_phong, cap_nhat_che_do_phong,
+    lay_hoac_tao_buoi_hoc_hien_tai, hoc_vien_thuoc_lop, ghi_nhan_diem_danh
 )
 
 MQTT_BROKER = "127.0.0.1"
@@ -299,7 +300,7 @@ def gui_phan_hoi_diem_danh(room_id, feedback_data):
 
 
 def xu_ly_attendance(thong_tin, data):
-    """Ghi nhận quét thẻ RFID vào attendance_logs và gửi phản hồi về ESP32."""
+    """Lưu log RFID thô, rồi điểm danh theo buổi học đang diễn ra tại phòng."""
     room_id = thong_tin["room_id"]
     card_uid = (data.get("card_uid") or data.get("uid") or data.get("card") or "").strip().upper()
     timestamp_str = data.get("timestamp")
@@ -328,12 +329,42 @@ def xu_ly_attendance(thong_tin, data):
 
     student_name = student["full_name"]
     student_code = student["student_code"]
+    session = lay_hoac_tao_buoi_hoc_hien_tai(room_id, scan_dt)
+    if not session:
+        luu_attendance_log(room_id=room_id, card_uid=card_uid, event_type="CHECK_IN", status="KHONG_CO_BUOI_HOC", recorded_at=time_str)
+        gui_phan_hoi_diem_danh(room_id, {
+            "status": "NO_ACTIVE_SESSION", "student_name": student_name,
+            "student_code": student_code, "message": "Không có buổi học đang điểm danh", "beeps": 2
+        })
+        return
 
-    luu_attendance_log(room_id=room_id, card_uid=card_uid, event_type="CHECK_IN", status="DUNG_GIO", recorded_at=time_str)
+    if not hoc_vien_thuoc_lop(student["id"], session["class_id"]):
+        luu_attendance_log(room_id=room_id, card_uid=card_uid, event_type="CHECK_IN", status="SAI_LOP", recorded_at=time_str)
+        gui_phan_hoi_diem_danh(room_id, {
+            "status": "NOT_IN_CLASS", "student_name": student_name,
+            "student_code": student_code, "message": f"Không thuộc lớp {session['class_code']}", "beeps": 2
+        })
+        return
+
+    attendance_status = "LATE" if scan_dt > session["late_after_at"] else "PRESENT"
+    raw_log_id = luu_attendance_log(room_id=room_id, card_uid=card_uid,
+                                    event_type="CHECK_IN", status="DI_MUON" if attendance_status == "LATE" else "DUNG_GIO",
+                                    recorded_at=time_str)
+    created = ghi_nhan_diem_danh(session["id"], student["id"], scan_dt, attendance_status, raw_log_id)
+    if created is False:
+        gui_phan_hoi_diem_danh(room_id, {
+            "status": "ALREADY_CHECKED_IN", "student_name": student_name,
+            "student_code": student_code, "message": "Đã điểm danh cho buổi này", "beeps": 1
+        })
+        return
+    if created is None:
+        gui_phan_hoi_diem_danh(room_id, {"status": "ERROR", "message": "Không thể lưu điểm danh", "beeps": 3})
+        return
+
     gui_phan_hoi_diem_danh(room_id, {
-        "status": "SUCCESS", "attendance_status": "DUNG_GIO",
+        "status": "SUCCESS", "attendance_status": attendance_status,
         "student_name": student_name, "student_code": student_code,
-        "message": "Đã ghi nhận quét thẻ", "beeps": 1
+        "message": "Đã ghi nhận điểm danh", "beeps": 1
     })
 
     print(f"RFID OK: {student_name} ({student_code}) | Phòng: {room_id}")
