@@ -38,9 +38,14 @@
                 <span class="nav-tag locked" id="nav-dashboard-tag">🔒 Khóa</span>
             </a>
             <a href="#rfid" class="nav-item disabled" data-tab="rfid" id="nav-rfid" title="Chưa chọn phòng học. Vui lòng chọn 1 phòng trong danh sách trước.">
-                <span class="nav-icon">🪪</span>
-                <span class="nav-text">Nhật ký RFID</span>
+                <span class="nav-icon">📋</span>
+                <span class="nav-text">Điểm danh</span>
                 <span class="nav-tag locked" id="nav-rfid-tag">🔒 Khóa</span>
+            </a>
+            <a href="#schedule" class="nav-item disabled" data-tab="schedule" id="nav-schedule" title="Chưa chọn phòng học. Vui lòng chọn 1 phòng trong danh sách trước.">
+                <span class="nav-icon">📅</span>
+                <span class="nav-text">Thời khóa biểu</span>
+                <span class="nav-tag locked" id="nav-schedule-tag">🔒 Khóa</span>
             </a>
         </nav>
 
@@ -194,6 +199,24 @@
                         </div>
                     </div>
                 </section>
+
+                <!-- Active Class Session Widget on Dashboard -->
+                <div class="active-session-banner" id="dash-active-session" style="display: none;">
+                    <div class="session-banner-left">
+                        <span class="session-live-pulse"></span>
+                        <div class="session-banner-info">
+                            <div class="session-banner-title">
+                                <strong id="dash-session-subject">Môn học: --</strong>
+                                <span class="session-badge-class" id="dash-session-class">Lớp: --</span>
+                            </div>
+                            <span class="session-banner-time" id="dash-session-time">🕒 Đang mở điểm danh · Hạn đúng giờ: --:--</span>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-goto-attendance" onclick="switchView('rfid')" title="Chuyển đến bảng điểm danh buổi học">
+                        <span>Điểm danh ngay</span>
+                        <span>→</span>
+                    </button>
+                </div>
 
                 <!-- KPI Grid -->
                 <section class="kpi-grid">
@@ -520,78 +543,269 @@
 
 
             <!-- ============================================================
-                 PHÂN HỆ 2: NHẬT KÝ QUÉT THẺ RFID
+                 PHÂN HỆ 2: ĐIỂM DANH LỚP HỌC & NHẬT KÝ RFID
                  ============================================================ -->
             <div class="content-view" id="rfid-view" style="display: none;">
+
+                <!-- Active Session Top Banner Card -->
+                <section class="session-top-card" id="rfid-session-card">
+                    <div class="session-card-main">
+                        <div class="session-status-tag-row">
+                            <span class="session-status-badge" id="rfid-session-status-badge">
+                                <span class="pulse-dot"></span> ĐANG DIỄN RA
+                            </span>
+                            <span class="meta-chip">PHÒNG: <strong id="rfid-active-room-tag" style="color: var(--primary);">--</strong></span>
+                            <span class="meta-chip" id="rfid-session-time-chip">--:-- - --:--</span>
+                        </div>
+                        <h2 class="session-subject-title" id="rfid-session-subject">Đang kiểm tra buổi học hiện tại...</h2>
+                        <div class="session-details-row">
+                            <span class="detail-item">👥 Lớp: <strong id="rfid-session-class">--</strong></span>
+                            <span class="detail-item">👨‍🏫 Giảng viên: <strong id="rfid-session-teacher">--</strong></span>
+                            <span class="detail-item">⏱️ Hạn đúng giờ: <strong id="rfid-session-late-time">--:--</strong></span>
+                        </div>
+                    </div>
+                    <div class="session-stats-group">
+                        <div class="session-stat-box total">
+                            <span class="stat-num" id="stat-total-students">0</span>
+                            <span class="stat-lbl">Tổng sinh viên</span>
+                        </div>
+                        <div class="session-stat-box present">
+                            <span class="stat-num" id="stat-present-students">0</span>
+                            <span class="stat-lbl">Đúng giờ</span>
+                        </div>
+                        <div class="session-stat-box late">
+                            <span class="stat-num" id="stat-late-students">0</span>
+                            <span class="stat-lbl">Đi muộn</span>
+                        </div>
+                        <div class="session-stat-box absent">
+                            <span class="stat-num" id="stat-absent-students">0</span>
+                            <span class="stat-lbl">Chưa có mặt</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Sub Navigation Tabs: Official Attendance vs Raw RFID Logs -->
+                <div class="attendance-sub-tabs">
+                    <button type="button" class="sub-tab-btn active" id="subtab-session-btn" onclick="switchAttendanceSubTab('session')">
+                        <span>📋 Danh Sách Điểm Danh Buổi Học</span>
+                        <span class="subtab-badge" id="subtab-session-count">0</span>
+                    </button>
+                    <button type="button" class="sub-tab-btn" id="subtab-raw-btn" onclick="switchAttendanceSubTab('raw')">
+                        <span>📜 Nhật Ký Quẹt Thẻ Thô (RFID Live)</span>
+                    </button>
+                </div>
+
+                <!-- SUB-VIEW 1: Official Session Attendance Table -->
+                <div class="attendance-sub-panel" id="subpanel-session-attendance">
+                    <section class="table-container-card">
+                        <div class="table-header-bar">
+                            <div class="section-title-wrap">
+                                <span class="section-eyebrow">DỮ LIỆU ĐIỂM DANH CHÍNH THỨC</span>
+                                <h3 id="session-table-title">Danh Sách Học Viên & Trạng Thái Điểm Danh</h3>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <button class="btn btn-secondary btn-sm" onclick="refreshSessionAttendance()" title="Làm mới bảng điểm danh">
+                                    <span>🔄</span> Làm mới
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="modern-table" id="session-attendance-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 50px;">STT</th>
+                                        <th>Mã Học Viên</th>
+                                        <th>Họ Và Tên</th>
+                                        <th>Lớp</th>
+                                        <th>Trạng Thái</th>
+                                        <th>Giờ Điểm Danh</th>
+                                        <th>Phương Thức</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="session-attendance-body">
+                                    <tr><td colspan="7" class="table-empty-cell">Đang tải danh sách điểm danh...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- SUB-VIEW 2: Raw RFID Logs Table -->
+                <div class="attendance-sub-panel" id="subpanel-raw-rfid" style="display: none;">
+                    <section class="table-container-card">
+                        <div class="table-header-bar">
+                            <div class="section-title-wrap">
+                                <span class="section-eyebrow">NHẬT KÝ LIVE TỪ THIẾT BỊ</span>
+                                <h3>Lịch Sử Quẹt Thẻ Ra Vào (ESP32 RFID)</h3>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                <div class="filter-input-group">
+                                    <label for="rfid-date-filter">📅 Ngày:</label>
+                                    <input type="date" id="rfid-date-filter" onchange="loadRfidLog()">
+                                </div>
+                                <div class="filter-checkbox-group" style="display: flex; align-items: center; gap: 6px;">
+                                    <input type="checkbox" id="rfid-all-dates" onchange="toggleRfidAllDates(this.checked)" style="cursor: pointer;">
+                                    <label for="rfid-all-dates" style="cursor: pointer; font-size: 13px; color: var(--text-dim); user-select: none;">Tất cả ngày</label>
+                                </div>
+                                <button class="btn btn-secondary btn-sm" onclick="loadRfidLog()" title="Làm mới bảng nhật ký">
+                                    <span>🔄</span> Làm mới
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="modern-table" id="rfid-log-table">
+                                <thead>
+                                    <tr>
+                                        <th>Thời Gian Quẹt</th>
+                                        <th>Phòng Học</th>
+                                        <th>Học Viên</th>
+                                        <th>Mã HV</th>
+                                        <th>Lớp</th>
+                                        <th>Mã Thẻ UID</th>
+                                        <th>Loại Sự Kiện</th>
+                                        <th>Trạng Thái</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rfid-log-body">
+                                    <tr><td colspan="8" class="table-empty-cell">Đang tải nhật ký quẹt thẻ...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                </div>
+
+                <footer class="app-footer">
+                    <div>Smart Classroom RFID Attendance System · Powered by ESP32 RC522 & MariaDB</div>
+                    <div>Raspberry Pi 5 · MQTT · Session Tracker v2.0</div>
+                </footer>
+            </div>
+
+            <!-- ============================================================
+                 PHÂN HỆ 3: THỜI KHÓA BIỂU & LỊCH HỌC
+                 ============================================================ -->
+            <div class="content-view" id="schedule-view" style="display: none;">
 
                 <section class="room-hero-card">
                     <div class="room-hero-inner">
                         <div class="room-hero-info">
-                            <div class="room-hero-icon" style="background: rgba(129,140,248,0.15); border-color: rgba(129,140,248,0.3); color: var(--accent);">🪪</div>
+                            <div class="room-hero-icon" style="background: rgba(14,165,233,0.12); border-color: rgba(14,165,233,0.3); color: var(--info);">📅</div>
                             <div class="room-hero-details">
-                                <h2>Nhật Ký Quét Thẻ RFID</h2>
+                                <h2>Thời Khóa Biểu Phòng Học</h2>
                                 <div class="room-meta-tags">
-                                    <span class="meta-chip">PHÒNG: <strong id="rfid-active-room-tag" style="color: var(--primary);">--</strong></span>
-                                    <span class="meta-chip active-chip">● QUÉT THẺ TỰ ĐỘNG</span>
-                                    <span class="meta-chip">THỜI GIAN THỰC</span>
+                                    <span class="meta-chip">PHÒNG: <strong id="schedule-active-room-tag" style="color: var(--primary);">--</strong></span>
+                                    <span class="meta-chip active-chip">● LỊCH HỌC TRONG TUẦN</span>
+                                    <span class="meta-chip" id="schedule-total-classes-chip">0 BUỔI / TUẦN</span>
                                 </div>
                             </div>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                            <div class="filter-input-group">
-                                <label for="rfid-date-filter">📅 Ngày:</label>
-                                <input type="date" id="rfid-date-filter" onchange="loadRfidLog()">
-                            </div>
-                            <div class="filter-checkbox-group" style="display: flex; align-items: center; gap: 6px;">
-                                <input type="checkbox" id="rfid-all-dates" onchange="toggleRfidAllDates(this.checked)" style="cursor: pointer;">
-                                <label for="rfid-all-dates" style="cursor: pointer; font-size: 13px; color: var(--text-dim); user-select: none;">Tất cả ngày</label>
-                            </div>
-                            <button class="btn btn-secondary" onclick="loadRfidLog()" title="Làm mới bảng">
+                        <div class="room-hero-actions">
+                            <button type="button" class="btn btn-primary" onclick="openAddScheduleModal()">
+                                <span>➕</span> Thêm lịch học
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="loadRoomSchedule(currentRoom)" title="Làm mới lịch học">
                                 <span>🔄</span> Làm mới
                             </button>
                         </div>
                     </div>
                 </section>
 
-                <section class="table-container-card">
-                    <div class="table-header-bar">
+                <section class="table-container-card" style="padding: 20px;">
+                    <div class="table-header-bar" style="margin-bottom: 16px;">
                         <div class="section-title-wrap">
-                            <span class="section-eyebrow">NHẬT KÝ ĐIỂM DANH LIVE</span>
-                            <h3>Lịch Sử Quẹt Thẻ Ra Vào</h3>
+                            <span class="section-eyebrow">LỊCH HỌC THEO TUẦN</span>
+                            <h3>Thời Khóa Biểu Chi Tiết Theo Thứ</h3>
                         </div>
-                        <span class="live-badge"><span></span>TỰ ĐỘNG CẬP NHẬT</span>
+                        <div style="font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 14px;">
+                            <span><span style="color: var(--success); font-weight: 700;">■</span> Ca Sáng (&lt; 12h)</span>
+                            <span><span style="color: var(--info); font-weight: 700;">■</span> Ca Chiều (12h - 18h)</span>
+                            <span><span style="color: var(--accent); font-weight: 700;">■</span> Ca Tối (&gt; 18h)</span>
+                        </div>
                     </div>
 
-                    <div class="table-responsive">
-                        <table class="modern-table" id="rfid-log-table">
-                            <thead>
-                                <tr>
-                                    <th>Thời Gian Quẹt</th>
-                                    <th>Phòng Học</th>
-                                    <th>Học Viên</th>
-                                    <th>Mã HV</th>
-                                    <th>Lớp</th>
-                                    <th>Mã Thẻ UID</th>
-                                    <th>Loại Sự Kiện</th>
-                                    <th>Trạng Thái</th>
-                                </tr>
-                            </thead>
-                            <tbody id="rfid-log-body">
-                                <tr><td colspan="8" class="table-empty-cell">Đang tải nhật ký quẹt thẻ...</td></tr>
-                            </tbody>
-                        </table>
+                    <div class="schedule-week-grid" id="timetable-week-grid">
+                        <div class="table-empty-cell" style="grid-column: 1 / -1; padding: 40px; text-align: center;">
+                            Đang tải thời khóa biểu...
+                        </div>
                     </div>
                 </section>
 
                 <footer class="app-footer">
-                    <div>Smart Classroom RFID Subsystem · Đầu Đọc Thẻ RC522 & ESP32</div>
-                    <div>Raspberry Pi 5 · MQTT · MariaDB</div>
+                    <div>Smart Classroom Timetable System · Tự động kích hoạt điểm danh và điều khiển thiết bị theo giờ học</div>
+                    <div>Raspberry Pi 5 · MariaDB · Smart Automation</div>
                 </footer>
             </div>
 
         </div>
     </main>
 
+</div>
+
+<!-- Modal Thêm Lịch Học -->
+<div class="modal-backdrop" id="modal-add-schedule" style="display: none;" onclick="if(event.target === this) closeAddScheduleModal()">
+    <div class="modal-dialog">
+        <div class="modal-top">
+            <div class="modal-title-group">
+                <div class="modal-avatar-icon">📅</div>
+                <div>
+                    <h3>Thêm Lịch Học Cho Phòng</h3>
+                    <p id="modal-schedule-room-hint">Phòng học: --</p>
+                </div>
+            </div>
+            <button type="button" class="modal-close-btn" onclick="closeAddScheduleModal()" aria-label="Đóng">✕</button>
+        </div>
+        <form id="form-add-schedule" onsubmit="submitNewSchedule(event)">
+            <input type="hidden" id="sched-room-id">
+            <div class="form-grid-2">
+                <div class="form-field">
+                    <label for="sched-class-id">Lớp học *</label>
+                    <input type="text" id="sched-class-id" class="custom-input" placeholder="VD: CNTT01" required>
+                </div>
+                <div class="form-field">
+                    <label for="sched-subject">Môn học *</label>
+                    <input type="text" id="sched-subject" class="custom-input" placeholder="VD: Lập trình IoT" required>
+                </div>
+            </div>
+            <div class="form-grid-2">
+                <div class="form-field">
+                    <label for="sched-day-of-week">Thứ trong tuần *</label>
+                    <select id="sched-day-of-week" class="custom-input" required>
+                        <option value="1">Thứ Hai</option>
+                        <option value="2">Thứ Ba</option>
+                        <option value="3">Thứ Tư</option>
+                        <option value="4">Thứ Năm</option>
+                        <option value="5">Thứ Sáu</option>
+                        <option value="6">Thứ Bảy</option>
+                        <option value="7">Chủ Nhật</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label for="sched-teacher">Giảng viên phụ trách</label>
+                    <input type="text" id="sched-teacher" class="custom-input" placeholder="VD: ThS. Nguyễn Văn A">
+                </div>
+            </div>
+            <div class="form-grid-2">
+                <div class="form-field">
+                    <label for="sched-start-time">Giờ bắt đầu *</label>
+                    <input type="time" id="sched-start-time" class="custom-input" required value="07:30">
+                </div>
+                <div class="form-field">
+                    <label for="sched-end-time">Giờ kết thúc *</label>
+                    <input type="time" id="sched-end-time" class="custom-input" required value="11:30">
+                </div>
+            </div>
+            <div class="form-field">
+                <label for="sched-late-threshold">Hạn đi muộn (phút sau khi bắt đầu)</label>
+                <input type="number" id="sched-late-threshold" class="custom-input" value="15" min="0" max="180">
+                <span class="form-help-tip">Sau số phút này, học viên quẹt thẻ sẽ được ghi nhận là "Đi muộn" thay vì "Đúng giờ".</span>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeAddScheduleModal()">Hủy</button>
+                <button type="submit" class="btn btn-primary" id="btn-save-schedule">💾 Lưu lịch học</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 

@@ -312,9 +312,14 @@ def xu_ly_attendance(thong_tin, data):
     scan_dt = datetime.now()
     if timestamp_str:
         try:
-            scan_dt = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+            scan_dt = datetime.fromisoformat(str(timestamp_str).replace("Z", "+00:00"))
+            if scan_dt.tzinfo:
+                scan_dt = scan_dt.astimezone().replace(tzinfo=None)
         except Exception:
-            pass
+            try:
+                scan_dt = datetime.strptime(str(timestamp_str), "%Y-%m-%d %H:%M:%S")
+            except Exception:
+                pass
 
     time_str = scan_dt.strftime("%Y-%m-%d %H:%M:%S")
     print(f"\n========== RFID SCAN ==========\nRoom      : {room_id}\nCard UID  : {card_uid}\nScan Time : {time_str}")
@@ -346,7 +351,13 @@ def xu_ly_attendance(thong_tin, data):
         })
         return
 
-    attendance_status = "LATE" if scan_dt > session["late_after_at"] else "PRESENT"
+    late_threshold = session.get("late_after_at")
+    if isinstance(late_threshold, str):
+        try:
+            late_threshold = datetime.fromisoformat(late_threshold)
+        except Exception:
+            pass
+    attendance_status = "LATE" if (isinstance(late_threshold, datetime) and scan_dt > late_threshold) else "PRESENT"
     raw_log_id = luu_attendance_log(room_id=room_id, card_uid=card_uid,
                                     event_type="CHECK_IN", status="DI_MUON" if attendance_status == "LATE" else "DUNG_GIO",
                                     recorded_at=time_str)

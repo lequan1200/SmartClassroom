@@ -115,13 +115,15 @@ let allRooms = [];
 function updateRoomAccessState() {
     const navDash = $("nav-dashboard");
     const navRfid = $("nav-rfid");
+    const navSchedule = $("nav-schedule");
     const dashTag = $("nav-dashboard-tag");
     const rfidTag = $("nav-rfid-tag");
+    const scheduleTag = $("nav-schedule-tag");
     const sidebarRoomBox = $("sidebar-current-room");
     const multiRoomBar = $("multi-room-bar");
 
     if (!currentRoom) {
-        // --- CHƯA CHỌN PHÒNG: KHÓA DASHBOARD & RFID ---
+        // --- CHƯA CHỌN PHÒNG: KHÓA DASHBOARD, RFID & THỜI KHÓA BIỂU ---
         if (navDash) {
             navDash.classList.add("disabled");
             navDash.setAttribute("title", "Chưa chọn phòng học. Vui lòng chọn 1 phòng trong danh sách trước.");
@@ -129,6 +131,10 @@ function updateRoomAccessState() {
         if (navRfid) {
             navRfid.classList.add("disabled");
             navRfid.setAttribute("title", "Chưa chọn phòng học. Vui lòng chọn 1 phòng trong danh sách trước.");
+        }
+        if (navSchedule) {
+            navSchedule.classList.add("disabled");
+            navSchedule.setAttribute("title", "Chưa chọn phòng học. Vui lòng chọn 1 phòng trong danh sách trước.");
         }
         if (dashTag) {
             dashTag.textContent = "🔒 Khóa";
@@ -138,6 +144,10 @@ function updateRoomAccessState() {
             rfidTag.textContent = "🔒 Khóa";
             rfidTag.className = "nav-tag locked";
         }
+        if (scheduleTag) {
+            scheduleTag.textContent = "🔒 Khóa";
+            scheduleTag.className = "nav-tag locked";
+        }
 
         if (sidebarRoomBox) {
             sidebarRoomBox.innerHTML = `
@@ -145,7 +155,7 @@ function updateRoomAccessState() {
                     <div style="font-size: 12px; font-weight: 700; color: var(--text-dim); display: flex; align-items: center; gap: 6px;">
                         <span style="color: var(--text-muted);">○</span> Chưa chọn phòng
                     </div>
-                    <p class="unselected-hint">Chọn 1 phòng trong danh sách để mở Dashboard và Điểm danh RFID.</p>
+                    <p class="unselected-hint">Chọn 1 phòng trong danh sách để mở Dashboard, Điểm danh và Thời khóa biểu.</p>
                 </div>
             `;
         }
@@ -154,7 +164,7 @@ function updateRoomAccessState() {
             multiRoomBar.style.display = "none";
         }
     } else {
-        // --- ĐÃ CHỌN PHÒNG: MỞ KHÓA DASHBOARD & RFID ---
+        // --- ĐÃ CHỌN PHÒNG: MỞ KHÓA DASHBOARD, RFID & THỜI KHÓA BIỂU ---
         if (navDash) {
             navDash.classList.remove("disabled");
             navDash.removeAttribute("title");
@@ -163,6 +173,10 @@ function updateRoomAccessState() {
             navRfid.classList.remove("disabled");
             navRfid.removeAttribute("title");
         }
+        if (navSchedule) {
+            navSchedule.classList.remove("disabled");
+            navSchedule.removeAttribute("title");
+        }
         if (dashTag) {
             dashTag.textContent = "LIVE";
             dashTag.className = "nav-tag live";
@@ -170,6 +184,10 @@ function updateRoomAccessState() {
         if (rfidTag) {
             rfidTag.textContent = "RFID";
             rfidTag.className = "nav-tag rfid";
+        }
+        if (scheduleTag) {
+            scheduleTag.textContent = "TKB";
+            scheduleTag.className = "nav-tag live";
         }
 
         const r = allRooms.find(x => x.room_id === currentRoom);
@@ -199,6 +217,9 @@ function updateRoomAccessState() {
 
         const rfidTagEl = $("rfid-active-room-tag");
         if (rfidTagEl) rfidTagEl.textContent = `${displayName} (${currentRoom})`;
+
+        const schedTagEl = $("schedule-active-room-tag");
+        if (schedTagEl) schedTagEl.textContent = `${displayName} (${currentRoom})`;
     }
 }
 
@@ -411,7 +432,13 @@ async function loadRoom() {
     }
 
     if (isOnline) {
-        await Promise.all([loadSensors(), loadDevices(), loadTemperatureHistory(), loadRoomMode()]);
+        await Promise.all([
+            loadSensors(),
+            loadDevices(),
+            loadTemperatureHistory(),
+            loadRoomMode(),
+            loadActiveSession(currentRoom)
+        ]);
     }
 }
 
@@ -805,8 +832,8 @@ function setupTabNavigation() {
             e.preventDefault();
             const targetTab = this.getAttribute("data-tab");
 
-            // Chặn tuyệt đối truy cập Dashboard & RFID nếu chưa chọn phòng cụ thể
-            if (targetTab === "dashboard" || targetTab === "rfid") {
+            // Chặn tuyệt đối truy cập Dashboard, Điểm danh & Thời khóa biểu nếu chưa chọn phòng cụ thể
+            if (targetTab === "dashboard" || targetTab === "rfid" || targetTab === "schedule") {
                 if (!currentRoom) {
                     showToast("Chưa chọn phòng", "Vui lòng chọn một phòng học cụ thể trong Danh Sách Phòng trước!", false);
                     return;
@@ -840,8 +867,8 @@ function setActiveNav(activeElement) {
 }
 
 function switchView(tabName) {
-    // --- Guard: Dashboard và RFID đều yêu cầu phải chọn phòng trước ---
-    if (tabName === "dashboard" || tabName === "rfid") {
+    // --- Guard: Dashboard, RFID & Schedule đều yêu cầu phải chọn phòng trước ---
+    if (tabName === "dashboard" || tabName === "rfid" || tabName === "schedule") {
         if (!currentRoom) {
             showToast("Chưa chọn phòng", "Vui lòng chọn một phòng học từ danh sách trước!", false);
             tabName = "rooms"; // Bắt buộc quay về danh sách phòng
@@ -852,6 +879,7 @@ function switchView(tabName) {
     const roomsView = $("rooms-view");
     const dashView = $("dashboard-view");
     const rfidView = $("rfid-view");
+    const scheduleView = $("schedule-view");
     const multiRoomBar = $("multi-room-bar");
     const breadcrumb = $("topbar-breadcrumb");
     const pageTitle = $("topbar-page-title");
@@ -859,6 +887,7 @@ function switchView(tabName) {
     if (roomsView) roomsView.style.display = "none";
     if (dashView) dashView.style.display = "none";
     if (rfidView) rfidView.style.display = "none";
+    if (scheduleView) scheduleView.style.display = "none";
 
     document.querySelectorAll(".sidebar-nav .nav-item").forEach(item => {
         item.classList.toggle("active", item.getAttribute("data-tab") === tabName);
@@ -876,9 +905,18 @@ function switchView(tabName) {
     } else if (tabName === "rfid") {
         if (rfidView) rfidView.style.display = "block";
         if (multiRoomBar) multiRoomBar.style.display = "flex";
-        if (breadcrumb) breadcrumb.textContent = `PHÒNG: ${roomDisplayName.toUpperCase()} / ĐIỂM DANH RFID`;
-        if (pageTitle) pageTitle.textContent = `Nhật Ký Quẹt Thẻ RFID - ${roomDisplayName}`;
-        loadRfidLog();
+        if (breadcrumb) breadcrumb.textContent = `PHÒNG: ${roomDisplayName.toUpperCase()} / ĐIỂM DANH`;
+        if (pageTitle) pageTitle.textContent = `Điểm Danh & Nhật Ký Thẻ - ${roomDisplayName}`;
+        loadActiveSession(currentRoom);
+        if (activeAttendanceSubTab === "raw") {
+            loadRfidLog();
+        }
+    } else if (tabName === "schedule") {
+        if (scheduleView) scheduleView.style.display = "block";
+        if (multiRoomBar) multiRoomBar.style.display = "flex";
+        if (breadcrumb) breadcrumb.textContent = `PHÒNG: ${roomDisplayName.toUpperCase()} / THỜI KHÓA BIỂU`;
+        if (pageTitle) pageTitle.textContent = `Thời Khóa Biểu - ${roomDisplayName}`;
+        loadRoomSchedule(currentRoom);
     } else {
         if (dashView) dashView.style.display = "block";
         if (multiRoomBar) multiRoomBar.style.display = "flex";
@@ -957,6 +995,472 @@ function toggleRfidAllDates(showAll) {
 }
 
 // ============================================================
+// OFFICIAL ATTENDANCE & ACTIVE CLASS SESSIONS
+// ============================================================
+let currentActiveSession = null;
+let activeAttendanceSubTab = "session";
+
+function formatLateThreshold(startTimeStr, lateMinutes) {
+    if (!startTimeStr) return "--:--";
+    try {
+        const parts = startTimeStr.split(":");
+        const h = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        const totalM = h * 60 + m + (parseInt(lateMinutes, 10) || 15);
+        const endH = Math.floor(totalM / 60) % 24;
+        const endM = totalM % 60;
+        return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+    } catch {
+        return "--:--";
+    }
+}
+
+function extractTimeOnly(val) {
+    if (!val) return "--:--";
+    const str = String(val).trim();
+    if (str.includes("T")) {
+        return str.split("T")[1].substring(0, 5);
+    }
+    if (str.includes(" ")) {
+        return str.split(" ")[1].substring(0, 5);
+    }
+    return str.substring(0, 5);
+}
+
+function switchAttendanceSubTab(tab) {
+    activeAttendanceSubTab = tab;
+    const btnSession = $("subtab-session-btn");
+    const btnRaw = $("subtab-raw-btn");
+    const panelSession = $("subpanel-session-attendance");
+    const panelRaw = $("subpanel-raw-rfid");
+
+    if (tab === "session") {
+        if (btnSession) btnSession.classList.add("active");
+        if (btnRaw) btnRaw.classList.remove("active");
+        if (panelSession) panelSession.style.display = "block";
+        if (panelRaw) panelRaw.style.display = "none";
+        refreshSessionAttendance();
+    } else {
+        if (btnSession) btnSession.classList.remove("active");
+        if (btnRaw) btnRaw.classList.add("active");
+        if (panelSession) panelSession.style.display = "none";
+        if (panelRaw) panelRaw.style.display = "block";
+        loadRfidLog();
+    }
+}
+window.switchAttendanceSubTab = switchAttendanceSubTab;
+
+async function loadActiveSession(roomId) {
+    if (!roomId) return;
+    try {
+        const response = await fetch(`/api/rooms/${encodeURIComponent(roomId)}/active-session`);
+        if (!response.ok) throw new Error("Không thể kiểm tra buổi học hiện tại");
+        const res = await response.json();
+        const session = res.data;
+
+        const dashBanner = $("dash-active-session");
+        const rfidBadge = $("rfid-session-status-badge");
+        const rfidSubject = $("rfid-session-subject");
+        const rfidClass = $("rfid-session-class");
+        const rfidTeacher = $("rfid-session-teacher");
+        const rfidTimeChip = $("rfid-session-time-chip");
+        const rfidLateTime = $("rfid-session-late-time");
+        const sessionTableTitle = $("session-table-title");
+
+        if (!session) {
+            currentActiveSession = null;
+            if (dashBanner) dashBanner.style.display = "none";
+            if (rfidBadge) {
+                rfidBadge.className = "session-status-badge inactive";
+                rfidBadge.innerHTML = "○ KHÔNG CÓ BUỔI HỌC";
+            }
+            if (rfidSubject) rfidSubject.textContent = "Hiện không có buổi học nào đang diễn ra trong phòng này";
+            if (rfidClass) rfidClass.textContent = "--";
+            if (rfidTeacher) rfidTeacher.textContent = "--";
+            if (rfidTimeChip) rfidTimeChip.textContent = "--:-- - --:--";
+            if (rfidLateTime) rfidLateTime.textContent = "--:--";
+            if (sessionTableTitle) sessionTableTitle.textContent = "Danh Sách Học Viên & Trạng Thái Điểm Danh";
+
+            const statTotal = $("stat-total-students");
+            const statPresent = $("stat-present-students");
+            const statLate = $("stat-late-students");
+            const statAbsent = $("stat-absent-students");
+            const subtabCount = $("subtab-session-count");
+
+            if (statTotal) statTotal.textContent = "0";
+            if (statPresent) statPresent.textContent = "0";
+            if (statLate) statLate.textContent = "0";
+            if (statAbsent) statAbsent.textContent = "0";
+            if (subtabCount) subtabCount.textContent = "0";
+
+            const tbody = $("session-attendance-body");
+            if (tbody) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="table-empty-cell" style="padding: 30px;">
+                            Hiện tại phòng học này không có buổi học nào đang diễn ra theo thời khóa biểu.<br>
+                            <small style="color: var(--text-muted); font-size: 11px; margin-top: 4px; display: inline-block;">
+                                Hệ thống sẽ tự động kích hoạt phiên điểm danh khi tới khung giờ học. Bạn có thể sang mục <strong>Thời khóa biểu</strong> để xem hoặc thêm lịch.
+                            </small>
+                        </td>
+                    </tr>
+                `;
+            }
+            return;
+        }
+
+        currentActiveSession = session;
+        const startStr = extractTimeOnly(session.starts_at || session.start_time);
+        const endStr = extractTimeOnly(session.ends_at || session.end_time);
+        const lateStr = session.late_after_at
+            ? extractTimeOnly(session.late_after_at)
+            : formatLateThreshold(session.starts_at || session.start_time, session.late_threshold_minutes || session.late_after_minutes || 15);
+        const classDisplay = session.class_code || session.class_id || '--';
+        const teacherDisplay = session.teacher_name || "Chưa phân công";
+        const subjectDisplay = session.subject_name || "Đang diễn ra";
+
+        // Update Dashboard banner
+        if (dashBanner) {
+            dashBanner.style.display = "flex";
+            const sSub = $("dash-session-subject");
+            const sCls = $("dash-session-class");
+            const sTime = $("dash-session-time");
+            if (sSub) sSub.textContent = `Môn học: ${subjectDisplay}`;
+            if (sCls) sCls.textContent = `Lớp: ${classDisplay}`;
+            if (sTime) {
+                sTime.textContent = `🕒 Ca học: ${startStr} - ${endStr} · Hạn đúng giờ: ${lateStr}`;
+            }
+        }
+
+        // Update RFID view session card
+        if (rfidBadge) {
+            rfidBadge.className = "session-status-badge";
+            rfidBadge.innerHTML = `<span class="pulse-dot"></span> ĐANG DIỄN RA`;
+        }
+        if (rfidSubject) rfidSubject.textContent = `${subjectDisplay} (${classDisplay})`;
+        if (rfidClass) rfidClass.textContent = classDisplay;
+        if (rfidTeacher) rfidTeacher.textContent = teacherDisplay;
+        if (rfidTimeChip) {
+            rfidTimeChip.textContent = `${startStr} - ${endStr}`;
+        }
+        if (rfidLateTime) {
+            rfidLateTime.textContent = lateStr;
+        }
+        if (sessionTableTitle) {
+            sessionTableTitle.textContent = `Điểm Danh Lớp ${classDisplay} - Môn ${subjectDisplay}`;
+        }
+
+        const sid = session.session_id || session.id;
+        await loadSessionAttendance(sid);
+    } catch (error) {
+        console.error("LOAD ACTIVE SESSION ERROR:", error);
+    }
+}
+
+async function loadSessionAttendance(sessionId) {
+    if (!sessionId) return;
+    const tbody = $("session-attendance-body");
+    try {
+        const response = await fetch(`/api/sessions/${sessionId}/attendance`);
+        if (!response.ok) throw new Error("Không thể tải danh sách điểm danh");
+        const res = await response.json();
+        const summary = res.summary || {};
+        const records = res.records || [];
+
+        const statTotal = $("stat-total-students");
+        const statPresent = $("stat-present-students");
+        const statLate = $("stat-late-students");
+        const statAbsent = $("stat-absent-students");
+        const subtabCount = $("subtab-session-count");
+
+        if (statTotal) statTotal.textContent = summary.total_students ?? records.length;
+        if (statPresent) statPresent.textContent = summary.present_count ?? 0;
+        if (statLate) statLate.textContent = summary.late_count ?? 0;
+        if (statAbsent) statAbsent.textContent = summary.absent_count ?? 0;
+
+        const checkedIn = (summary.present_count || 0) + (summary.late_count || 0);
+        if (subtabCount) subtabCount.textContent = `${checkedIn}/${summary.total_students || records.length}`;
+
+        if (!tbody) return;
+        if (records.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" class="table-empty-cell">Lớp học này chưa có danh sách học viên trong cơ sở dữ liệu.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = records.map((r, idx) => {
+            let statusBadge = "";
+            if (r.status === "PRESENT") {
+                statusBadge = `<span class="status-badge ontime">✓ Đúng giờ</span>`;
+            } else if (r.status === "LATE") {
+                statusBadge = `<span class="status-badge late">⚠️ Đi muộn</span>`;
+            } else {
+                statusBadge = `<span class="status-badge absent">○ Chưa có mặt</span>`;
+            }
+
+            const checkInText = r.check_in_time ? `<strong>${formatFullDateTime(r.check_in_time)}</strong>` : `<span style="color:var(--text-muted); font-size:12px;">Chưa quẹt thẻ</span>`;
+
+            let methodBadge = "--";
+            if (r.source === "RFID") {
+                methodBadge = `<span class="mini-pill total">🪪 Quẹt thẻ RFID</span>`;
+            } else if (r.source === "MANUAL") {
+                methodBadge = `<span class="mini-pill excused">✍️ Thủ công</span>`;
+            } else if (r.source === "AUTO") {
+                methodBadge = `<span class="mini-pill present">⚙️ Tự động</span>`;
+            }
+
+            return `
+                <tr>
+                    <td style="text-align: center; color: var(--text-muted);">${idx + 1}</td>
+                    <td><span class="card-uid-pill" style="font-size: 11px; padding: 2px 7px;">${escapeHtml(r.student_code || '--')}</span></td>
+                    <td>
+                        <div class="student-name-meta">
+                            <strong>${escapeHtml(r.full_name || '--')}</strong>
+                            <small>Mã thẻ: ${escapeHtml(r.card_uid || 'Chưa gắn thẻ')}</small>
+                        </div>
+                    </td>
+                    <td><strong>${escapeHtml(r.class_id || '--')}</strong></td>
+                    <td>${statusBadge}</td>
+                    <td>${checkInText}</td>
+                    <td>${methodBadge}</td>
+                </tr>
+            `;
+        }).join("");
+
+    } catch (error) {
+        console.error("LOAD SESSION ATTENDANCE ERROR:", error);
+        if (tbody) {
+            tbody.innerHTML = `<tr><td colspan="7" class="table-empty-cell" style="color:var(--danger)">Lỗi tải dữ liệu: ${error.message}</td></tr>`;
+        }
+    }
+}
+
+function refreshSessionAttendance() {
+    if (currentActiveSession) {
+        loadSessionAttendance(currentActiveSession.session_id);
+    } else if (currentRoom) {
+        loadActiveSession(currentRoom);
+    }
+}
+window.refreshSessionAttendance = refreshSessionAttendance;
+
+// ============================================================
+// TIMETABLE (THỜI KHÓA BIỂU)
+// ============================================================
+const DAY_NAMES = [
+    { id: 1, name: "Thứ Hai" },
+    { id: 2, name: "Thứ Ba" },
+    { id: 3, name: "Thứ Tư" },
+    { id: 4, name: "Thứ Năm" },
+    { id: 5, name: "Thứ Sáu" },
+    { id: 6, name: "Thứ Bảy" },
+    { id: 7, name: "Chủ Nhật" }
+];
+
+function getShiftClass(startTimeStr) {
+    if (!startTimeStr) return "shift-morning";
+    const h = parseInt(startTimeStr.split(":")[0], 10);
+    if (h < 12) return "shift-morning";
+    if (h < 18) return "shift-afternoon";
+    return "shift-evening";
+}
+
+async function loadRoomSchedule(roomId) {
+    if (!roomId) return;
+    const grid = $("timetable-week-grid");
+    const totalChip = $("schedule-total-classes-chip");
+    if (!grid) return;
+
+    grid.innerHTML = `<div class="table-empty-cell" style="grid-column: 1 / -1; padding: 40px; text-align: center;">Đang tải thời khóa biểu phòng...</div>`;
+
+    try {
+        const response = await fetch(`/api/schedules?room_id=${encodeURIComponent(roomId)}`);
+        if (!response.ok) throw new Error("Không thể tải thời khóa biểu");
+        const res = await response.json();
+        const schedules = res.data || [];
+
+        if (totalChip) totalChip.textContent = `${schedules.length} BUỔI / TUẦN`;
+
+        const jsDay = new Date().getDay(); // 0 is Sunday, 1 is Monday...
+        const todayDayOfWeek = jsDay === 0 ? 7 : jsDay;
+        const now = new Date();
+        const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+        grid.innerHTML = DAY_NAMES.map(day => {
+            const daySchedules = schedules.filter(s => Number(s.day_of_week) === day.id);
+            const isToday = day.id === todayDayOfWeek;
+
+            const cardsHtml = daySchedules.length === 0
+                ? `<div class="schedule-empty-day">Không có lịch học</div>`
+                : daySchedules.map(s => {
+                    const shiftCls = getShiftClass(s.start_time);
+                    const startStr = s.start_time ? s.start_time.substring(0, 5) : "--:--";
+                    const endStr = s.end_time ? s.end_time.substring(0, 5) : "--:--";
+
+                    let statusBadge = "";
+                    if (isToday && s.start_time && s.end_time) {
+                        const sParts = s.start_time.split(":");
+                        const eParts = s.end_time.split(":");
+                        const sMin = parseInt(sParts[0], 10) * 60 + parseInt(sParts[1], 10);
+                        const eMin = parseInt(eParts[0], 10) * 60 + parseInt(eParts[1], 10);
+
+                        if (nowMinutes >= sMin && nowMinutes <= eMin) {
+                            statusBadge = `<span class="mini-pill present" style="font-size: 10px;">● Đang học</span>`;
+                        } else if (nowMinutes < sMin) {
+                            statusBadge = `<span class="mini-pill total" style="font-size: 10px;">Sắp tới</span>`;
+                        } else {
+                            statusBadge = `<span class="mini-pill absent" style="font-size: 10px;">Đã học</span>`;
+                        }
+                    }
+
+                    return `
+                        <div class="schedule-item-card ${shiftCls}">
+                            <div class="schedule-item-time">
+                                <span>🕒 ${startStr} - ${endStr}</span>
+                                ${statusBadge}
+                            </div>
+                            <div class="schedule-item-subject">${escapeHtml(s.subject_name || '--')}</div>
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 2px;">
+                                <span class="schedule-item-class">${escapeHtml(s.class_id || '--')}</span>
+                                <button type="button" onclick="event.stopPropagation(); deleteSchedule(${s.schedule_id})"
+                                        style="color: var(--text-muted); font-size: 13px; padding: 2px 4px; border-radius: 4px; line-height: 1;"
+                                        title="Xóa lịch học này" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-muted)'">
+                                    🗑️
+                                </button>
+                            </div>
+                            <div class="schedule-item-meta">
+                                <span>👨‍🏫 ${escapeHtml(s.teacher_name || 'Chưa phân công')}</span>
+                                <span>⏱️ Trễ &gt; ${s.late_threshold_minutes || 15}p tính muộn</span>
+                            </div>
+                        </div>
+                    `;
+                }).join("");
+
+            return `
+                <div class="schedule-day-column ${isToday ? 'is-today' : ''}">
+                    <div class="schedule-day-header">
+                        <span class="schedule-day-title">${day.name} ${isToday ? '(Hôm nay)' : ''}</span>
+                        <span class="schedule-day-count">${daySchedules.length}</span>
+                    </div>
+                    <div class="schedule-card-list">
+                        ${cardsHtml}
+                    </div>
+                </div>
+            `;
+        }).join("");
+
+    } catch (error) {
+        console.error("LOAD ROOM SCHEDULE ERROR:", error);
+        grid.innerHTML = `<div class="table-empty-cell" style="grid-column: 1 / -1; padding: 40px; color: var(--danger); text-align: center;">Lỗi tải lịch học: ${error.message}</div>`;
+    }
+}
+
+function openAddScheduleModal() {
+    if (!currentRoom) {
+        showToast("Chưa chọn phòng", "Vui lòng chọn một phòng học trước khi thêm lịch!", false);
+        return;
+    }
+    const roomInput = $("sched-room-id");
+    const hint = $("modal-schedule-room-hint");
+    const r = allRooms.find(x => x.room_id === currentRoom);
+    const roomName = r && r.name ? r.name : currentRoom;
+
+    if (roomInput) roomInput.value = currentRoom;
+    if (hint) hint.textContent = `Phòng học: ${roomName} (${currentRoom})`;
+
+    const modal = $("modal-add-schedule");
+    if (modal) modal.style.display = "flex";
+}
+
+function closeAddScheduleModal() {
+    const modal = $("modal-add-schedule");
+    if (modal) modal.style.display = "none";
+}
+
+async function submitNewSchedule(e) {
+    e.preventDefault();
+    const roomId = $("sched-room-id")?.value || currentRoom;
+    const classId = $("sched-class-id")?.value?.trim();
+    const subject = $("sched-subject")?.value?.trim();
+    const dayOfWeek = parseInt($("sched-day-of-week")?.value, 10);
+    const teacher = $("sched-teacher")?.value?.trim() || "";
+    const startTime = $("sched-start-time")?.value;
+    const endTime = $("sched-end-time")?.value;
+    const lateThreshold = parseInt($("sched-late-threshold")?.value, 10) || 15;
+
+    if (!roomId || !classId || !subject || !startTime || !endTime) {
+        showToast("Thiếu thông tin", "Vui lòng nhập đầy đủ các trường bắt buộc (*)", false);
+        return;
+    }
+
+    if (startTime >= endTime) {
+        showToast("Giờ không hợp lệ", "Giờ bắt đầu phải trước giờ kết thúc!", false);
+        return;
+    }
+
+    const payload = {
+        room_id: roomId,
+        class_id: classId,
+        subject_name: subject,
+        day_of_week: dayOfWeek,
+        teacher_name: teacher,
+        start_time: startTime + ":00",
+        end_time: endTime + ":00",
+        late_threshold_minutes: lateThreshold
+    };
+
+    try {
+        const btn = $("btn-save-schedule");
+        if (btn) btn.disabled = true;
+
+        const response = await fetch("/api/schedules", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+
+        if (!response.ok) {
+            throw new Error(res.error || "Không thể tạo lịch học");
+        }
+
+        showToast("Thành công", `Đã thêm lịch môn ${subject} (${classId})`, true);
+        closeAddScheduleModal();
+        $("form-add-schedule")?.reset();
+        await loadRoomSchedule(roomId);
+        await loadActiveSession(roomId);
+    } catch (error) {
+        console.error("SUBMIT SCHEDULE ERROR:", error);
+        showToast("Lỗi", error.message, false);
+    } finally {
+        const btn = $("btn-save-schedule");
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function deleteSchedule(scheduleId) {
+    if (!confirm("Bạn có chắc chắn muốn xóa lịch học này?")) return;
+    try {
+        const response = await fetch(`/api/schedules/${scheduleId}`, { method: "DELETE" });
+        const res = await response.json();
+        if (!response.ok) throw new Error(res.error || "Không thể xóa lịch học");
+
+        showToast("Đã xóa", "Lịch học đã được xóa thành công", true);
+        await loadRoomSchedule(currentRoom);
+        await loadActiveSession(currentRoom);
+    } catch (error) {
+        console.error("DELETE SCHEDULE ERROR:", error);
+        showToast("Lỗi", error.message, false);
+    }
+}
+
+window.openAddScheduleModal = openAddScheduleModal;
+window.closeAddScheduleModal = closeAddScheduleModal;
+window.submitNewSchedule = submitNewSchedule;
+window.deleteSchedule = deleteSchedule;
+window.loadRoomSchedule = loadRoomSchedule;
+window.loadActiveSession = loadActiveSession;
+
+// ============================================================
 // MOBILE MENU
 // ============================================================
 function toggleMobileMenu(open) {
@@ -1027,8 +1531,15 @@ function startAutoRefresh() {
                 if (currentTab === "dashboard") {
                     await loadSensors();
                     await loadDevices();
+                    await loadActiveSession(currentRoom);
                 } else if (currentTab === "rfid") {
-                    await loadRfidLog();
+                    if (activeAttendanceSubTab === "session") {
+                        refreshSessionAttendance();
+                    } else {
+                        await loadRfidLog();
+                    }
+                } else if (currentTab === "schedule") {
+                    await loadRoomSchedule(currentRoom);
                 }
             }
         }

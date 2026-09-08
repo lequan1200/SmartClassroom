@@ -2491,6 +2491,279 @@ a {
 }
 
 /* ============================================================
+   ACTIVE SESSION BANNER & ATTENDANCE CARDS
+   ============================================================ */
+.active-session-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 20px;
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.06) 0%, rgba(124, 58, 237, 0.06) 100%);
+    border: 1px solid rgba(37, 99, 235, 0.22);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 4px 16px -2px rgba(37, 99, 235, 0.08);
+    margin-bottom: 20px;
+    transition: var(--transition);
+}
+
+.active-session-banner:hover {
+    border-color: rgba(37, 99, 235, 0.38);
+    box-shadow: 0 6px 20px -2px rgba(37, 99, 235, 0.12);
+}
+
+.session-banner-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.session-live-pulse {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--success);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    animation: pulseRing 1.8s infinite;
+    flex-shrink: 0;
+}
+
+@keyframes pulseRing {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+.session-banner-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.session-banner-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.session-banner-title strong {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--text-pure);
+}
+
+.session-badge-class {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--primary);
+    background: var(--primary-light);
+    border: 1px solid rgba(37, 99, 235, 0.25);
+    padding: 1px 8px;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.session-banner-time {
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+.btn-goto-attendance {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: var(--radius-md);
+    background: var(--primary);
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 700;
+    transition: var(--transition);
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+}
+
+.btn-goto-attendance:hover {
+    background: var(--primary-dark);
+    transform: translateX(2px);
+}
+
+/* RFID / ATTENDANCE VIEW TOP CARD */
+.session-top-card {
+    background: #ffffff;
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-xl);
+    padding: 22px 24px;
+    margin-bottom: 20px;
+    box-shadow: var(--card-glow);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.session-card-main {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+    min-width: 280px;
+}
+
+.session-status-tag-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.session-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: var(--success-light);
+    color: var(--success);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    letter-spacing: 0.5px;
+}
+
+.session-status-badge.inactive {
+    background: #f1f5f9;
+    color: var(--text-muted);
+    border-color: var(--card-border);
+}
+
+.session-subject-title {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--text-pure);
+    letter-spacing: -0.3px;
+}
+
+.session-details-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+.session-details-row .detail-item strong {
+    color: var(--text-pure);
+}
+
+.session-stats-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.session-stat-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 16px;
+    border-radius: var(--radius-md);
+    min-width: 86px;
+    border: 1px solid transparent;
+    transition: var(--transition);
+}
+
+.session-stat-box.total {
+    background: #f8fafc;
+    border-color: var(--card-border);
+}
+.session-stat-box.present {
+    background: var(--success-light);
+    border-color: rgba(16, 185, 129, 0.25);
+}
+.session-stat-box.late {
+    background: var(--warning-light);
+    border-color: rgba(245, 158, 11, 0.25);
+}
+.session-stat-box.absent {
+    background: var(--danger-light);
+    border-color: rgba(239, 68, 68, 0.25);
+}
+
+.session-stat-box .stat-num {
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 1.1;
+}
+.session-stat-box.total .stat-num { color: var(--text-pure); }
+.session-stat-box.present .stat-num { color: var(--success); }
+.session-stat-box.late .stat-num { color: #b45309; }
+.session-stat-box.absent .stat-num { color: var(--danger); }
+
+.session-stat-box .stat-lbl {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+/* SUB-TABS NAVIGATION */
+.attendance-sub-tabs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    border-bottom: 2px solid var(--card-border);
+    padding-bottom: 2px;
+}
+
+.sub-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-dim);
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    position: relative;
+    transition: var(--transition);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -4px;
+    background: none;
+    cursor: pointer;
+}
+
+.sub-tab-btn:hover {
+    color: var(--primary);
+    background: rgba(37, 99, 235, 0.04);
+}
+
+.sub-tab-btn.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+    background: rgba(37, 99, 235, 0.06);
+}
+
+.subtab-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 1px 7px;
+    border-radius: 12px;
+    background: rgba(37, 99, 235, 0.15);
+    color: var(--primary);
+}
+
+/* ============================================================
    SCHEDULE (TIMETABLE) & WEEKLY GRID STYLES
    ============================================================ */
 .schedule-week-grid {

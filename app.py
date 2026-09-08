@@ -7,7 +7,7 @@ from database import (
     lay_danh_sach_diem_danh,
     lay_danh_sach_lop, tao_lop, lay_danh_sach_mon_hoc, tao_mon_hoc,
     gan_hoc_vien_vao_lop, lay_hoc_vien_cua_lop,
-    tao_thoi_khoa_bieu, lay_thoi_khoa_bieu,
+    tao_thoi_khoa_bieu, lay_thoi_khoa_bieu, xoa_thoi_khoa_bieu,
     lay_hoac_tao_buoi_hoc_hien_tai, lay_diem_danh_buoi_hoc
 )
 from mqtt_client import (
@@ -293,23 +293,44 @@ def api_subjects():
 def api_schedules():
     if request.method == "GET":
         class_id = request.args.get("class_id", type=int)
-        rows = lay_thoi_khoa_bieu(class_id)
+        room_id = request.args.get("room_id")
+        rows = lay_thoi_khoa_bieu(class_id=class_id, room_id=room_id)
         return jsonify({"success": rows is not None, "data": rows or []}), 200 if rows is not None else 500
     data = request.get_json(silent=True) or {}
-    required = ["class_id", "subject_id", "room_id", "weekday", "start_time", "end_time", "active_from"]
-    if any(data.get(key) in (None, "") for key in required):
-        return jsonify({"success": False, "message": "Thiếu dữ liệu thời khóa biểu"}), 400
+    class_val = data.get("class_id") or data.get("class_code")
+    subject_val = data.get("subject_id") or data.get("subject_name") or data.get("subject_code")
+    room_val = data.get("room_id")
+    weekday_val = data.get("weekday") or data.get("day_of_week")
+    start_time = data.get("start_time")
+    end_time = data.get("end_time")
+
+    if not all([class_val, subject_val, room_val, weekday_val, start_time, end_time]):
+        return jsonify({"success": False, "message": "Thiếu dữ liệu thời khóa biểu bắt buộc"}), 400
+
     try:
-        weekday = int(data["weekday"])
+        weekday = int(weekday_val)
         if not 1 <= weekday <= 7: raise ValueError
-        schedule_id = tao_thoi_khoa_bieu(int(data["class_id"]), int(data["subject_id"]), int(data["room_id"]), weekday,
-                                         data["start_time"], data["end_time"], data["active_from"], data.get("active_to"),
-                                         int(data.get("checkin_open_minutes", 15)), int(data.get("late_after_minutes", 10)))
-    except (ValueError, TypeError):
-        return jsonify({"success": False, "message": "Dữ liệu thời khóa biểu không hợp lệ"}), 400
+        late_after = int(data.get("late_after_minutes") or data.get("late_threshold_minutes") or 15)
+        checkin_open = int(data.get("checkin_open_minutes") or 15)
+        active_from = data.get("active_from")
+
+        schedule_id = tao_thoi_khoa_bieu(class_val, subject_val, room_val, weekday,
+                                         start_time, end_time, active_from, data.get("active_to"),
+                                         checkin_open, late_after)
+    except (ValueError, TypeError) as e:
+        return jsonify({"success": False, "message": f"Dữ liệu thời khóa biểu không hợp lệ: {e}"}), 400
+
     if not schedule_id:
         return jsonify({"success": False, "message": "Không thể tạo thời khóa biểu"}), 400
-    return jsonify({"success": True, "id": schedule_id}), 201
+    return jsonify({"success": True, "id": schedule_id, "schedule_id": schedule_id}), 201
+
+
+@app.route("/api/schedules/<int:schedule_id>", methods=["DELETE"])
+def api_delete_schedule(schedule_id):
+    ok = xoa_thoi_khoa_bieu(schedule_id)
+    if not ok:
+        return jsonify({"success": False, "message": "Không tìm thấy hoặc không thể xóa thời khóa biểu"}), 404
+    return jsonify({"success": True, "message": "Đã xóa lịch học thành công"}), 200
 
 
 @app.route("/api/rooms/<room_id>/active-session", methods=["GET"])
@@ -322,8 +343,17 @@ def api_active_session(room_id):
 
 @app.route("/api/sessions/<int:session_id>/attendance", methods=["GET"])
 def api_session_attendance(session_id):
-    rows = lay_diem_danh_buoi_hoc(session_id)
-    return jsonify({"success": rows is not None, "data": rows or []}), 200 if rows is not None else 500
+    result = lay_diem_danh_buoi_hoc(session_id)
+    if result is None:
+        return jsonify({"success": False, "message": "Không thể lấy thông tin điểm danh"}), 500
+    records = result.get("records", []) if isinstance(result, dict) else result
+    summary = result.get("summary", {}) if isinstance(result, dict) else {}
+    return jsonify({
+        "success": True,
+        "records": records,
+        "summary": summary,
+        "data": records
+    }), 200
 
 
 @app.errorhandler(404)
