@@ -343,11 +343,11 @@ def xu_ly_attendance(thong_tin, data):
         })
         return
 
-    if not hoc_vien_thuoc_lop(student["id"], session["class_id"]):
+    if session.get("class_id") and not hoc_vien_thuoc_lop(student["id"], session["class_id"]):
         luu_attendance_log(room_id=room_id, card_uid=card_uid, event_type="CHECK_IN", status="SAI_LOP", recorded_at=time_str)
         gui_phan_hoi_diem_danh(room_id, {
             "status": "NOT_IN_CLASS", "student_name": student_name,
-            "student_code": student_code, "message": f"Không thuộc lớp {session['class_code']}", "beeps": 2
+            "student_code": student_code, "message": f"Không thuộc lớp {session.get('class_code', '')}", "beeps": 2
         })
         return
 

@@ -207,7 +207,6 @@
                         <div class="session-banner-info">
                             <div class="session-banner-title">
                                 <strong id="dash-session-subject">Môn học: --</strong>
-                                <span class="session-badge-class" id="dash-session-class">Lớp: --</span>
                             </div>
                             <span class="session-banner-time" id="dash-session-time">🕒 Đang mở điểm danh · Hạn đúng giờ: --:--</span>
                         </div>
@@ -559,8 +558,6 @@
                         </div>
                         <h2 class="session-subject-title" id="rfid-session-subject">Đang kiểm tra buổi học hiện tại...</h2>
                         <div class="session-details-row">
-                            <span class="detail-item">👥 Lớp: <strong id="rfid-session-class">--</strong></span>
-                            <span class="detail-item">👨‍🏫 Giảng viên: <strong id="rfid-session-teacher">--</strong></span>
                             <span class="detail-item">⏱️ Hạn đúng giờ: <strong id="rfid-session-late-time">--:--</strong></span>
                         </div>
                     </div>
@@ -617,14 +614,13 @@
                                         <th style="width: 50px;">STT</th>
                                         <th>Mã Học Viên</th>
                                         <th>Họ Và Tên</th>
-                                        <th>Lớp</th>
                                         <th>Trạng Thái</th>
                                         <th>Giờ Điểm Danh</th>
                                         <th>Phương Thức</th>
                                     </tr>
                                 </thead>
                                 <tbody id="session-attendance-body">
-                                    <tr><td colspan="7" class="table-empty-cell">Đang tải danh sách điểm danh...</td></tr>
+                                    <tr><td colspan="6" class="table-empty-cell">Đang tải danh sách điểm danh...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -759,15 +755,9 @@
             <input type="hidden" id="sched-room-id">
             <div class="form-grid-2">
                 <div class="form-field">
-                    <label for="sched-class-id">Lớp học *</label>
-                    <input type="text" id="sched-class-id" class="custom-input" placeholder="VD: CNTT01" required>
-                </div>
-                <div class="form-field">
                     <label for="sched-subject">Môn học *</label>
                     <input type="text" id="sched-subject" class="custom-input" placeholder="VD: Lập trình IoT" required>
                 </div>
-            </div>
-            <div class="form-grid-2">
                 <div class="form-field">
                     <label for="sched-day-of-week">Thứ trong tuần *</label>
                     <select id="sched-day-of-week" class="custom-input" required>
@@ -779,10 +769,6 @@
                         <option value="6">Thứ Bảy</option>
                         <option value="7">Chủ Nhật</option>
                     </select>
-                </div>
-                <div class="form-field">
-                    <label for="sched-teacher">Giảng viên phụ trách</label>
-                    <input type="text" id="sched-teacher" class="custom-input" placeholder="VD: ThS. Nguyễn Văn A">
                 </div>
             </div>
             <div class="form-grid-2">

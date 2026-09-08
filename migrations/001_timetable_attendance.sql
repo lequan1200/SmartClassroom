@@ -46,9 +46,7 @@ CREATE TABLE IF NOT EXISTS `subjects` (
 -- Một lịch lặp lại mỗi tuần. weekday: 1 = Thứ Hai, ... 7 = Chủ Nhật.
 CREATE TABLE IF NOT EXISTS `schedules` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
-  `class_id` INT NOT NULL,
   `subject_id` INT NOT NULL,
-  `teacher_name` VARCHAR(100) DEFAULT NULL,
   `room_id` INT NOT NULL,
   `weekday` TINYINT NOT NULL,
   `start_time` TIME NOT NULL,
@@ -62,11 +60,8 @@ CREATE TABLE IF NOT EXISTS `schedules` (
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_schedules_room_day_time` (`room_id`, `weekday`, `start_time`),
-  KEY `idx_schedules_class_day` (`class_id`, `weekday`),
   CONSTRAINT `chk_schedules_weekday` CHECK (`weekday` BETWEEN 1 AND 7),
   CONSTRAINT `chk_schedules_time` CHECK (`end_time` > `start_time`),
-  CONSTRAINT `fk_schedules_class`
-    FOREIGN KEY (`class_id`) REFERENCES `classes` (`id`) ON DELETE RESTRICT,
   CONSTRAINT `fk_schedules_subject`
     FOREIGN KEY (`subject_id`) REFERENCES `subjects` (`id`) ON DELETE RESTRICT,
   CONSTRAINT `fk_schedules_room`
@@ -77,9 +72,7 @@ CREATE TABLE IF NOT EXISTS `schedules` (
 CREATE TABLE IF NOT EXISTS `class_sessions` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `schedule_id` BIGINT DEFAULT NULL,
-  `class_id` INT NOT NULL,
   `subject_id` INT NOT NULL,
-  `teacher_name` VARCHAR(100) DEFAULT NULL,
   `room_id` INT NOT NULL,
   `session_date` DATE NOT NULL,
   `starts_at` DATETIME NOT NULL,
@@ -92,12 +85,9 @@ CREATE TABLE IF NOT EXISTS `class_sessions` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_sessions_schedule_date` (`schedule_id`, `session_date`),
   KEY `idx_sessions_room_status_time` (`room_id`, `status`, `checkin_opens_at`, `ends_at`),
-  KEY `idx_sessions_class_date` (`class_id`, `session_date`),
   CONSTRAINT `chk_sessions_time` CHECK (`ends_at` > `starts_at`),
   CONSTRAINT `fk_sessions_schedule`
     FOREIGN KEY (`schedule_id`) REFERENCES `schedules` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_sessions_class`
-    FOREIGN KEY (`class_id`) REFERENCES `classes` (`id`) ON DELETE RESTRICT,
   CONSTRAINT `fk_sessions_subject`
     FOREIGN KEY (`subject_id`) REFERENCES `subjects` (`id`) ON DELETE RESTRICT,
   CONSTRAINT `fk_sessions_room`

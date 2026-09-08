@@ -1117,18 +1117,14 @@ async function loadActiveSession(roomId) {
         const lateStr = session.late_after_at
             ? extractTimeOnly(session.late_after_at)
             : formatLateThreshold(session.starts_at || session.start_time, session.late_threshold_minutes || session.late_after_minutes || 15);
-        const classDisplay = session.class_code || session.class_id || '--';
-        const teacherDisplay = session.teacher_name || "Chưa phân công";
         const subjectDisplay = session.subject_name || "Đang diễn ra";
 
         // Update Dashboard banner
         if (dashBanner) {
             dashBanner.style.display = "flex";
             const sSub = $("dash-session-subject");
-            const sCls = $("dash-session-class");
             const sTime = $("dash-session-time");
             if (sSub) sSub.textContent = `Môn học: ${subjectDisplay}`;
-            if (sCls) sCls.textContent = `Lớp: ${classDisplay}`;
             if (sTime) {
                 sTime.textContent = `🕒 Ca học: ${startStr} - ${endStr} · Hạn đúng giờ: ${lateStr}`;
             }
@@ -1139,9 +1135,7 @@ async function loadActiveSession(roomId) {
             rfidBadge.className = "session-status-badge";
             rfidBadge.innerHTML = `<span class="pulse-dot"></span> ĐANG DIỄN RA`;
         }
-        if (rfidSubject) rfidSubject.textContent = `${subjectDisplay} (${classDisplay})`;
-        if (rfidClass) rfidClass.textContent = classDisplay;
-        if (rfidTeacher) rfidTeacher.textContent = teacherDisplay;
+        if (rfidSubject) rfidSubject.textContent = subjectDisplay;
         if (rfidTimeChip) {
             rfidTimeChip.textContent = `${startStr} - ${endStr}`;
         }
@@ -1149,7 +1143,7 @@ async function loadActiveSession(roomId) {
             rfidLateTime.textContent = lateStr;
         }
         if (sessionTableTitle) {
-            sessionTableTitle.textContent = `Điểm Danh Lớp ${classDisplay} - Môn ${subjectDisplay}`;
+            sessionTableTitle.textContent = `Điểm Danh Môn ${subjectDisplay}`;
         }
 
         const sid = session.session_id || session.id;
@@ -1185,7 +1179,7 @@ async function loadSessionAttendance(sessionId) {
 
         if (!tbody) return;
         if (records.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="table-empty-cell">Lớp học này chưa có danh sách học viên trong cơ sở dữ liệu.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" class="table-empty-cell">Chưa có danh sách học viên trong cơ sở dữ liệu.</td></tr>`;
             return;
         }
 
@@ -1220,7 +1214,6 @@ async function loadSessionAttendance(sessionId) {
                             <small>Mã thẻ: ${escapeHtml(r.card_uid || 'Chưa gắn thẻ')}</small>
                         </div>
                     </td>
-                    <td><strong>${escapeHtml(r.class_id || '--')}</strong></td>
                     <td>${statusBadge}</td>
                     <td>${checkInText}</td>
                     <td>${methodBadge}</td>
@@ -1231,7 +1224,7 @@ async function loadSessionAttendance(sessionId) {
     } catch (error) {
         console.error("LOAD SESSION ATTENDANCE ERROR:", error);
         if (tbody) {
-            tbody.innerHTML = `<tr><td colspan="7" class="table-empty-cell" style="color:var(--danger)">Lỗi tải dữ liệu: ${error.message}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" class="table-empty-cell" style="color:var(--danger)">Lỗi tải dữ liệu: ${error.message}</td></tr>`;
         }
     }
 }
@@ -1352,7 +1345,6 @@ async function loadRoomSchedule(roomId, isBackground = false) {
                     }
 
                     const schedId = s.id !== undefined ? s.id : s.schedule_id;
-                    const classDisplay = s.class_code || s.class_id || "--";
                     const lateMins = s.late_after_minutes !== undefined ? s.late_after_minutes : (s.late_threshold_minutes || 15);
 
                     return `
@@ -1361,17 +1353,15 @@ async function loadRoomSchedule(roomId, isBackground = false) {
                                 <span>🕒 ${startStr} - ${endStr}</span>
                                 ${statusBadge}
                             </div>
-                            <div class="schedule-item-subject">${escapeHtml(s.subject_name || '--')}</div>
-                            <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 2px;">
-                                <span class="schedule-item-class">${escapeHtml(classDisplay)}</span>
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
+                                <div class="schedule-item-subject" style="margin-bottom: 0;">${escapeHtml(s.subject_name || '--')}</div>
                                 <button type="button" onclick="event.stopPropagation(); deleteSchedule(${schedId})"
                                         style="color: var(--text-muted); font-size: 13px; padding: 2px 4px; border-radius: 4px; line-height: 1; background: transparent; border: none; cursor: pointer;"
                                         title="Xóa lịch học này" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-muted)'">
                                     🗑️
                                 </button>
                             </div>
-                            <div class="schedule-item-meta">
-                                <span>👨‍🏫 ${escapeHtml(s.teacher_name || 'Chưa phân công')}</span>
+                            <div class="schedule-item-meta" style="margin-top: 6px;">
                                 <span>⏱️ Trễ &gt; ${lateMins}p tính muộn</span>
                             </div>
                         </div>
@@ -1424,15 +1414,13 @@ function closeAddScheduleModal() {
 async function submitNewSchedule(e) {
     e.preventDefault();
     const roomId = $("sched-room-id")?.value || currentRoom;
-    const classId = $("sched-class-id")?.value?.trim();
     const subject = $("sched-subject")?.value?.trim();
     const dayOfWeek = parseInt($("sched-day-of-week")?.value, 10);
-    const teacher = $("sched-teacher")?.value?.trim() || "";
     const startTime = $("sched-start-time")?.value;
     const endTime = $("sched-end-time")?.value;
     const lateThreshold = parseInt($("sched-late-threshold")?.value, 10) || 15;
 
-    if (!roomId || !classId || !subject || !startTime || !endTime) {
+    if (!roomId || !subject || !startTime || !endTime) {
         showToast("Thiếu thông tin", "Vui lòng nhập đầy đủ các trường bắt buộc (*)", false);
         return;
     }
@@ -1444,11 +1432,9 @@ async function submitNewSchedule(e) {
 
     const payload = {
         room_id: roomId,
-        class_id: classId,
         subject_name: subject,
         day_of_week: dayOfWeek,
         weekday: dayOfWeek,
-        teacher_name: teacher,
         start_time: startTime + ":00",
         end_time: endTime + ":00",
         late_threshold_minutes: lateThreshold,
@@ -1470,7 +1456,7 @@ async function submitNewSchedule(e) {
             throw new Error(res.message || res.error || "Không thể tạo lịch học");
         }
 
-        showToast("Thành công", `Đã thêm lịch môn ${subject} (${classId})`, true);
+        showToast("Thành công", `Đã thêm lịch môn ${subject}`, true);
         closeAddScheduleModal();
         $("form-add-schedule")?.reset();
         lastScheduleHash = "";

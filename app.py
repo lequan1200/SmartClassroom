@@ -292,19 +292,17 @@ def api_subjects():
 @app.route("/api/schedules", methods=["GET", "POST"])
 def api_schedules():
     if request.method == "GET":
-        class_id = request.args.get("class_id", type=int)
         room_id = request.args.get("room_id")
-        rows = lay_thoi_khoa_bieu(class_id=class_id, room_id=room_id)
+        rows = lay_thoi_khoa_bieu(room_id=room_id)
         return jsonify({"success": rows is not None, "data": rows or []}), 200 if rows is not None else 500
     data = request.get_json(silent=True) or {}
-    class_val = data.get("class_id") or data.get("class_code")
     subject_val = data.get("subject_id") or data.get("subject_name") or data.get("subject_code")
     room_val = data.get("room_id")
     weekday_val = data.get("weekday") or data.get("day_of_week")
     start_time = data.get("start_time")
     end_time = data.get("end_time")
 
-    if not all([class_val, subject_val, room_val, weekday_val, start_time, end_time]):
+    if not all([subject_val, room_val, weekday_val, start_time, end_time]):
         return jsonify({"success": False, "message": "Thiếu dữ liệu thời khóa biểu bắt buộc"}), 400
 
     try:
@@ -314,11 +312,9 @@ def api_schedules():
         checkin_open = int(data.get("checkin_open_minutes") or 15)
         active_from = data.get("active_from")
 
-        teacher_name = data.get("teacher_name") or data.get("teacher") or None
-
-        schedule_id = tao_thoi_khoa_bieu(class_val, subject_val, room_val, weekday,
+        schedule_id = tao_thoi_khoa_bieu(subject_val, room_val, weekday,
                                          start_time, end_time, active_from, data.get("active_to"),
-                                         checkin_open, late_after, teacher_name=teacher_name)
+                                         checkin_open, late_after)
     except (ValueError, TypeError) as e:
         return jsonify({"success": False, "message": f"Dữ liệu thời khóa biểu không hợp lệ: {e}"}), 400
 
