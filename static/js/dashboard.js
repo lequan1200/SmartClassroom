@@ -349,6 +349,7 @@ function selectRoomAndOpenDashboard(roomId) {
         return;
     }
     currentRoom = roomId;
+    lastScheduleHash = "";
     updateRoomAccessState();
     switchView("dashboard");
     showToast("Đã chọn phòng", `Đang quản lý ${room.name || roomId} (${roomId})`, true);
@@ -360,6 +361,7 @@ function selectRoomAndOpenDashboard(roomId) {
  */
 function exitRoomToPortal() {
     currentRoom = null;
+    lastScheduleHash = "";
     updateRoomAccessState();
     switchView("rooms");
     showToast("Danh sách phòng", "Vui lòng chọn một phòng học để tiếp tục", true);
@@ -916,7 +918,7 @@ function switchView(tabName) {
         if (multiRoomBar) multiRoomBar.style.display = "flex";
         if (breadcrumb) breadcrumb.textContent = `PHÒNG: ${roomDisplayName.toUpperCase()} / THỜI KHÓA BIỂU`;
         if (pageTitle) pageTitle.textContent = `Thời Khóa Biểu - ${roomDisplayName}`;
-        loadRoomSchedule(currentRoom);
+        loadRoomSchedule(currentRoom, false);
     } else {
         if (dashView) dashView.style.display = "block";
         if (multiRoomBar) multiRoomBar.style.display = "flex";
@@ -1264,19 +1266,33 @@ function getShiftClass(startTimeStr) {
     return "shift-evening";
 }
 
-async function loadRoomSchedule(roomId) {
+let lastScheduleHash = "";
+
+async function loadRoomSchedule(roomId, isBackground = false) {
     if (!roomId) return;
     const grid = $("timetable-week-grid");
     const totalChip = $("schedule-total-classes-chip");
     if (!grid) return;
 
-    grid.innerHTML = `<div class="table-empty-cell" style="grid-column: 1 / -1; padding: 40px; text-align: center;">Đang tải thời khóa biểu phòng...</div>`;
+    // Chỉ hiển thị placeholder "Đang tải..." khi lưới chưa có nội dung và không phải là làm mới ngầm
+    const hasExistingContent = grid.children.length > 0 && !grid.querySelector(".table-empty-cell");
+    if (!isBackground && !hasExistingContent) {
+        grid.innerHTML = `<div class="table-empty-cell" style="grid-column: 1 / -1; padding: 40px; text-align: center;">Đang tải thời khóa biểu phòng...</div>`;
+    }
 
     try {
         const response = await fetch(`/api/schedules?room_id=${encodeURIComponent(roomId)}`);
         if (!response.ok) throw new Error("Không thể tải thời khóa biểu");
         const res = await response.json();
         const schedules = res.data || [];
+
+        // So sánh dữ liệu kèm mốc phút hiện tại (để cập nhật nhãn Đang học/Sắp tới/Đã học đúng lúc)
+        const currentMinute = Math.floor(Date.now() / 60000);
+        const dataHash = `${roomId}_${JSON.stringify(schedules)}_${currentMinute}`;
+        if (isBackground && hasExistingContent && dataHash === lastScheduleHash) {
+            return; // Dữ liệu và trạng thái ca học không thay đổi -> không vẽ lại DOM để tránh giật lag
+        }
+        lastScheduleHash = dataHash;
 
         if (totalChip) totalChip.textContent = `${schedules.length} BUỔI / TUẦN`;
 
@@ -1285,21 +1301,35 @@ async function loadRoomSchedule(roomId) {
         const now = new Date();
         const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
+        // Helper chuẩn hoá chuỗi giờ HH:MM
+        const formatHM = (str) => {
+            if (!str) return "--:--";
+            const parts = String(str).split(":");
+            if (parts.length >= 2) {
+                return `${parts[0].padStart(2, "0")}:${parts[1].padStart(2, "0")}`;
+            }
+            return str;
+        };
+
         grid.innerHTML = DAY_NAMES.map(day => {
-            const daySchedules = schedules.filter(s => Number(s.day_of_week) === day.id);
+            // Lọc theo cả weekday và day_of_week
+            const daySchedules = schedules.filter(s => {
+                const dayVal = s.weekday !== undefined ? s.weekday : s.day_of_week;
+                return Number(dayVal) === day.id;
+            });
             const isToday = day.id === todayDayOfWeek;
 
             const cardsHtml = daySchedules.length === 0
                 ? `<div class="schedule-empty-day">Không có lịch học</div>`
                 : daySchedules.map(s => {
                     const shiftCls = getShiftClass(s.start_time);
-                    const startStr = s.start_time ? s.start_time.substring(0, 5) : "--:--";
-                    const endStr = s.end_time ? s.end_time.substring(0, 5) : "--:--";
+                    const startStr = formatHM(s.start_time);
+                    const endStr = formatHM(s.end_time);
 
                     let statusBadge = "";
                     if (isToday && s.start_time && s.end_time) {
-                        const sParts = s.start_time.split(":");
-                        const eParts = s.end_time.split(":");
+                        const sParts = String(s.start_time).split(":");
+                        const eParts = String(s.end_time).split(":");
                         const sMin = parseInt(sParts[0], 10) * 60 + parseInt(sParts[1], 10);
                         const eMin = parseInt(eParts[0], 10) * 60 + parseInt(eParts[1], 10);
 
@@ -1312,6 +1342,10 @@ async function loadRoomSchedule(roomId) {
                         }
                     }
 
+                    const schedId = s.id !== undefined ? s.id : s.schedule_id;
+                    const classDisplay = s.class_code || s.class_id || "--";
+                    const lateMins = s.late_after_minutes !== undefined ? s.late_after_minutes : (s.late_threshold_minutes || 15);
+
                     return `
                         <div class="schedule-item-card ${shiftCls}">
                             <div class="schedule-item-time">
@@ -1320,16 +1354,16 @@ async function loadRoomSchedule(roomId) {
                             </div>
                             <div class="schedule-item-subject">${escapeHtml(s.subject_name || '--')}</div>
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 2px;">
-                                <span class="schedule-item-class">${escapeHtml(s.class_id || '--')}</span>
-                                <button type="button" onclick="event.stopPropagation(); deleteSchedule(${s.schedule_id})"
-                                        style="color: var(--text-muted); font-size: 13px; padding: 2px 4px; border-radius: 4px; line-height: 1;"
+                                <span class="schedule-item-class">${escapeHtml(classDisplay)}</span>
+                                <button type="button" onclick="event.stopPropagation(); deleteSchedule(${schedId})"
+                                        style="color: var(--text-muted); font-size: 13px; padding: 2px 4px; border-radius: 4px; line-height: 1; background: transparent; border: none; cursor: pointer;"
                                         title="Xóa lịch học này" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-muted)'">
                                     🗑️
                                 </button>
                             </div>
                             <div class="schedule-item-meta">
                                 <span>👨‍🏫 ${escapeHtml(s.teacher_name || 'Chưa phân công')}</span>
-                                <span>⏱️ Trễ &gt; ${s.late_threshold_minutes || 15}p tính muộn</span>
+                                <span>⏱️ Trễ &gt; ${lateMins}p tính muộn</span>
                             </div>
                         </div>
                     `;
@@ -1350,7 +1384,9 @@ async function loadRoomSchedule(roomId) {
 
     } catch (error) {
         console.error("LOAD ROOM SCHEDULE ERROR:", error);
-        grid.innerHTML = `<div class="table-empty-cell" style="grid-column: 1 / -1; padding: 40px; color: var(--danger); text-align: center;">Lỗi tải lịch học: ${error.message}</div>`;
+        if (!isBackground && !hasExistingContent) {
+            grid.innerHTML = `<div class="table-empty-cell" style="grid-column: 1 / -1; padding: 40px; color: var(--danger); text-align: center;">Lỗi tải lịch học: ${error.message}</div>`;
+        }
     }
 }
 
@@ -1402,10 +1438,12 @@ async function submitNewSchedule(e) {
         class_id: classId,
         subject_name: subject,
         day_of_week: dayOfWeek,
+        weekday: dayOfWeek,
         teacher_name: teacher,
         start_time: startTime + ":00",
         end_time: endTime + ":00",
-        late_threshold_minutes: lateThreshold
+        late_threshold_minutes: lateThreshold,
+        late_after_minutes: lateThreshold
     };
 
     try {
@@ -1420,13 +1458,14 @@ async function submitNewSchedule(e) {
         const res = await response.json();
 
         if (!response.ok) {
-            throw new Error(res.error || "Không thể tạo lịch học");
+            throw new Error(res.message || res.error || "Không thể tạo lịch học");
         }
 
         showToast("Thành công", `Đã thêm lịch môn ${subject} (${classId})`, true);
         closeAddScheduleModal();
         $("form-add-schedule")?.reset();
-        await loadRoomSchedule(roomId);
+        lastScheduleHash = "";
+        await loadRoomSchedule(roomId, false);
         await loadActiveSession(roomId);
     } catch (error) {
         console.error("SUBMIT SCHEDULE ERROR:", error);
@@ -1438,14 +1477,19 @@ async function submitNewSchedule(e) {
 }
 
 async function deleteSchedule(scheduleId) {
+    if (!scheduleId) {
+        showToast("Lỗi", "Không tìm thấy mã lịch học cần xóa", false);
+        return;
+    }
     if (!confirm("Bạn có chắc chắn muốn xóa lịch học này?")) return;
     try {
         const response = await fetch(`/api/schedules/${scheduleId}`, { method: "DELETE" });
         const res = await response.json();
-        if (!response.ok) throw new Error(res.error || "Không thể xóa lịch học");
+        if (!response.ok) throw new Error(res.message || res.error || "Không thể xóa lịch học");
 
         showToast("Đã xóa", "Lịch học đã được xóa thành công", true);
-        await loadRoomSchedule(currentRoom);
+        lastScheduleHash = "";
+        await loadRoomSchedule(currentRoom, false);
         await loadActiveSession(currentRoom);
     } catch (error) {
         console.error("DELETE SCHEDULE ERROR:", error);
@@ -1519,8 +1563,11 @@ function updateCurrentRoomStatus() {
     });
 }
 
+let refreshTick = 0;
+
 function startAutoRefresh() {
     setInterval(async () => {
+        refreshTick++;
         await loadRooms();
         if (currentRoom) {
             // Luôn đồng bộ trạng thái phòng hiện tại dù online hay offline
@@ -1539,7 +1586,12 @@ function startAutoRefresh() {
                         await loadRfidLog();
                     }
                 } else if (currentTab === "schedule") {
-                    await loadRoomSchedule(currentRoom);
+                    // Kiểm tra làm mới ngầm mỗi ~12s (4 chu kỳ x 3s) và chỉ khi modal không mở
+                    const modal = $("modal-add-schedule");
+                    const isModalOpen = modal && modal.style.display !== "none";
+                    if (!isModalOpen && refreshTick % 4 === 0) {
+                        await loadRoomSchedule(currentRoom, true);
+                    }
                 }
             }
         }

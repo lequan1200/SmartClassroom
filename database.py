@@ -643,8 +643,33 @@ def lay_hoc_vien_cua_lop(class_id):
         print(f"DB ERROR lay_hoc_vien_cua_lop: {e}"); conn.close(); return None
 
 
+def _format_time_value(val):
+    if val is None:
+        return None
+    if isinstance(val, timedelta):
+        total_seconds = int(val.total_seconds())
+        hours = (total_seconds // 3600) % 24
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    if isinstance(val, time):
+        return val.strftime("%H:%M:%S")
+    s = str(val).strip()
+    parts = s.split(":")
+    if len(parts) >= 2:
+        try:
+            h = int(parts[0])
+            m = int(parts[1])
+            sec = int(parts[2]) if len(parts) > 2 else 0
+            return f"{h:02d}:{m:02d}:{sec:02d}"
+        except ValueError:
+            pass
+    return s
+
+
 def tao_thoi_khoa_bieu(class_id, subject_id, room_id, weekday, start_time, end_time,
-                       active_from=None, active_to=None, checkin_open_minutes=15, late_after_minutes=10):
+                       active_from=None, active_to=None, checkin_open_minutes=15, late_after_minutes=10,
+                       teacher_name=None):
     conn = ket_noi()
     if not conn:
         return None
@@ -692,10 +717,10 @@ def tao_thoi_khoa_bieu(class_id, subject_id, room_id, weekday, start_time, end_t
             active_from = date.today().isoformat()
 
         cur.execute("""INSERT INTO schedules
-                       (class_id, subject_id, room_id, weekday, start_time, end_time,
+                       (class_id, subject_id, teacher_name, room_id, weekday, start_time, end_time,
                         checkin_open_minutes, late_after_minutes, active_from, active_to)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (class_id, subject_id, room_id, weekday, start_time, end_time,
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (class_id, subject_id, teacher_name, room_id, weekday, start_time, end_time,
                      checkin_open_minutes, late_after_minutes, active_from, active_to))
         conn.commit(); result = cur.lastrowid
         cur.close(); conn.close(); return result
@@ -727,8 +752,8 @@ def lay_thoi_khoa_bieu(class_id=None, room_id=None):
     try:
         cur = conn.cursor()
         query = """SELECT s.id, s.class_id, c.class_code, s.subject_id, sub.subject_name,
-                   r.room_id, s.weekday, s.start_time, s.end_time, s.checkin_open_minutes,
-                   s.late_after_minutes, s.active_from, s.active_to, s.is_active
+                   s.teacher_name, r.room_id, s.weekday, s.start_time, s.end_time,
+                   s.checkin_open_minutes, s.late_after_minutes, s.active_from, s.active_to, s.is_active
                    FROM schedules s JOIN classes c ON c.id=s.class_id
                    JOIN subjects sub ON sub.id=s.subject_id JOIN rooms r ON r.id=s.room_id"""
         conditions = []
@@ -743,15 +768,19 @@ def lay_thoi_khoa_bieu(class_id=None, room_id=None):
             query += " WHERE " + " AND ".join(conditions)
         query += " ORDER BY s.weekday, s.start_time"
         cur.execute(query, tuple(params))
-        columns = ["id", "class_id", "class_code", "subject_id", "subject_name", "room_id", "weekday", "start_time", "end_time", "checkin_open_minutes", "late_after_minutes", "active_from", "active_to", "is_active"]
+        columns = ["id", "class_id", "class_code", "subject_id", "subject_name", "teacher_name", "room_id", "weekday", "start_time", "end_time", "checkin_open_minutes", "late_after_minutes", "active_from", "active_to", "is_active"]
         rows = _rows_as_dicts(cur.fetchall(), columns)
         for row in rows:
-            for key in ("start_time", "end_time", "active_from", "active_to"):
+            for key in ("start_time", "end_time"):
                 if row[key] is not None:
-                    if hasattr(row[key], "isoformat"):
-                        row[key] = row[key].isoformat()
-                    else:
-                        row[key] = str(row[key])
+                    row[key] = _format_time_value(row[key])
+            for key in ("active_from", "active_to"):
+                if row[key] is not None:
+                    row[key] = row[key].isoformat() if hasattr(row[key], "isoformat") else str(row[key])
+            # Compatibility aliases for frontend
+            row["day_of_week"] = row["weekday"]
+            row["schedule_id"] = row["id"]
+            row["late_threshold_minutes"] = row["late_after_minutes"]
         cur.close(); conn.close(); return rows
     except mariadb.Error as e:
         print(f"DB ERROR lay_thoi_khoa_bieu: {e}"); conn.close(); return None
@@ -777,7 +806,7 @@ def lay_hoac_tao_buoi_hoc_hien_tai(room_code, moment=None):
     try:
         cur = conn.cursor()
         cur.execute("""SELECT s.id, s.class_id, s.subject_id, s.room_id, s.start_time, s.end_time,
-                       s.checkin_open_minutes, s.late_after_minutes
+                       s.checkin_open_minutes, s.late_after_minutes, s.teacher_name
                        FROM schedules s JOIN rooms r ON r.id=s.room_id
                        WHERE r.room_id=? AND s.weekday=? AND s.is_active=1
                          AND s.active_from <= ? AND (s.active_to IS NULL OR s.active_to >= ?)""",
@@ -791,8 +820,8 @@ def lay_hoac_tao_buoi_hoc_hien_tai(room_code, moment=None):
                 schedule = row; break
         if not schedule:
             cur.close(); conn.close(); return None
-        schedule_id, class_id, subject_id, room_id, start_time, end_time, open_minutes, late_minutes = schedule
-        cur.execute("SELECT id, starts_at, ends_at, checkin_opens_at, late_after_at, status FROM class_sessions WHERE schedule_id=? AND session_date=?",
+        schedule_id, class_id, subject_id, room_id, start_time, end_time, open_minutes, late_minutes, teacher_name = schedule
+        cur.execute("SELECT id, starts_at, ends_at, checkin_opens_at, late_after_at, status, teacher_name FROM class_sessions WHERE schedule_id=? AND session_date=?",
                     (schedule_id, moment.date()))
         existing = cur.fetchone()
         if existing:
@@ -804,14 +833,14 @@ def lay_hoac_tao_buoi_hoc_hien_tai(room_code, moment=None):
             checkin_opens_at = starts_at - timedelta(minutes=open_minutes)
             late_after_at = starts_at + timedelta(minutes=late_minutes)
             cur.execute("""INSERT INTO class_sessions
-                           (schedule_id, class_id, subject_id, room_id, session_date, starts_at, ends_at,
+                           (schedule_id, class_id, subject_id, teacher_name, room_id, session_date, starts_at, ends_at,
                             checkin_opens_at, late_after_at, status)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN')""",
-                        (schedule_id, class_id, subject_id, room_id, moment.date(), starts_at, ends_at,
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN')""",
+                        (schedule_id, class_id, subject_id, teacher_name, room_id, moment.date(), starts_at, ends_at,
                          checkin_opens_at, late_after_at))
             conn.commit(); session_id = cur.lastrowid
         cur.execute("""SELECT cs.id, cs.class_id, cs.late_after_at, c.class_code, sub.subject_name,
-                              cs.starts_at, cs.ends_at, cs.status
+                              cs.starts_at, cs.ends_at, cs.status, cs.teacher_name
                        FROM class_sessions cs JOIN classes c ON c.id=cs.class_id
                        JOIN subjects sub ON sub.id=cs.subject_id WHERE cs.id=?""", (session_id,))
         row = cur.fetchone(); cur.close(); conn.close()
@@ -825,6 +854,7 @@ def lay_hoac_tao_buoi_hoc_hien_tai(room_code, moment=None):
             "starts_at": row[5],
             "ends_at": row[6],
             "status": row[7],
+            "teacher_name": row[8] or "Chưa phân công",
             "late_after_at_iso": row[2].isoformat() if hasattr(row[2], "isoformat") else str(row[2]) if row[2] else None,
             "starts_at_iso": row[5].isoformat() if hasattr(row[5], "isoformat") else str(row[5]) if row[5] else None,
             "ends_at_iso": row[6].isoformat() if hasattr(row[6], "isoformat") else str(row[6]) if row[6] else None

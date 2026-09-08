@@ -314,9 +314,11 @@ def api_schedules():
         checkin_open = int(data.get("checkin_open_minutes") or 15)
         active_from = data.get("active_from")
 
+        teacher_name = data.get("teacher_name") or data.get("teacher") or None
+
         schedule_id = tao_thoi_khoa_bieu(class_val, subject_val, room_val, weekday,
                                          start_time, end_time, active_from, data.get("active_to"),
-                                         checkin_open, late_after)
+                                         checkin_open, late_after, teacher_name=teacher_name)
     except (ValueError, TypeError) as e:
         return jsonify({"success": False, "message": f"Dữ liệu thời khóa biểu không hợp lệ: {e}"}), 400
 
