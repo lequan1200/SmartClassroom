@@ -107,20 +107,110 @@ function showToast(title, message, success = true) {
 // ============================================================
 let allRooms = [];
 
-function updateRoomUIHighlights(activeRoomId) {
-    document.querySelectorAll(".room-tab-pill").forEach(pill => {
-        pill.classList.toggle("active", pill.getAttribute("data-room") === activeRoomId);
-    });
-    document.querySelectorAll(".sidebar-room-badge-btn").forEach(btn => {
-        btn.classList.toggle("active", btn.getAttribute("data-room") === activeRoomId);
-    });
-    const rfidTag = $("rfid-active-room-tag");
-    if (rfidTag) {
-        const r = allRooms.find(x => x.room_id === activeRoomId);
-        rfidTag.textContent = r && r.name ? `${r.name} (${activeRoomId})` : activeRoomId;
+/**
+ * Đồng bộ trạng thái giao diện và phân quyền truy cập theo phòng đang chọn.
+ * Khi chưa chọn phòng: Khóa Dashboard và RFID, chỉ cho phép chọn phòng từ Danh sách phòng.
+ * Khi đã chọn phòng: Mở khóa Dashboard và RFID, cập nhật tên phòng hiện tại và nút Đổi phòng.
+ */
+function updateRoomAccessState() {
+    const navDash = $("nav-dashboard");
+    const navRfid = $("nav-rfid");
+    const dashTag = $("nav-dashboard-tag");
+    const rfidTag = $("nav-rfid-tag");
+    const sidebarRoomBox = $("sidebar-current-room");
+    const multiRoomBar = $("multi-room-bar");
+
+    if (!currentRoom) {
+        // --- CHƯA CHỌN PHÒNG: KHÓA DASHBOARD & RFID ---
+        if (navDash) {
+            navDash.classList.add("disabled");
+            navDash.setAttribute("title", "Chưa chọn phòng học. Vui lòng chọn 1 phòng trong danh sách trước.");
+        }
+        if (navRfid) {
+            navRfid.classList.add("disabled");
+            navRfid.setAttribute("title", "Chưa chọn phòng học. Vui lòng chọn 1 phòng trong danh sách trước.");
+        }
+        if (dashTag) {
+            dashTag.textContent = "🔒 Khóa";
+            dashTag.className = "nav-tag locked";
+        }
+        if (rfidTag) {
+            rfidTag.textContent = "🔒 Khóa";
+            rfidTag.className = "nav-tag locked";
+        }
+
+        if (sidebarRoomBox) {
+            sidebarRoomBox.innerHTML = `
+                <div class="unselected-box">
+                    <div style="font-size: 12px; font-weight: 700; color: var(--text-dim); display: flex; align-items: center; gap: 6px;">
+                        <span style="color: var(--text-muted);">○</span> Chưa chọn phòng
+                    </div>
+                    <p class="unselected-hint">Chọn 1 phòng trong danh sách để mở Dashboard và Điểm danh RFID.</p>
+                </div>
+            `;
+        }
+
+        if (multiRoomBar) {
+            multiRoomBar.style.display = "none";
+        }
+    } else {
+        // --- ĐÃ CHỌN PHÒNG: MỞ KHÓA DASHBOARD & RFID ---
+        if (navDash) {
+            navDash.classList.remove("disabled");
+            navDash.removeAttribute("title");
+        }
+        if (navRfid) {
+            navRfid.classList.remove("disabled");
+            navRfid.removeAttribute("title");
+        }
+        if (dashTag) {
+            dashTag.textContent = "LIVE";
+            dashTag.className = "nav-tag live";
+        }
+        if (rfidTag) {
+            rfidTag.textContent = "RFID";
+            rfidTag.className = "nav-tag rfid";
+        }
+
+        const r = allRooms.find(x => x.room_id === currentRoom);
+        const displayName = r && r.name ? r.name : `Phòng ${currentRoom}`;
+        const isOnline = r ? Boolean(r.is_online) : false;
+
+        if (sidebarRoomBox) {
+            sidebarRoomBox.innerHTML = `
+                <div class="selected-box">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <strong style="font-size: 13px; color: var(--text-pure); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 155px;">${escapeHtml(displayName)}</strong>
+                        <span class="status-indicator-dot ${isOnline ? 'online' : ''}" style="width: 8px; height: 8px; flex-shrink: 0; background: ${isOnline ? 'var(--success)' : '#94a3b8'};"></span>
+                    </div>
+                    <div style="font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center;">
+                        <span>Mã: <strong style="color: var(--primary);">${escapeHtml(currentRoom)}</strong></span>
+                        <span style="font-weight: 700; color: ${isOnline ? 'var(--success)' : '#64748b'};">${isOnline ? '● Online' : '○ Offline'}</span>
+                    </div>
+                    <button type="button" class="btn-change-room" onclick="exitRoomToPortal()" title="Quay lại danh sách các phòng để chọn phòng khác">
+                        <span>←</span> Đổi phòng khác
+                    </button>
+                </div>
+            `;
+        }
+
+        const barChip = $("multi-room-current-name");
+        if (barChip) barChip.textContent = `${displayName} (${currentRoom})`;
+
+        const rfidTagEl = $("rfid-active-room-tag");
+        if (rfidTagEl) rfidTagEl.textContent = `${displayName} (${currentRoom})`;
     }
 }
 
+/** Tương thích ngược */
+function updateRoomUIHighlights(activeRoomId) {
+    updateRoomAccessState();
+}
+
+/**
+ * Hiển thị danh sách phòng học dạng thẻ trực quan.
+ * Đây là nơi DUY NHẤT để người dùng chọn hoặc đổi sang phòng học khác.
+ */
 function renderRoomsPortal(rooms) {
     const grid = $("rooms-portal-grid");
     if (!grid) return;
@@ -179,7 +269,7 @@ function renderRoomsPortal(rooms) {
                         </div>
                     </div>
                     <button type="button" class="btn-portal-access online" onclick="event.stopPropagation(); selectRoomAndOpenDashboard('${escapeHtml(roomId)}')">
-                        <span>Truy cập phòng học</span>
+                        <span>Vào phòng học này</span>
                         <span>→</span>
                     </button>
                 </div>
@@ -226,114 +316,36 @@ function handleOfflineRoomClick(roomName, roomId) {
     showToast("Phòng Offline", `Phòng ${roomName || roomId} (${roomId}) hiện đang Offline (Mất kết nối MQTT/ESP32). Không thể truy cập!`, false);
 }
 
+/**
+ * Chọn một phòng học cụ thể và mở Dashboard giám sát.
+ * Chỉ hoạt động khi phòng ở trạng thái ONLINE.
+ */
 function selectRoomAndOpenDashboard(roomId) {
     const room = allRooms.find(r => r.room_id === roomId);
-    if (room && !room.is_online) {
+    if (!room) return;
+    if (!room.is_online) {
         handleOfflineRoomClick(room.name || roomId, roomId);
         return;
     }
     currentRoom = roomId;
+    updateRoomAccessState();
     switchView("dashboard");
-    switchRoom(roomId);
+    showToast("Đã chọn phòng", `Đang quản lý ${room.name || roomId} (${roomId})`, true);
 }
 
-function handleRoomTabClick(roomId) {
-    const room = allRooms.find(r => r.room_id === roomId);
-    if (room && !room.is_online) {
-        handleOfflineRoomClick(room.name || roomId, roomId);
-        return;
-    }
-    if (currentTab === "rooms") {
-        selectRoomAndOpenDashboard(roomId);
-    } else {
-        switchRoom(roomId);
-    }
+/**
+ * Rời khỏi phòng hiện tại để quay lại danh sách chọn phòng.
+ * Khóa quyền truy cập Dashboard và Điểm danh cho đến khi chọn phòng mới.
+ */
+function exitRoomToPortal() {
+    currentRoom = null;
+    updateRoomAccessState();
+    switchView("rooms");
+    showToast("Danh sách phòng", "Vui lòng chọn một phòng học để tiếp tục", true);
 }
 
-function handleQuickSelectRoom(roomId) {
-    if (!roomId) return;
-    const room = allRooms.find(r => r.room_id === roomId);
-    if (room && !room.is_online) {
-        handleOfflineRoomClick(room.name || roomId, roomId);
-        const quickSelect = $("quick-room-select");
-        if (quickSelect) quickSelect.value = currentRoom || "";
-        return;
-    }
-    switchRoom(roomId);
-}
-
-function renderRoomPills(rooms) {
-    const container = $("room-pills-container");
-    if (!container) return;
-    if (rooms.length === 0) {
-        container.innerHTML = `<span class="meta-chip">Không có phòng học nào</span>`;
-        return;
-    }
-    container.innerHTML = rooms.map(room => {
-        const isOnline = Boolean(room.is_online);
-        const isActive = room.room_id === currentRoom;
-        const displayName = room.name || room.room_id;
-        return `
-            <button type="button"
-                    class="room-tab-pill ${isActive ? 'active' : ''} ${isOnline ? 'online' : 'offline'}"
-                    data-room="${escapeHtml(room.room_id)}"
-                    onclick="handleRoomTabClick('${escapeHtml(room.room_id)}')"
-                    title="${escapeHtml(displayName)} (${isOnline ? 'Online - Nhấn để chuyển' : 'Offline - Không thể truy cập'})">
-                <span class="room-pill-dot"></span>
-                <span>🏛️ ${escapeHtml(displayName)}</span>
-                <span class="room-pill-id">${isOnline ? escapeHtml(room.room_id) : 'OFFLINE'}</span>
-            </button>
-        `;
-    }).join("");
-}
-
-function renderSidebarRoomList(rooms) {
-    const list = $("sidebar-room-list");
-    if (!list) return;
-    list.innerHTML = rooms.map(room => {
-        const isOnline = Boolean(room.is_online);
-        const isActive = room.room_id === currentRoom;
-        const displayName = room.name || room.room_id;
-        return `
-            <div class="sidebar-room-badge-btn ${isActive ? 'active' : ''} ${isOnline ? 'online' : 'offline'}"
-                 data-room="${escapeHtml(room.room_id)}"
-                 onclick="handleRoomTabClick('${escapeHtml(room.room_id)}')">
-                <span>🏛️ ${escapeHtml(displayName)}</span>
-                <span class="status-indicator-dot ${isOnline ? 'online' : ''}" style="width:6px; height:6px; ${!isOnline ? 'background:#94a3b8; box-shadow:none;' : ''}"></span>
-            </div>
-        `;
-    }).join("");
-}
-
-async function switchRoom(roomId) {
-    if (!roomId) return;
-    const roomObj = allRooms.find(r => r.room_id === roomId);
-    if (roomObj && !roomObj.is_online) {
-        handleOfflineRoomClick(roomObj.name || roomId, roomId);
-        return;
-    }
-
-    currentRoom = roomId;
-
-    const select = $("room-select");
-    if (select) select.value = roomId;
-    const quickSelect = $("quick-room-select");
-    if (quickSelect) quickSelect.value = roomId;
-
-    updateRoomUIHighlights(roomId);
-    await loadRoom();
-
-    if (currentTab === "rfid") {
-        await loadRfidLog();
-    }
-
-    const roomName = roomObj && roomObj.name ? roomObj.name : roomId;
-    showToast("Phòng học", `Đang quản lý ${roomName} (${roomId})`, true);
-}
-window.switchRoom = switchRoom;
-window.handleRoomTabClick = handleRoomTabClick;
-window.handleQuickSelectRoom = handleQuickSelectRoom;
 window.selectRoomAndOpenDashboard = selectRoomAndOpenDashboard;
+window.exitRoomToPortal = exitRoomToPortal;
 window.handleOfflineRoomClick = handleOfflineRoomClick;
 
 async function loadRooms() {
@@ -349,41 +361,16 @@ async function loadRooms() {
         else if (Array.isArray(data.rooms)) rooms = data.rooms;
 
         allRooms = rooms;
-
-        const select = $("room-select");
-        if (select) {
-            select.innerHTML = rooms.length === 0
-                ? `<option value="">Không có phòng</option>`
-                : rooms.map(room => {
-                    const isOnline = Boolean(room.is_online);
-                    const tag = isOnline ? "🟢 Online" : "⚪ Offline";
-                    return `<option value="${room.room_id}" ${!isOnline ? 'disabled style="color:#94a3b8;"' : ''}>${tag} - ${room.name ? `${room.room_id} (${room.name})` : room.room_id}</option>`;
-                }).join("");
-        }
-
-        const quickSelect = $("quick-room-select");
-        if (quickSelect) {
-            quickSelect.innerHTML = rooms.map(room => {
-                const isOnline = Boolean(room.is_online);
-                const tag = isOnline ? "🟢 Online" : "⚪ Offline";
-                return `<option value="${room.room_id}" ${!isOnline ? 'disabled style="color:#94a3b8;"' : ''}>${tag} - ${room.name ? `${room.name} (${room.room_id})` : room.room_id}</option>`;
-            }).join("");
-        }
-
         renderRoomsPortal(rooms);
-        renderRoomPills(rooms);
-        renderSidebarRoomList(rooms);
-
-        if (currentRoom) {
-            if (select) select.value = currentRoom;
-            if (quickSelect) quickSelect.value = currentRoom;
-            updateRoomUIHighlights(currentRoom);
-        }
+        updateRoomAccessState();
     } catch (error) {
         console.error("LOAD ROOMS ERROR:", error);
         setServerStatus(false);
     }
 }
+
+
+
 
 async function loadRoom() {
     if (!currentRoom) return;
@@ -817,6 +804,23 @@ function setupTabNavigation() {
         item.addEventListener("click", function(e) {
             e.preventDefault();
             const targetTab = this.getAttribute("data-tab");
+
+            // Chặn tuyệt đối truy cập Dashboard & RFID nếu chưa chọn phòng cụ thể
+            if (targetTab === "dashboard" || targetTab === "rfid") {
+                if (!currentRoom) {
+                    showToast("Chưa chọn phòng", "Vui lòng chọn một phòng học cụ thể trong Danh Sách Phòng trước!", false);
+                    return;
+                }
+            }
+
+            // Nếu người dùng chủ động bấm vào "Danh sách phòng" từ sidebar:
+            // Trả về màn hình danh sách và cho phép chọn lại phòng
+            if (targetTab === "rooms") {
+                exitRoomToPortal();
+                toggleMobileMenu(false);
+                return;
+            }
+
             switchView(targetTab);
             setActiveNav(this);
             toggleMobileMenu(false);
@@ -836,6 +840,14 @@ function setActiveNav(activeElement) {
 }
 
 function switchView(tabName) {
+    // --- Guard: Dashboard và RFID đều yêu cầu phải chọn phòng trước ---
+    if (tabName === "dashboard" || tabName === "rfid") {
+        if (!currentRoom) {
+            showToast("Chưa chọn phòng", "Vui lòng chọn một phòng học từ danh sách trước!", false);
+            tabName = "rooms"; // Bắt buộc quay về danh sách phòng
+        }
+    }
+
     currentTab = tabName;
     const roomsView = $("rooms-view");
     const dashView = $("dashboard-view");
@@ -852,6 +864,9 @@ function switchView(tabName) {
         item.classList.toggle("active", item.getAttribute("data-tab") === tabName);
     });
 
+    const r = allRooms.find(x => x.room_id === currentRoom);
+    const roomDisplayName = r && r.name ? r.name : (currentRoom || "");
+
     if (tabName === "rooms") {
         if (roomsView) roomsView.style.display = "block";
         if (multiRoomBar) multiRoomBar.style.display = "none";
@@ -861,24 +876,14 @@ function switchView(tabName) {
     } else if (tabName === "rfid") {
         if (rfidView) rfidView.style.display = "block";
         if (multiRoomBar) multiRoomBar.style.display = "flex";
-        if (breadcrumb) breadcrumb.textContent = "HỆ THỐNG / NHẬT KÝ RFID";
-        if (pageTitle) pageTitle.textContent = "Nhật Ký Quét Thẻ RFID";
+        if (breadcrumb) breadcrumb.textContent = `PHÒNG: ${roomDisplayName.toUpperCase()} / ĐIỂM DANH RFID`;
+        if (pageTitle) pageTitle.textContent = `Nhật Ký Quẹt Thẻ RFID - ${roomDisplayName}`;
         loadRfidLog();
     } else {
-        if (!currentRoom) {
-            const firstOnline = allRooms.find(r => r.is_online);
-            if (firstOnline) {
-                currentRoom = firstOnline.room_id;
-            } else {
-                showToast("Chưa chọn phòng", "Vui lòng chọn một phòng học đang ONLINE từ danh sách!", false);
-                switchView("rooms");
-                return;
-            }
-        }
         if (dashView) dashView.style.display = "block";
         if (multiRoomBar) multiRoomBar.style.display = "flex";
-        if (breadcrumb) breadcrumb.textContent = "HỆ THỐNG / TỔNG QUAN";
-        if (pageTitle) pageTitle.textContent = "Dashboard Phòng Học Thông Minh";
+        if (breadcrumb) breadcrumb.textContent = `PHÒNG: ${roomDisplayName.toUpperCase()} / DASHBOARD`;
+        if (pageTitle) pageTitle.textContent = `Dashboard - ${roomDisplayName}`;
         loadRoom();
     }
 
@@ -1013,17 +1018,19 @@ function updateCurrentRoomStatus() {
 function startAutoRefresh() {
     setInterval(async () => {
         await loadRooms();
-        if (currentTab === "dashboard" && currentRoom) {
+        if (currentRoom) {
             // Luôn đồng bộ trạng thái phòng hiện tại dù online hay offline
             updateCurrentRoomStatus();
 
             const curObj = allRooms.find(r => r.room_id === currentRoom);
             if (curObj && curObj.is_online) {
-                await loadSensors();
-                await loadDevices();
+                if (currentTab === "dashboard") {
+                    await loadSensors();
+                    await loadDevices();
+                } else if (currentTab === "rfid") {
+                    await loadRfidLog();
+                }
             }
-        } else if (currentTab === "rfid") {
-            await loadRfidLog();
         }
     }, REFRESH_INTERVAL);
 }
@@ -1035,6 +1042,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     updateLiveClock();
     setInterval(updateLiveClock, 1000);
     setupTabNavigation();
+    updateRoomAccessState(); // Khóa Dashboard & RFID ngay lập tức khi chưa chọn phòng
     await loadRooms();
     switchView("rooms");
     startAutoRefresh();

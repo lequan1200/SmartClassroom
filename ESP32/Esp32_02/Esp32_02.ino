@@ -18,7 +18,7 @@ const char *WIFI_PASS = "123123123";
 const char *MQTT_HOSTNAME = "mypi5";
 const int MQTT_PORT = 1883;
 
-#define ROOM_ID "room02"
+#define ROOM_ID "room01"
 
 // =====================================================
 // 2. GPIO

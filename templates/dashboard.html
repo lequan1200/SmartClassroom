@@ -32,28 +32,30 @@
                 <span class="nav-text">Danh sách phòng</span>
                 <span class="nav-tag" id="rooms-online-count-badge" style="background: rgba(16,185,129,0.15); color: var(--success); font-weight:700;">--</span>
             </a>
-            <a href="#dashboard" class="nav-item" data-tab="dashboard" id="nav-dashboard">
+            <a href="#dashboard" class="nav-item disabled" data-tab="dashboard" id="nav-dashboard" title="Chưa chọn phòng học. Vui lòng chọn 1 phòng trong danh sách trước.">
                 <span class="nav-icon">▦</span>
                 <span class="nav-text">Dashboard</span>
-                <span class="nav-tag live">LIVE</span>
+                <span class="nav-tag locked" id="nav-dashboard-tag">🔒 Khóa</span>
             </a>
-            <a href="#rfid" class="nav-item" data-tab="rfid" id="nav-rfid">
+            <a href="#rfid" class="nav-item disabled" data-tab="rfid" id="nav-rfid" title="Chưa chọn phòng học. Vui lòng chọn 1 phòng trong danh sách trước.">
                 <span class="nav-icon">🪪</span>
                 <span class="nav-text">Nhật ký RFID</span>
-                <span class="nav-tag rfid">RFID</span>
+                <span class="nav-tag locked" id="nav-rfid-tag">🔒 Khóa</span>
             </a>
         </nav>
 
-        <div class="sidebar-room-card">
+        <div class="sidebar-room-card" id="sidebar-room-card">
             <div class="sidebar-room-title">
-                <span>📍 PHÒNG HỌC HIỆN TẠI</span>
+                <span>📍 PHÒNG ĐANG CHỌN</span>
             </div>
-            <div class="sidebar-select-wrapper">
-                <select id="room-select">
-                    <option value="">Đang tải phòng...</option>
-                </select>
+            <div id="sidebar-current-room">
+                <div class="unselected-box">
+                    <div style="font-size: 12px; font-weight: 700; color: var(--text-dim); display: flex; align-items: center; gap: 6px;">
+                        <span style="color: var(--text-muted);">○</span> Chưa chọn phòng
+                    </div>
+                    <p class="unselected-hint">Chọn 1 phòng trong danh sách để mở Dashboard và Điểm danh RFID.</p>
+                </div>
             </div>
-            <div class="sidebar-room-quick-list" id="sidebar-room-list"></div>
         </div>
 
         <div class="sidebar-bottom">
@@ -105,24 +107,13 @@
             <!-- Multi-room switcher bar (Chỉ hiện khi ở Dashboard / RFID) -->
             <div class="multi-room-bar" id="multi-room-bar" style="display: none;">
                 <div class="multi-room-bar-left">
-                    <button type="button" class="btn-back-rooms" onclick="switchView('rooms')" title="Quay lại danh sách các phòng">
-                        <span>←</span> Danh sách phòng
+                    <button type="button" class="btn-back-rooms" onclick="exitRoomToPortal()" title="Quay lại danh sách các phòng để chọn phòng khác">
+                        <span>←</span> Đổi phòng khác
                     </button>
-                    <span class="multi-room-bar-label" style="margin-left: 4px;">
-                        <span>🏛️</span> PHÒNG:
+                    <span class="multi-room-bar-label" style="margin-left: 6px;">
+                        <span>🏛️</span> ĐANG QUẢN LÝ:
                     </span>
-                    <div class="room-tabs-container" id="room-pills-container">
-                        <button type="button" class="room-tab-pill active">
-                            <span class="room-pill-dot"></span>
-                            <span>Đang tải danh sách phòng...</span>
-                        </button>
-                    </div>
-                </div>
-                <div class="multi-room-bar-right" style="display: flex; align-items: center; gap: 8px;">
-                    <span style="font-size: 11px; color: var(--text-muted); font-weight: 700;">CHUYỂN NHANH:</span>
-                    <select id="quick-room-select" class="custom-select" style="min-width: 150px; padding: 6px 12px; font-size: 11px;" onchange="handleQuickSelectRoom(this.value)">
-                        <option value="">Đang tải...</option>
-                    </select>
+                    <span id="multi-room-current-name" style="font-size: 13px; font-weight: 700; color: var(--primary); padding: 4px 10px; background: rgba(37,99,235,0.08); border: 1px solid rgba(37,99,235,0.18); border-radius: 8px;">--</span>
                 </div>
             </div>
 
@@ -180,7 +171,7 @@
                             <span>Các tính năng điều khiển thiết bị tạm thời bị khóa. Vui lòng kiểm tra thiết bị phần cứng tại phòng.</span>
                         </div>
                     </div>
-                    <button class="btn btn-sm btn-secondary" onclick="switchView('rooms')">← Chọn phòng khác</button>
+                    <button class="btn btn-sm btn-secondary" onclick="exitRoomToPortal()">← Đổi phòng khác</button>
                 </div>
 
                 <section class="room-hero-card">
