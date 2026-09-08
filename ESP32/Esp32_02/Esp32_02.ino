@@ -170,6 +170,7 @@ String topicSetWildcard;        // classroom/room01/device/+/set
 String topicAttendance;         // classroom/room01/attendance
 String topicAttendanceFeedback; // classroom/room01/attendance/feedback
 String topicAlert;              // classroom/room01/alert
+String topicStatus;             // classroom/room01/status  (LWT + Online announce)
 
 // =====================================================
 // 11. THOI GIAN
@@ -557,11 +558,20 @@ void ketNoiMQTT() {
   mqtt.setCallback(xuLyMQTT);
 
   String clientID = String("ESP32_") + ROOM_ID;
+  String willTopic = topicStatus;
+  String willMsg   = "OFFLINE";
 
   Serial.println("[MQTT] Dang ket noi...");
 
-  if (mqtt.connect(clientID.c_str())) {
+  // Ket noi voi Last Will & Testament: Broker tu dong gui 'OFFLINE' khi mat ket noi
+  if (mqtt.connect(clientID.c_str(),
+                   NULL, NULL,
+                   willTopic.c_str(), 1, true, willMsg.c_str())) {
     Serial.println("[MQTT] KET NOI THANH CONG!");
+
+    // Bao hieu phong dang ONLINE (retained, QoS 1)
+    mqtt.publish(topicStatus.c_str(), "ONLINE", true);
+
     mqtt.subscribe(topicSetWildcard.c_str());
     mqtt.subscribe(topicAttendanceFeedback.c_str());
 
@@ -804,7 +814,8 @@ void setup() {
   topicAttendance = "classroom/" + String(ROOM_ID) + "/attendance";
   topicAttendanceFeedback =
       "classroom/" + String(ROOM_ID) + "/attendance/feedback";
-  topicAlert = "classroom/" + String(ROOM_ID) + "/alert";
+  topicAlert  = "classroom/" + String(ROOM_ID) + "/alert";
+  topicStatus = "classroom/" + String(ROOM_ID) + "/status";
 
   // ---- WIFI ----
   WiFi.mode(WIFI_STA);

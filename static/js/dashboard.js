@@ -972,10 +972,51 @@ if (mobileBtn) {
 // ============================================================
 // AUTO-REFRESH
 // ============================================================
+
+/**
+ * Đồng bộ trạng thái phòng hiện tại lên UI dashboard mỗi chu kỳ làm mới.
+ * Cập nhật badge, banner offline, và khoá/mở khoá nút điều khiển.
+ */
+function updateCurrentRoomStatus() {
+    if (!currentRoom) return;
+
+    const curObj = allRooms.find(r => r.room_id === currentRoom);
+    const isOnline = curObj ? Boolean(curObj.is_online) : false;
+
+    // --- Badge trạng thái phòng ---
+    const statusBadge = $("room-status-badge");
+    if (statusBadge) {
+        if (isOnline) {
+            statusBadge.textContent = "● ONLINE";
+            statusBadge.className = "meta-chip active-chip";
+            statusBadge.removeAttribute("style");
+        } else {
+            statusBadge.textContent = "○ OFFLINE";
+            statusBadge.className = "meta-chip";
+            statusBadge.style.background = "#f1f5f9";
+            statusBadge.style.color = "#64748b";
+            statusBadge.style.borderColor = "#cbd5e1";
+        }
+    }
+
+    // --- Biểu ngữ cảnh báo Offline ---
+    const banner = $("room-offline-banner");
+    if (banner) banner.style.display = isOnline ? "none" : "flex";
+
+    // --- Khoá/mở khoá nút điều khiển thiết bị & chế độ ---
+    document.querySelectorAll(".device-control-btn, .mode-btn, [data-device-btn]").forEach(btn => {
+        btn.disabled = !isOnline;
+        btn.title = isOnline ? "" : "Phòng đang Offline - không thể điều khiển";
+    });
+}
+
 function startAutoRefresh() {
     setInterval(async () => {
         await loadRooms();
         if (currentTab === "dashboard" && currentRoom) {
+            // Luôn đồng bộ trạng thái phòng hiện tại dù online hay offline
+            updateCurrentRoomStatus();
+
             const curObj = allRooms.find(r => r.room_id === currentRoom);
             if (curObj && curObj.is_online) {
                 await loadSensors();

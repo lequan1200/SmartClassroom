@@ -1,4 +1,5 @@
 import json
+import time
 from datetime import datetime
 
 import paho.mqtt.client as mqtt
@@ -14,15 +15,44 @@ MQTT_BROKER = "127.0.0.1"
 MQTT_PORT = 1883
 MQTT_TOPIC = "classroom/#"
 
-trang_thai_phong = {}
+# Ngưỡng timeout: nếu không nhận được bản tin thực (non-retained) trong khoảng
+# này thì phòng bị coi là OFFLINE. ESP32 gửi cảm biến mỗi 2 giây,
+# 10 giây tương đương 5 chu kỳ bỏ lỡ - đủ để hấp thụ dao động mạng ngắn.
+TIMEOUT_PHONG_ONLINE = 10  # giây
+
+trang_thai_phong = {}          # room_id -> "ONLINE" | "OFFLINE"
+thoi_gian_nhan_tin_cuoi = {}   # room_id -> float (Unix timestamp)
+
+
+def _danh_dau_online(room_id):
+    """Cập nhật trạng thái ONLINE và ghi nhận thời điểm nhận bản tin thực."""
+    trang_thai_phong[room_id] = "ONLINE"
+    thoi_gian_nhan_tin_cuoi[room_id] = time.monotonic()
 
 
 def lay_trang_thai_phong(room_id):
-    return trang_thai_phong.get(room_id, "OFFLINE")
+    """Trả về 'ONLINE' nếu phòng gửi bản tin trong TIMEOUT_PHONG_ONLINE giây gần nhất,
+    hoặc 'OFFLINE' nếu quá hạn / chưa từng nhận bản tin nào."""
+    # Trường hợp phòng đã bị đánh dấu OFFLINE tường minh (qua LWT hoặc status topic)
+    if trang_thai_phong.get(room_id) == "OFFLINE":
+        return "OFFLINE"
+
+    last_seen = thoi_gian_nhan_tin_cuoi.get(room_id)
+    if last_seen is None:
+        return "OFFLINE"
+
+    if time.monotonic() - last_seen <= TIMEOUT_PHONG_ONLINE:
+        return "ONLINE"
+
+    # Quá ngưỡng - tự động chuyển sang OFFLINE và ghi log
+    if trang_thai_phong.get(room_id) == "ONLINE":
+        trang_thai_phong[room_id] = "OFFLINE"
+        print(f"ROOM TIMEOUT: {room_id} -> OFFLINE (khong nhan ban tin trong {TIMEOUT_PHONG_ONLINE}s)")
+    return "OFFLINE"
 
 
 def lay_tat_ca_trang_thai_phong():
-    return trang_thai_phong.copy()
+    return {rid: lay_trang_thai_phong(rid) for rid in set(trang_thai_phong) | set(thoi_gian_nhan_tin_cuoi)}
 
 
 def phan_tich_topic(topic):
@@ -67,27 +97,48 @@ def khi_ngat_ket_noi(client, userdata, disconnect_flags, reason_code, properties
     print(f"MQTT DISCONNECTED: {reason_code}")
 
 
-def xu_ly_status(room_id, payload):
-    status_str = str(payload).strip().strip('"\'').upper()
+def xu_ly_status(room_id, payload, is_retained=False):
+    """Xử lý bản tin classroom/{room_id}/status.
+
+    Bản tin ONLINE cập nhật last_seen, bản tin OFFLINE đánh dấu ngay.
+    Bản tin retained OFFLINE từ LWT cũng được chấp nhận để xử lý đúng khi
+    ESP32 mất kết nối đột ngột.
+    """
+    status_str = str(payload).strip().strip('"\'\'').upper()
+
     if status_str in ["ONLINE", "1", "TRUE"]:
-        trang_thai_phong[room_id] = "ONLINE"
+        if is_retained:
+            # Bản tin ONLINE cũ từ broker khi vừa khởi động server.
+            # Không thể xác nhận thiết bị còn sống - bỏ qua cập nhật last_seen.
+            print(f"ROOM STATUS RETAINED SKIP: {room_id} -> ONLINE (retained, bo qua)")
+            return
+        _danh_dau_online(room_id)
         print(f"ROOM STATUS: {room_id} -> ONLINE")
         return
-    elif status_str in ["OFFLINE", "0", "FALSE"]:
+
+    if status_str in ["OFFLINE", "0", "FALSE"]:
+        # OFFLINE luôn được xử lý dù là retained (LWT) hay thời gian thực.
         trang_thai_phong[room_id] = "OFFLINE"
-        print(f"ROOM STATUS: {room_id} -> OFFLINE")
+        # Xóa last_seen để tránh hiểu nhầm khi thiết bị kết nối lại sau
+        thoi_gian_nhan_tin_cuoi.pop(room_id, None)
+        print(f"ROOM STATUS: {room_id} -> OFFLINE{'(LWT retained)' if is_retained else ''}")
         return
 
+    # Thử parse JSON
     try:
         data = json.loads(payload)
         if isinstance(data, dict):
             val = str(data.get("status") or data.get("state") or "").strip().upper()
             if val in ["ONLINE", "1", "TRUE"]:
-                trang_thai_phong[room_id] = "ONLINE"
-                print(f"ROOM STATUS (JSON): {room_id} -> ONLINE")
+                if not is_retained:
+                    _danh_dau_online(room_id)
+                    print(f"ROOM STATUS (JSON): {room_id} -> ONLINE")
+                else:
+                    print(f"ROOM STATUS (JSON) RETAINED SKIP: {room_id} -> ONLINE")
                 return
-            elif val in ["OFFLINE", "0", "FALSE"]:
+            if val in ["OFFLINE", "0", "FALSE"]:
                 trang_thai_phong[room_id] = "OFFLINE"
+                thoi_gian_nhan_tin_cuoi.pop(room_id, None)
                 print(f"ROOM STATUS (JSON): {room_id} -> OFFLINE")
                 return
     except Exception:
@@ -98,6 +149,8 @@ def xu_ly_status(room_id, payload):
 
 def khi_nhan_message(client, userdata, message):
     topic = message.topic
+    is_retained = bool(message.retain)
+
     try:
         payload = message.payload.decode("utf-8")
     except UnicodeDecodeError:
@@ -105,7 +158,8 @@ def khi_nhan_message(client, userdata, message):
         return
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"\n========== MQTT RX ==========\nTopic: {topic}\nPayload: {payload}\nTIME: {timestamp}\n=============================")
+    retain_tag = " [RETAINED]" if is_retained else ""
+    print(f"\n========== MQTT RX ==========\nTopic: {topic}{retain_tag}\nPayload: {payload}\nTIME: {timestamp}\n=============================")
 
     thong_tin = phan_tich_topic(topic)
     if thong_tin is None:
@@ -116,11 +170,17 @@ def khi_nhan_message(client, userdata, message):
     loai = thong_tin["loai"]
 
     if loai == "status":
-        xu_ly_status(room_id, payload)
+        xu_ly_status(room_id, payload, is_retained=is_retained)
         return
 
-    # Mọi bản tin cảm biến, thiết bị, điểm danh từ phòng đều xác nhận phòng đang ONLINE
-    trang_thai_phong[room_id] = "ONLINE"
+    # Bản tin retained từ broker (device status, mode status, alert...) KHÔNG được
+    # dùng để cập nhật last_seen vì không chứng minh thiết bị đang hoạt động.
+    if is_retained:
+        print(f"RETAINED MSG SKIP last_seen update: {topic}")
+        return
+
+    # Bản tin thời gian thực từ phòng -> xác nhận thiết bị đang ONLINE
+    _danh_dau_online(room_id)
 
     try:
         data = json.loads(payload)

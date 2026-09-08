@@ -1,7 +1,7 @@
 -- --------------------------------------------------------
--- Máy chủ:                      10.101.165.225
--- Phiên bản máy chủ:            10.11.18-MariaDB-0+deb12u1 - Debian 12
--- HĐH máy chủ:                  debian-linux-gnu
+-- Máy chủ:                      127.0.0.1
+-- Phiên bản máy chủ:            12.3.3-MariaDB - MariaDB Server
+-- HĐH máy chủ:                  Win64
 -- HeidiSQL Phiên bản:           12.20.0.7320
 -- --------------------------------------------------------
 
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS `attendance_logs` (
   CONSTRAINT `fk_att_student` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=83 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.attendance_logs: ~73 rows (xấp xỉ)
+-- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.attendance_logs: ~82 rows (xấp xỉ)
 DELETE FROM `attendance_logs`;
 INSERT INTO `attendance_logs` (`id`, `room_id`, `student_id`, `card_uid`, `event_type`, `status`, `recorded_at`) VALUES
 	(1, 1, NULL, 'E70A1605', 'CHECK_IN', 'DI_MUON', '2026-09-06 15:32:49'),
@@ -121,6 +121,7 @@ INSERT INTO `attendance_logs` (`id`, `room_id`, `student_id`, `card_uid`, `event
 	(80, 2, 5, 'DED8A700', 'CHECK_IN', 'DI_MUON', '2026-09-07 15:59:07'),
 	(81, 2, 7, 'E70A1605', 'CHECK_IN', 'DI_MUON', '2026-09-07 17:25:00'),
 	(82, 2, 5, 'DED8A700', 'CHECK_IN', 'DI_MUON', '2026-09-07 17:28:23');
+
 -- Đang kết xuất đổ cấu trúc cho bảng smartclassroom.device_current
 CREATE TABLE IF NOT EXISTS `device_current` (
   `device_id` int(11) NOT NULL,
@@ -153,7 +154,7 @@ CREATE TABLE IF NOT EXISTS `device_logs` (
   CONSTRAINT `device_logs_ibfk_1` FOREIGN KEY (`device_id`) REFERENCES `devices` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=651 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.device_logs: ~638 rows (xấp xỉ)
+-- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.device_logs: ~649 rows (xấp xỉ)
 DELETE FROM `device_logs`;
 INSERT INTO `device_logs` (`id`, `device_id`, `action`, `recorded_at`) VALUES
 	(1, 1, 'ON', '2026-09-05 09:41:17'),
@@ -846,6 +847,7 @@ DELETE FROM `rooms`;
 INSERT INTO `rooms` (`id`, `room_id`, `name`, `created_at`, `control_mode`) VALUES
 	(1, 'room01', 'Phòng học 01', '2026-09-01 03:27:46', 'MANUAL'),
 	(2, 'room02', 'Phòng học 02', '2026-09-06 14:40:00', 'MANUAL');
+
 -- Đang kết xuất đổ cấu trúc cho bảng smartclassroom.sensor_current
 CREATE TABLE IF NOT EXISTS `sensor_current` (
   `sensor_id` int(11) NOT NULL,
@@ -882,7 +884,7 @@ CREATE TABLE IF NOT EXISTS `sensor_data` (
   CONSTRAINT `sensor_data_ibfk_1` FOREIGN KEY (`sensor_id`) REFERENCES `sensors` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=56475 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.sensor_data: ~44.488 rows (xấp xỉ)
+-- Đang kết xuất đổ dữ liệu cho bảng smartclassroom.sensor_data: ~47.613 rows (xấp xỉ)
 DELETE FROM `sensor_data`;
 INSERT INTO `sensor_data` (`id`, `sensor_id`, `value`, `recorded_at`) VALUES
 	(1, 1, 28.5, '2026-09-01 10:33:44'),
@@ -48387,3 +48389,9 @@ DELETE FROM `students`;
 INSERT INTO `students` (`id`, `student_code`, `full_name`, `card_uid`, `class_name`, `email`, `phone`, `created_at`) VALUES
 	(5, '001', 'Quan', 'DED8A700', 'DED8A700', NULL, NULL, '2026-09-06 09:16:37'),
 	(7, '002', 'Quang', 'E70A1605', 'E70A1605', NULL, NULL, '2026-09-06 09:17:43');
+
+/*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
+/*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;
+/*!40014 SET FOREIGN_KEY_CHECKS=IFNULL(@OLD_FOREIGN_KEY_CHECKS, 1) */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40111 SET SQL_NOTES=IFNULL(@OLD_SQL_NOTES, 1) */;
