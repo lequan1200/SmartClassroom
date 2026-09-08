@@ -610,18 +610,51 @@ function updateDevice(deviceName, state) {
     const stateEl = $(`${deviceName}-state`);
     const textEl = $(`${deviceName}-text`);
     const card = $(`device-card-${deviceName}`);
+    const toggleBtn = $(`toggle-${deviceName}`);
     if (!stateEl || !textEl) return;
 
     if (normalized === "ON") {
         stateEl.textContent = "ON"; stateEl.className = "device-status-badge on";
         textEl.textContent = "Đang bật"; textEl.style.color = "var(--success)";
         if (card) card.classList.add("device-on");
+        if (toggleBtn) {
+            toggleBtn.classList.add("is-on");
+            toggleBtn.classList.remove("is-off");
+            toggleBtn.setAttribute("aria-checked", "true");
+        }
     } else {
         stateEl.textContent = "OFF"; stateEl.className = "device-status-badge";
         textEl.textContent = "Đang tắt"; textEl.style.color = "var(--text-dim)";
         if (card) card.classList.remove("device-on");
+        if (toggleBtn) {
+            toggleBtn.classList.remove("is-on");
+            toggleBtn.classList.add("is-off");
+            toggleBtn.setAttribute("aria-checked", "false");
+        }
     }
 }
+
+function toggleDevice(deviceName) {
+    const toggleBtn = $(`toggle-${deviceName}`);
+    const isCurrentlyOn = toggleBtn ? toggleBtn.classList.contains("is-on") : false;
+    const nextCommand = isCurrentlyOn ? "OFF" : "ON";
+
+    // Phản hồi giao diện tức thời (Optimistic UI)
+    if (toggleBtn) {
+        if (nextCommand === "ON") {
+            toggleBtn.classList.add("is-on");
+            toggleBtn.classList.remove("is-off");
+            toggleBtn.setAttribute("aria-checked", "true");
+        } else {
+            toggleBtn.classList.remove("is-on");
+            toggleBtn.classList.add("is-off");
+            toggleBtn.setAttribute("aria-checked", "false");
+        }
+    }
+
+    sendCommand(deviceName, nextCommand);
+}
+window.toggleDevice = toggleDevice;
 
 async function sendCommand(deviceName, command) {
     if (!currentRoom) { showToast("Lỗi", "Chưa chọn phòng học", false); return; }
@@ -1552,7 +1585,7 @@ function updateCurrentRoomStatus() {
     if (banner) banner.style.display = isOnline ? "none" : "flex";
 
     // --- Khoá/mở khoá nút điều khiển thiết bị & chế độ ---
-    document.querySelectorAll(".device-control-btn, .mode-btn, [data-device-btn]").forEach(btn => {
+    document.querySelectorAll(".device-control-btn, .mode-btn, [data-device-btn], .device-pill-toggle").forEach(btn => {
         btn.disabled = !isOnline;
         btn.title = isOnline ? "" : "Phòng đang Offline - không thể điều khiển";
     });

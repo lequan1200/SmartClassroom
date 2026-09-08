@@ -426,9 +426,14 @@
                                     <span>Trạng thái</span>
                                     <strong id="light1-text">Đang tắt</strong>
                                 </div>
-                                <div class="device-button-group">
-                                    <button class="btn-device btn-turn-on" onclick="sendCommand('light1', 'ON')">BẬT</button>
-                                    <button class="btn-device btn-turn-off" onclick="sendCommand('light1', 'OFF')">TẮT</button>
+                                <div class="device-control-switch-wrap">
+                                    <button type="button" class="device-pill-toggle is-off" id="toggle-light1" onclick="toggleDevice('light1')" role="switch" aria-checked="false" title="Bấm để bật hoặc tắt Đèn Chiếu Sáng 1">
+                                        <span class="toggle-pill-track">
+                                            <span class="toggle-text-on">ON</span>
+                                            <span class="toggle-circle-thumb"></span>
+                                            <span class="toggle-text-off">OFF</span>
+                                        </span>
+                                    </button>
                                 </div>
                             </div>
                         </article>
@@ -447,9 +452,14 @@
                                     <span>Trạng thái</span>
                                     <strong id="light2-text">Đang tắt</strong>
                                 </div>
-                                <div class="device-button-group">
-                                    <button class="btn-device btn-turn-on" onclick="sendCommand('light2', 'ON')">BẬT</button>
-                                    <button class="btn-device btn-turn-off" onclick="sendCommand('light2', 'OFF')">TẮT</button>
+                                <div class="device-control-switch-wrap">
+                                    <button type="button" class="device-pill-toggle is-off" id="toggle-light2" onclick="toggleDevice('light2')" role="switch" aria-checked="false" title="Bấm để bật hoặc tắt Đèn Chiếu Sáng 2">
+                                        <span class="toggle-pill-track">
+                                            <span class="toggle-text-on">ON</span>
+                                            <span class="toggle-circle-thumb"></span>
+                                            <span class="toggle-text-off">OFF</span>
+                                        </span>
+                                    </button>
                                 </div>
                             </div>
                         </article>
@@ -468,9 +478,14 @@
                                     <span>Trạng thái</span>
                                     <strong id="fan-text">Đang tắt</strong>
                                 </div>
-                                <div class="device-button-group">
-                                    <button class="btn-device btn-turn-on" onclick="sendCommand('fan', 'ON')">BẬT</button>
-                                    <button class="btn-device btn-turn-off" onclick="sendCommand('fan', 'OFF')">TẮT</button>
+                                <div class="device-control-switch-wrap">
+                                    <button type="button" class="device-pill-toggle is-off" id="toggle-fan" onclick="toggleDevice('fan')" role="switch" aria-checked="false" title="Bấm để bật hoặc tắt Quạt Làm Mát">
+                                        <span class="toggle-pill-track">
+                                            <span class="toggle-text-on">ON</span>
+                                            <span class="toggle-circle-thumb"></span>
+                                            <span class="toggle-text-off">OFF</span>
+                                        </span>
+                                    </button>
                                 </div>
                             </div>
                         </article>
@@ -489,9 +504,14 @@
                                     <span>Trạng thái</span>
                                     <strong id="ac-text">Đang tắt</strong>
                                 </div>
-                                <div class="device-button-group">
-                                    <button class="btn-device btn-turn-on" onclick="sendCommand('ac', 'ON')">BẬT</button>
-                                    <button class="btn-device btn-turn-off" onclick="sendCommand('ac', 'OFF')">TẮT</button>
+                                <div class="device-control-switch-wrap">
+                                    <button type="button" class="device-pill-toggle is-off" id="toggle-ac" onclick="toggleDevice('ac')" role="switch" aria-checked="false" title="Bấm để bật hoặc tắt Máy Điều Hòa">
+                                        <span class="toggle-pill-track">
+                                            <span class="toggle-text-on">ON</span>
+                                            <span class="toggle-circle-thumb"></span>
+                                            <span class="toggle-text-off">OFF</span>
+                                        </span>
+                                    </button>
                                 </div>
                             </div>
                         </article>
