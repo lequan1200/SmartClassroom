@@ -216,7 +216,7 @@ def xu_ly_device(thong_tin, data):
         print(f"DEVICE NOT FOUND: {room_id}/{device_name}")
         return
 
-    if not cap_nhat_device_current(device_id, state):
+    if not cap_nhat_device_current(device_id, state): 
         print("DEVICE CURRENT ERROR")
         return
 
