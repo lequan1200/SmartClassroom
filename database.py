@@ -643,6 +643,36 @@ def lay_hoc_vien_cua_lop(class_id):
         print(f"DB ERROR lay_hoc_vien_cua_lop: {e}"); conn.close(); return None
 
 
+_teacher_col_checked = False
+
+
+def _ensure_teacher_columns(conn):
+    global _teacher_col_checked
+    if _teacher_col_checked or not conn:
+        return
+    try:
+        cur = conn.cursor()
+        cur.execute("SHOW COLUMNS FROM schedules LIKE 'teacher_name'")
+        if not cur.fetchone():
+            try:
+                cur.execute("ALTER TABLE schedules ADD COLUMN teacher_name VARCHAR(100) DEFAULT NULL AFTER subject_id")
+                conn.commit()
+            except Exception as e:
+                print(f"Auto-migration note (schedules): {e}")
+
+        cur.execute("SHOW COLUMNS FROM class_sessions LIKE 'teacher_name'")
+        if not cur.fetchone():
+            try:
+                cur.execute("ALTER TABLE class_sessions ADD COLUMN teacher_name VARCHAR(100) DEFAULT NULL AFTER subject_id")
+                conn.commit()
+            except Exception as e:
+                print(f"Auto-migration note (class_sessions): {e}")
+        cur.close()
+        _teacher_col_checked = True
+    except Exception as e:
+        print(f"Auto-migration error: {e}")
+
+
 def _format_time_value(val):
     if val is None:
         return None
@@ -673,6 +703,7 @@ def tao_thoi_khoa_bieu(class_id, subject_id, room_id, weekday, start_time, end_t
     conn = ket_noi()
     if not conn:
         return None
+    _ensure_teacher_columns(conn)
     try:
         cur = conn.cursor()
 
@@ -716,12 +747,27 @@ def tao_thoi_khoa_bieu(class_id, subject_id, room_id, weekday, start_time, end_t
         if not active_from:
             active_from = date.today().isoformat()
 
-        cur.execute("""INSERT INTO schedules
-                       (class_id, subject_id, teacher_name, room_id, weekday, start_time, end_time,
-                        checkin_open_minutes, late_after_minutes, active_from, active_to)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (class_id, subject_id, teacher_name, room_id, weekday, start_time, end_time,
-                     checkin_open_minutes, late_after_minutes, active_from, active_to))
+        has_teacher = False
+        try:
+            cur.execute("SHOW COLUMNS FROM schedules LIKE 'teacher_name'")
+            has_teacher = cur.fetchone() is not None
+        except Exception:
+            has_teacher = False
+
+        if has_teacher:
+            cur.execute("""INSERT INTO schedules
+                           (class_id, subject_id, teacher_name, room_id, weekday, start_time, end_time,
+                            checkin_open_minutes, late_after_minutes, active_from, active_to)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (class_id, subject_id, teacher_name, room_id, weekday, start_time, end_time,
+                         checkin_open_minutes, late_after_minutes, active_from, active_to))
+        else:
+            cur.execute("""INSERT INTO schedules
+                           (class_id, subject_id, room_id, weekday, start_time, end_time,
+                            checkin_open_minutes, late_after_minutes, active_from, active_to)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (class_id, subject_id, room_id, weekday, start_time, end_time,
+                         checkin_open_minutes, late_after_minutes, active_from, active_to))
         conn.commit(); result = cur.lastrowid
         cur.close(); conn.close(); return result
     except mariadb.Error as e:
@@ -749,10 +795,20 @@ def lay_thoi_khoa_bieu(class_id=None, room_id=None):
     conn = ket_noi()
     if not conn:
         return None
+    _ensure_teacher_columns(conn)
     try:
         cur = conn.cursor()
-        query = """SELECT s.id, s.class_id, c.class_code, s.subject_id, sub.subject_name,
-                   s.teacher_name, r.room_id, s.weekday, s.start_time, s.end_time,
+        has_teacher = False
+        try:
+            cur.execute("SHOW COLUMNS FROM schedules LIKE 'teacher_name'")
+            has_teacher = cur.fetchone() is not None
+        except Exception:
+            has_teacher = False
+
+        teacher_expr = "s.teacher_name" if has_teacher else "NULL AS teacher_name"
+
+        query = f"""SELECT s.id, s.class_id, c.class_code, s.subject_id, sub.subject_name,
+                   {teacher_expr}, r.room_id, s.weekday, s.start_time, s.end_time,
                    s.checkin_open_minutes, s.late_after_minutes, s.active_from, s.active_to, s.is_active
                    FROM schedules s JOIN classes c ON c.id=s.class_id
                    JOIN subjects sub ON sub.id=s.subject_id JOIN rooms r ON r.id=s.room_id"""
@@ -783,7 +839,9 @@ def lay_thoi_khoa_bieu(class_id=None, room_id=None):
             row["late_threshold_minutes"] = row["late_after_minutes"]
         cur.close(); conn.close(); return rows
     except mariadb.Error as e:
-        print(f"DB ERROR lay_thoi_khoa_bieu: {e}"); conn.close(); return None
+        print(f"DB ERROR lay_thoi_khoa_bieu: {e}")
+        conn.close()
+        return None
 
 
 def _to_datetime_combine(d, t_val):
@@ -803,10 +861,27 @@ def lay_hoac_tao_buoi_hoc_hien_tai(room_code, moment=None):
     conn = ket_noi()
     if not conn:
         return None
+    _ensure_teacher_columns(conn)
     try:
         cur = conn.cursor()
-        cur.execute("""SELECT s.id, s.class_id, s.subject_id, s.room_id, s.start_time, s.end_time,
-                       s.checkin_open_minutes, s.late_after_minutes, s.teacher_name
+        has_teacher_sched = False
+        try:
+            cur.execute("SHOW COLUMNS FROM schedules LIKE 'teacher_name'")
+            has_teacher_sched = cur.fetchone() is not None
+        except Exception:
+            has_teacher_sched = False
+
+        has_teacher_sess = False
+        try:
+            cur.execute("SHOW COLUMNS FROM class_sessions LIKE 'teacher_name'")
+            has_teacher_sess = cur.fetchone() is not None
+        except Exception:
+            has_teacher_sess = False
+
+        teacher_col_sched = ", s.teacher_name" if has_teacher_sched else ", NULL AS teacher_name"
+
+        cur.execute(f"""SELECT s.id, s.class_id, s.subject_id, s.room_id, s.start_time, s.end_time,
+                       s.checkin_open_minutes, s.late_after_minutes{teacher_col_sched}
                        FROM schedules s JOIN rooms r ON r.id=s.room_id
                        WHERE r.room_id=? AND s.weekday=? AND s.is_active=1
                          AND s.active_from <= ? AND (s.active_to IS NULL OR s.active_to >= ?)""",
@@ -821,7 +896,7 @@ def lay_hoac_tao_buoi_hoc_hien_tai(room_code, moment=None):
         if not schedule:
             cur.close(); conn.close(); return None
         schedule_id, class_id, subject_id, room_id, start_time, end_time, open_minutes, late_minutes, teacher_name = schedule
-        cur.execute("SELECT id, starts_at, ends_at, checkin_opens_at, late_after_at, status, teacher_name FROM class_sessions WHERE schedule_id=? AND session_date=?",
+        cur.execute("SELECT id, starts_at, ends_at, checkin_opens_at, late_after_at, status FROM class_sessions WHERE schedule_id=? AND session_date=?",
                     (schedule_id, moment.date()))
         existing = cur.fetchone()
         if existing:
@@ -832,15 +907,26 @@ def lay_hoac_tao_buoi_hoc_hien_tai(room_code, moment=None):
             ends_at = _to_datetime_combine(moment.date(), end_time)
             checkin_opens_at = starts_at - timedelta(minutes=open_minutes)
             late_after_at = starts_at + timedelta(minutes=late_minutes)
-            cur.execute("""INSERT INTO class_sessions
-                           (schedule_id, class_id, subject_id, teacher_name, room_id, session_date, starts_at, ends_at,
-                            checkin_opens_at, late_after_at, status)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN')""",
-                        (schedule_id, class_id, subject_id, teacher_name, room_id, moment.date(), starts_at, ends_at,
-                         checkin_opens_at, late_after_at))
+
+            if has_teacher_sess:
+                cur.execute("""INSERT INTO class_sessions
+                               (schedule_id, class_id, subject_id, teacher_name, room_id, session_date, starts_at, ends_at,
+                                checkin_opens_at, late_after_at, status)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN')""",
+                            (schedule_id, class_id, subject_id, teacher_name, room_id, moment.date(), starts_at, ends_at,
+                             checkin_opens_at, late_after_at))
+            else:
+                cur.execute("""INSERT INTO class_sessions
+                               (schedule_id, class_id, subject_id, room_id, session_date, starts_at, ends_at,
+                                checkin_opens_at, late_after_at, status)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN')""",
+                            (schedule_id, class_id, subject_id, room_id, moment.date(), starts_at, ends_at,
+                             checkin_opens_at, late_after_at))
             conn.commit(); session_id = cur.lastrowid
-        cur.execute("""SELECT cs.id, cs.class_id, cs.late_after_at, c.class_code, sub.subject_name,
-                              cs.starts_at, cs.ends_at, cs.status, cs.teacher_name
+
+        teacher_col_sess = ", cs.teacher_name" if has_teacher_sess else ", NULL AS teacher_name"
+        cur.execute(f"""SELECT cs.id, cs.class_id, cs.late_after_at, c.class_code, sub.subject_name,
+                              cs.starts_at, cs.ends_at, cs.status{teacher_col_sess}
                        FROM class_sessions cs JOIN classes c ON c.id=cs.class_id
                        JOIN subjects sub ON sub.id=cs.subject_id WHERE cs.id=?""", (session_id,))
         row = cur.fetchone(); cur.close(); conn.close()
@@ -854,7 +940,7 @@ def lay_hoac_tao_buoi_hoc_hien_tai(room_code, moment=None):
             "starts_at": row[5],
             "ends_at": row[6],
             "status": row[7],
-            "teacher_name": row[8] or "Chưa phân công",
+            "teacher_name": row[8] or teacher_name or "Chưa phân công",
             "late_after_at_iso": row[2].isoformat() if hasattr(row[2], "isoformat") else str(row[2]) if row[2] else None,
             "starts_at_iso": row[5].isoformat() if hasattr(row[5], "isoformat") else str(row[5]) if row[5] else None,
             "ends_at_iso": row[6].isoformat() if hasattr(row[6], "isoformat") else str(row[6]) if row[6] else None

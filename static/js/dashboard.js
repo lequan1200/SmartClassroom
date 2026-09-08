@@ -1282,7 +1282,16 @@ async function loadRoomSchedule(roomId, isBackground = false) {
 
     try {
         const response = await fetch(`/api/schedules?room_id=${encodeURIComponent(roomId)}`);
-        if (!response.ok) throw new Error("Không thể tải thời khóa biểu");
+        if (!response.ok) {
+            let errText = "Không thể tải thời khóa biểu";
+            try {
+                const errData = await response.json();
+                if (errData && (errData.message || errData.error)) {
+                    errText = errData.message || errData.error;
+                }
+            } catch (_) {}
+            throw new Error(errText);
+        }
         const res = await response.json();
         const schedules = res.data || [];
 
