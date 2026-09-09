@@ -228,7 +228,14 @@ def lay_danh_sach_phong():
         return None
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, room_id, name, created_at, control_mode FROM rooms ORDER BY id")
+        cursor.execute("""
+            SELECT r.id, r.room_id, r.name, r.created_at, r.control_mode,
+                   r.class_id, c.class_code, c.class_name,
+                   (SELECT COUNT(*) FROM students s WHERE s.class_id = r.class_id) AS student_count
+            FROM rooms r
+            LEFT JOIN classes c ON r.class_id = c.id
+            ORDER BY r.id
+        """)
         rows = cursor.fetchall()
         cursor.close()
         conn.close()
@@ -236,7 +243,11 @@ def lay_danh_sach_phong():
             {
                 "id": row[0], "room_id": row[1], "name": row[2],
                 "created_at": row[3].isoformat() if row[3] else None,
-                "control_mode": row[4] if len(row) > 4 and row[4] else "MANUAL"
+                "control_mode": row[4] if len(row) > 4 and row[4] else "MANUAL",
+                "class_id": row[5],
+                "class_code": row[6] or "",
+                "class_name": row[7] or "",
+                "student_count": row[8] or 0
             }
             for row in rows
         ]
@@ -253,7 +264,14 @@ def lay_phong(room_id):
         return None
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, room_id, name, created_at, control_mode FROM rooms WHERE room_id = ?", (room_id,))
+        cursor.execute("""
+            SELECT r.id, r.room_id, r.name, r.created_at, r.control_mode,
+                   r.class_id, c.class_code, c.class_name,
+                   (SELECT COUNT(*) FROM students s WHERE s.class_id = r.class_id) AS student_count
+            FROM rooms r
+            LEFT JOIN classes c ON r.class_id = c.id
+            WHERE r.room_id = ?
+        """, (room_id,))
         row = cursor.fetchone()
         cursor.close()
         conn.close()
@@ -262,12 +280,43 @@ def lay_phong(room_id):
         return {
             "id": row[0], "room_id": row[1], "name": row[2],
             "created_at": row[3].isoformat() if row[3] else None,
-            "control_mode": row[4] if len(row) > 4 and row[4] else "MANUAL"
+            "control_mode": row[4] if len(row) > 4 and row[4] else "MANUAL",
+            "class_id": row[5],
+            "class_code": row[6] or "",
+            "class_name": row[7] or "",
+            "student_count": row[8] or 0
         }
     except mariadb.Error as e:
         print(f"DB ERROR: {e}")
         if conn:
             conn.close()
+        return None
+
+
+def lay_lop_cua_phong(room_id):
+    conn = ket_noi()
+    if not conn:
+        return None
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT c.id, c.class_code, c.class_name, c.academic_year, c.description,
+                   (SELECT COUNT(*) FROM students s WHERE s.class_id = c.id) AS student_count
+            FROM rooms r
+            JOIN classes c ON r.class_id = c.id
+            WHERE r.room_id = ? OR r.id = ?
+        """, (room_id, room_id if isinstance(room_id, int) or (isinstance(room_id, str) and room_id.isdigit()) else -1))
+        row = cur.fetchone()
+        cur.close(); conn.close()
+        if not row:
+            return None
+        return {
+            "id": row[0], "class_code": row[1], "class_name": row[2],
+            "academic_year": row[3], "description": row[4], "student_count": row[5] or 0
+        }
+    except mariadb.Error as e:
+        print(f"DB ERROR lay_lop_cua_phong: {e}")
+        if conn: conn.close()
         return None
 
 
@@ -1000,6 +1049,13 @@ def tao_thoi_khoa_bieu(subject_id, room_id, weekday, start_time, end_time,
 
         if not active_from:
             active_from = date.today().isoformat()
+
+        # Resolve class_id from room if not passed
+        if not class_id and room_id:
+            cur.execute("SELECT class_id FROM rooms WHERE id = ?", (room_id,))
+            c_row = cur.fetchone()
+            if c_row and c_row[0]:
+                class_id = c_row[0]
 
         cur.execute("""INSERT INTO schedules
                        (class_id, subject_id, room_id, weekday, start_time, end_time,

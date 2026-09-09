@@ -116,14 +116,16 @@ function updateRoomAccessState() {
     const navDash = $("nav-dashboard");
     const navRfid = $("nav-rfid");
     const navSchedule = $("nav-schedule");
+    const navClassStudents = $("nav-class-students");
     const dashTag = $("nav-dashboard-tag");
     const rfidTag = $("nav-rfid-tag");
     const scheduleTag = $("nav-schedule-tag");
+    const classStudentsTag = $("nav-class-students-tag") || $("nav-class-students-badge");
     const sidebarRoomBox = $("sidebar-current-room");
     const multiRoomBar = $("multi-room-bar");
 
     if (!currentRoom) {
-        // --- CHƯA CHỌN PHÒNG: KHÓA DASHBOARD, RFID & THỜI KHÓA BIỂU ---
+        // --- CHƯA CHỌN PHÒNG: KHÓA DASHBOARD, RFID, THỜI KHÓA BIỂU & HỌC VIÊN ---
         if (navDash) {
             navDash.classList.add("disabled");
             navDash.setAttribute("title", "Chưa chọn phòng học. Vui lòng chọn 1 phòng trong danh sách trước.");
@@ -135,6 +137,10 @@ function updateRoomAccessState() {
         if (navSchedule) {
             navSchedule.classList.add("disabled");
             navSchedule.setAttribute("title", "Chưa chọn phòng học. Vui lòng chọn 1 phòng trong danh sách trước.");
+        }
+        if (navClassStudents) {
+            navClassStudents.classList.add("disabled");
+            navClassStudents.setAttribute("title", "Chưa chọn phòng học. Vui lòng chọn 1 phòng trong danh sách trước.");
         }
         if (dashTag) {
             dashTag.textContent = "🔒 Khóa";
@@ -148,6 +154,11 @@ function updateRoomAccessState() {
             scheduleTag.textContent = "🔒 Khóa";
             scheduleTag.className = "nav-tag locked";
         }
+        if (classStudentsTag) {
+            classStudentsTag.textContent = "🔒 Khóa";
+            classStudentsTag.className = "nav-tag locked";
+            classStudentsTag.removeAttribute("style");
+        }
 
         if (sidebarRoomBox) {
             sidebarRoomBox.innerHTML = `
@@ -155,7 +166,7 @@ function updateRoomAccessState() {
                     <div style="font-size: 12px; font-weight: 700; color: var(--text-dim); display: flex; align-items: center; gap: 6px;">
                         <span style="color: var(--text-muted);">○</span> Chưa chọn phòng
                     </div>
-                    <p class="unselected-hint">Chọn 1 phòng trong danh sách để mở Dashboard, Điểm danh và Thời khóa biểu.</p>
+                    <p class="unselected-hint">Chọn 1 phòng trong danh sách để mở Dashboard, Điểm danh, Thời khóa biểu và Học viên.</p>
                 </div>
             `;
         }
@@ -164,7 +175,7 @@ function updateRoomAccessState() {
             multiRoomBar.style.display = "none";
         }
     } else {
-        // --- ĐÃ CHỌN PHÒNG: MỞ KHÓA DASHBOARD, RFID & THỜI KHÓA BIỂU ---
+        // --- ĐÃ CHỌN PHÒNG: MỞ KHÓA TOÀN BỘ PHÂN HỆ ---
         if (navDash) {
             navDash.classList.remove("disabled");
             navDash.removeAttribute("title");
@@ -176,6 +187,10 @@ function updateRoomAccessState() {
         if (navSchedule) {
             navSchedule.classList.remove("disabled");
             navSchedule.removeAttribute("title");
+        }
+        if (navClassStudents) {
+            navClassStudents.classList.remove("disabled");
+            navClassStudents.removeAttribute("title");
         }
         if (dashTag) {
             dashTag.textContent = "LIVE";
@@ -193,6 +208,14 @@ function updateRoomAccessState() {
         const r = allRooms.find(x => x.room_id === currentRoom);
         const displayName = r && r.name ? r.name : `Phòng ${currentRoom}`;
         const isOnline = r ? Boolean(r.is_online) : false;
+        const clsCode = r && r.class_code ? r.class_code : "";
+        const clsName = r && r.class_name ? r.class_name : "";
+
+        if (classStudentsTag) {
+            classStudentsTag.textContent = clsCode || "Học viên";
+            classStudentsTag.className = "nav-tag";
+            classStudentsTag.style = "background: rgba(37,99,235,0.15); color: var(--primary); font-weight:700;";
+        }
 
         if (sidebarRoomBox) {
             sidebarRoomBox.innerHTML = `
@@ -201,8 +224,13 @@ function updateRoomAccessState() {
                         <strong style="font-size: 13px; color: var(--text-pure); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 155px;">${escapeHtml(displayName)}</strong>
                         <span class="status-indicator-dot ${isOnline ? 'online' : ''}" style="width: 8px; height: 8px; flex-shrink: 0; background: ${isOnline ? 'var(--success)' : '#94a3b8'};"></span>
                     </div>
-                    <div style="font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center;">
-                        <span>Mã: <strong style="color: var(--primary);">${escapeHtml(currentRoom)}</strong></span>
+                    ${clsCode ? `
+                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 3px; line-height: 1.3;">
+                        Lớp: <strong style="color: var(--primary);">${escapeHtml(clsCode)}</strong> - ${escapeHtml(clsName)}
+                    </div>
+                    ` : ''}
+                    <div style="font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+                        <span>Mã: <strong style="color: var(--text-dim);">${escapeHtml(currentRoom)}</strong></span>
                         <span style="font-weight: 700; color: ${isOnline ? 'var(--success)' : '#64748b'};">${isOnline ? '● Online' : '○ Offline'}</span>
                     </div>
                     <button type="button" class="btn-change-room" onclick="exitRoomToPortal()" title="Quay lại danh sách các phòng để chọn phòng khác">
@@ -213,7 +241,7 @@ function updateRoomAccessState() {
         }
 
         const barChip = $("multi-room-current-name");
-        if (barChip) barChip.textContent = `${displayName} (${currentRoom})`;
+        if (barChip) barChip.textContent = `${displayName} (${currentRoom}) · Lớp: ${clsCode || '--'}`;
 
         const rfidTagEl = $("rfid-active-room-tag");
         if (rfidTagEl) rfidTagEl.textContent = `${displayName} (${currentRoom})`;
@@ -259,100 +287,70 @@ function renderRoomsPortal(rooms) {
         const displayName = room.name || room.room_id;
         const roomId = room.room_id;
         const mode = room.control_mode === "AUTO" ? "TỰ ĐỘNG (AUTO)" : "THỦ CÔNG (MANUAL)";
+        const clsCode = room.class_code || "--";
+        const clsName = room.class_name || "Chưa gán lớp";
+        const studentCount = room.student_count || 0;
 
-        if (isOnline) {
-            return `
-                <div class="room-portal-card online" onclick="selectRoomAndOpenDashboard('${escapeHtml(roomId)}')">
-                    <div class="portal-card-header">
-                        <div class="portal-card-title-group">
-                            <div class="portal-room-icon">🏫</div>
-                            <div>
-                                <h3 class="portal-room-name">${escapeHtml(displayName)}</h3>
-                                <span class="portal-room-id-tag">Mã: ${escapeHtml(roomId)}</span>
-                            </div>
-                        </div>
-                        <span class="portal-status-badge online">
-                            <span class="pulse-dot"></span> ONLINE
-                        </span>
-                    </div>
-                    <div class="portal-card-body">
-                        <div class="portal-info-row">
-                            <span>Chế độ:</span>
-                            <strong>${escapeHtml(mode)}</strong>
-                        </div>
-                        <div class="portal-info-row">
-                            <span>Kết nối thiết bị:</span>
-                            <strong style="color: var(--success);">● Sẵn sàng hoạt động</strong>
-                        </div>
-                        <div class="portal-info-row">
-                            <span>Giao thức:</span>
-                            <strong>MQTT LWT (Kết nối)</strong>
+        return `
+            <div class="room-portal-card ${isOnline ? 'online' : 'offline'}" onclick="selectRoomAndOpenDashboard('${escapeHtml(roomId)}')">
+                <div class="portal-card-header">
+                    <div class="portal-card-title-group">
+                        <div class="portal-room-icon">🏫</div>
+                        <div>
+                            <h3 class="portal-room-name">${escapeHtml(displayName)}</h3>
+                            <span class="portal-room-id-tag">Mã: ${escapeHtml(roomId)}</span>
                         </div>
                     </div>
-                    <button type="button" class="btn-portal-access online" onclick="event.stopPropagation(); selectRoomAndOpenDashboard('${escapeHtml(roomId)}')">
-                        <span>Vào phòng học này</span>
-                        <span>→</span>
-                    </button>
+                    <span class="portal-status-badge ${isOnline ? 'online' : 'offline'}">
+                        <span class="${isOnline ? 'pulse-dot' : 'offline-dot'}"></span> ${isOnline ? 'ONLINE' : 'OFFLINE'}
+                    </span>
                 </div>
-            `;
-        } else {
-            return `
-                <div class="room-portal-card offline" onclick="handleOfflineRoomClick('${escapeHtml(displayName)}', '${escapeHtml(roomId)}')">
-                    <div class="portal-card-header">
-                        <div class="portal-card-title-group">
-                            <div class="portal-room-icon">🏫</div>
-                            <div>
-                                <h3 class="portal-room-name">${escapeHtml(displayName)}</h3>
-                                <span class="portal-room-id-tag">Mã: ${escapeHtml(roomId)}</span>
-                            </div>
-                        </div>
-                        <span class="portal-status-badge offline">
-                            <span class="offline-dot"></span> OFFLINE
-                        </span>
+                <div class="portal-card-body">
+                    <div class="portal-info-row">
+                        <span>🏛️ Lớp học:</span>
+                        <strong style="color: var(--primary);">[${escapeHtml(clsCode)}] ${escapeHtml(clsName)}</strong>
                     </div>
-                    <div class="portal-card-body">
-                        <div class="portal-info-row">
-                            <span>Chế độ:</span>
-                            <strong>--</strong>
-                        </div>
-                        <div class="portal-info-row">
-                            <span>Kết nối thiết bị:</span>
-                            <strong style="color: #64748b;">○ Mất kết nối MQTT</strong>
-                        </div>
-                        <div class="portal-info-row">
-                            <span>Trạng thái:</span>
-                            <strong style="color: #94a3b8;">Không thể truy cập</strong>
-                        </div>
+                    <div class="portal-info-row">
+                        <span>👨‍🎓 Sĩ số lớp:</span>
+                        <strong>${studentCount} Học viên</strong>
                     </div>
-                    <button type="button" class="btn-portal-access offline" disabled onclick="event.stopPropagation(); handleOfflineRoomClick('${escapeHtml(displayName)}', '${escapeHtml(roomId)}')">
-                        <span>🚫 Không thể truy cập (Offline)</span>
-                    </button>
+                    <div class="portal-info-row">
+                        <span>Chế độ phòng:</span>
+                        <strong>${escapeHtml(mode)}</strong>
+                    </div>
+                    <div class="portal-info-row">
+                        <span>Kết nối thiết bị:</span>
+                        <strong style="color: ${isOnline ? 'var(--success)' : '#64748b'};">${isOnline ? '● Sẵn sàng hoạt động' : '○ Mất kết nối MQTT'}</strong>
+                    </div>
                 </div>
-            `;
-        }
+                <button type="button" class="btn-portal-access ${isOnline ? 'online' : 'offline'}" onclick="event.stopPropagation(); selectRoomAndOpenDashboard('${escapeHtml(roomId)}')">
+                    <span>Vào phòng & Quản lý lớp</span>
+                    <span>→</span>
+                </button>
+            </div>
+        `;
     }).join("");
 }
 
 function handleOfflineRoomClick(roomName, roomId) {
-    showToast("Phòng Offline", `Phòng ${roomName || roomId} (${roomId}) hiện đang Offline (Mất kết nối MQTT/ESP32). Không thể truy cập!`, false);
+    showToast("Phòng Offline", `Phòng ${roomName || roomId} (${roomId}) hiện đang Offline thiết bị. Bạn vẫn có thể xem và quản lý học viên / thời khóa biểu.`, true);
 }
 
 /**
  * Chọn một phòng học cụ thể và mở Dashboard giám sát.
- * Chỉ hoạt động khi phòng ở trạng thái ONLINE.
  */
 function selectRoomAndOpenDashboard(roomId) {
     const room = allRooms.find(r => r.room_id === roomId);
     if (!room) return;
-    if (!room.is_online) {
-        handleOfflineRoomClick(room.name || roomId, roomId);
-        return;
-    }
     currentRoom = roomId;
     lastScheduleHash = "";
     updateRoomAccessState();
     switchView("dashboard");
-    showToast("Đã chọn phòng", `Đang quản lý ${room.name || roomId} (${roomId})`, true);
+    if (room.is_online) {
+        showToast("Đã chọn phòng", `Đang quản lý ${room.name || roomId} (${roomId}) - Lớp [${room.class_code || '--'}]`, true);
+    } else {
+        showToast("Đã chọn phòng (Offline)", `Đang quản lý ${room.name || roomId} (${roomId}) - Thiết bị hiện Offline, bạn vẫn có thể quản lý học viên và thời khóa biểu.`, true);
+    }
 }
 
 /**
@@ -867,8 +865,8 @@ function setupTabNavigation() {
             e.preventDefault();
             const targetTab = this.getAttribute("data-tab");
 
-            // Chặn tuyệt đối truy cập Dashboard, Điểm danh & Thời khóa biểu nếu chưa chọn phòng cụ thể
-            if (targetTab === "dashboard" || targetTab === "rfid" || targetTab === "schedule") {
+            // Chặn tuyệt đối truy cập Dashboard, Điểm danh, Thời khóa biểu & Học viên nếu chưa chọn phòng cụ thể
+            if (targetTab === "dashboard" || targetTab === "rfid" || targetTab === "schedule" || targetTab === "class-students") {
                 if (!currentRoom) {
                     showToast("Chưa chọn phòng", "Vui lòng chọn một phòng học cụ thể trong Danh Sách Phòng trước!", false);
                     return;
@@ -902,8 +900,8 @@ function setActiveNav(activeElement) {
 }
 
 function switchView(tabName) {
-    // --- Guard: Dashboard, RFID & Schedule đều yêu cầu phải chọn phòng trước ---
-    if (tabName === "dashboard" || tabName === "rfid" || tabName === "schedule") {
+    // --- Guard: Dashboard, RFID, Schedule & Học viên đều yêu cầu phải chọn phòng trước ---
+    if (tabName === "dashboard" || tabName === "rfid" || tabName === "schedule" || tabName === "class-students") {
         if (!currentRoom) {
             showToast("Chưa chọn phòng", "Vui lòng chọn một phòng học từ danh sách trước!", false);
             tabName = "rooms"; // Bắt buộc quay về danh sách phòng
@@ -956,10 +954,11 @@ function switchView(tabName) {
         loadRoomSchedule(currentRoom, false);
     } else if (tabName === "class-students") {
         if (classStudentsView) classStudentsView.style.display = "block";
-        if (multiRoomBar) multiRoomBar.style.display = "none";
-        if (breadcrumb) breadcrumb.textContent = "HỆ THỐNG / HỌC VIÊN";
-        if (pageTitle) pageTitle.textContent = "Quản Lý Học Viên Theo Lớp";
-        loadClassesForManager();
+        if (multiRoomBar) multiRoomBar.style.display = "flex";
+        const clsCode = r && r.class_code ? r.class_code : "";
+        if (breadcrumb) breadcrumb.textContent = `PHÒNG: ${roomDisplayName.toUpperCase()} (${clsCode}) / HỌC VIÊN`;
+        if (pageTitle) pageTitle.textContent = `Danh Sách Học Viên - ${roomDisplayName}`;
+        loadClassStudentsForCurrentRoom();
     } else {
         if (dashView) dashView.style.display = "block";
         if (multiRoomBar) multiRoomBar.style.display = "flex";
@@ -1641,122 +1640,98 @@ let currentClassId = null;
 let allClassesList = [];
 let currentClassStudents = [];
 
-async function loadClassesForManager() {
-    try {
-        const response = await fetch("/api/classes");
-        if (!response.ok) throw new Error("Không thể tải danh sách lớp");
-        const res = await response.json();
-        allClassesList = res.data || [];
+async function loadClassStudentsForCurrentRoom() {
+    if (!currentRoom) return;
+    const r = allRooms.find(x => x.room_id === currentRoom);
+    const roomName = r && r.name ? r.name : `Phòng ${currentRoom}`;
 
-        // Cập nhật badge số lượng trên sidebar
-        const badge = $("nav-class-students-badge");
-        if (badge) {
-            badge.textContent = `${allClassesList.length} Lớp`;
-        }
-
-        // Điền vào dropdown chọn lớp
-        const select = $("current-class-select");
-        const transferSelect = $("transfer-target-class-select");
-
-        if (select) {
-            if (allClassesList.length === 0) {
-                select.innerHTML = `<option value="">-- Chưa có lớp học nào --</option>`;
-            } else {
-                select.innerHTML = allClassesList.map(c => `
-                    <option value="${c.id}" ${c.id === currentClassId ? 'selected' : ''}>
-                        [${escapeHtml(c.class_code)}] ${escapeHtml(c.class_name)} (${c.student_count || 0} học viên)
-                    </option>
-                `).join("");
-            }
-        }
-
-        // Điền vào dropdown chuyển lớp (loại trừ lớp hiện tại)
-        if (transferSelect) {
-            transferSelect.innerHTML = `<option value="">-- Chọn lớp đích --</option>` +
-                allClassesList.filter(c => c.id !== currentClassId).map(c => `
-                    <option value="${c.id}">[${escapeHtml(c.class_code)}] ${escapeHtml(c.class_name)}</option>
-                `).join("");
-        }
-
-        // Nếu chưa chọn lớp nào, chọn lớp đầu tiên
-        if (!currentClassId && allClassesList.length > 0) {
-            currentClassId = allClassesList[0].id;
-            if (select) select.value = currentClassId;
-        }
-
-        if (currentClassId) {
-            await loadClassStudents(currentClassId);
-        } else {
-            renderEmptyClassStudentsTable("Chưa có lớp học nào. Hãy bấm '+ Tạo lớp mới' để bắt đầu.");
-        }
-    } catch (e) {
-        console.error("LOAD CLASSES ERROR:", e);
-        showToast("Lỗi", "Không thể tải danh sách lớp học", false);
-    }
-}
-
-function onClassSelected(classId) {
-    if (!classId) return;
-    currentClassId = parseInt(classId, 10);
-
-    // Cập nhật lại dropdown chuyển lớp
-    const transferSelect = $("transfer-target-class-select");
-    if (transferSelect) {
-        transferSelect.innerHTML = `<option value="">-- Chọn lớp đích --</option>` +
-            allClassesList.filter(c => c.id !== currentClassId).map(c => `
-                <option value="${c.id}">[${escapeHtml(c.class_code)}] ${escapeHtml(c.class_name)}</option>
-            `).join("");
-    }
-
-    loadClassStudents(currentClassId);
-}
-
-async function loadClassStudents(classId) {
-    if (!classId) return;
     const tbody = $("class-students-table-body");
     if (tbody) {
         tbody.innerHTML = `<tr><td colspan="7" class="table-empty-cell">Đang tải danh sách học viên...</td></tr>`;
     }
 
     try {
-        const [studentsRes, classDetailRes] = await Promise.all([
-            fetch(`/api/classes/${classId}/students`),
-            fetch(`/api/classes/${classId}`)
-        ]);
+        const response = await fetch(`/api/rooms/${encodeURIComponent(currentRoom)}/students`);
+        if (!response.ok) throw new Error("Không thể tải danh sách học viên của phòng này");
+        const res = await response.json();
+        const students = res.data || [];
+        const clsInfo = res.class || (r ? { id: r.class_id, class_code: r.class_code, class_name: r.class_name } : null);
 
-        if (!studentsRes.ok) throw new Error("Lỗi tải học viên");
-        const sData = await studentsRes.json();
-        currentClassStudents = sData.data || [];
-
-        let clsInfo = null;
-        if (classDetailRes.ok) {
-            const cData = await classDetailRes.json();
-            clsInfo = cData.data || null;
-        }
-        if (!clsInfo) {
-            clsInfo = allClassesList.find(c => c.id === classId) || { class_code: "--", class_name: "--" };
+        currentClassStudents = students;
+        if (clsInfo && clsInfo.id) {
+            currentClassId = clsInfo.id;
         }
 
-        // Cập nhật Header và Thống kê
-        if ($("class-active-code-tag")) $("class-active-code-tag").textContent = clsInfo.class_code || "--";
-        if ($("class-table-title")) $("class-table-title").textContent = `Danh Sách Học Viên - [${clsInfo.class_code}] ${clsInfo.class_name}`;
+        const clsCode = clsInfo ? clsInfo.class_code : (r && r.class_code ? r.class_code : "--");
+        const clsName = clsInfo ? clsInfo.class_name : (r && r.class_name ? r.class_name : "Chưa gán lớp");
 
-        const totalStudents = currentClassStudents.length;
-        const rfidCount = currentClassStudents.filter(s => s.card_uid && s.card_uid.trim()).length;
-        const noRfidCount = totalStudents - rfidCount;
+        // Cập nhật banner thông tin lớp
+        const scopeName = $("class-scope-name-display");
+        const scopeRoom = $("class-scope-room-display");
+        const codeTag = $("class-active-code-tag");
+        const titleEl = $("class-table-title");
 
-        if ($("class-stat-total")) $("class-stat-total").textContent = totalStudents;
+        if (scopeName) scopeName.innerHTML = `[${escapeHtml(clsCode)}] ${escapeHtml(clsName)}`;
+        if (scopeRoom) scopeRoom.textContent = `${roomName} (${currentRoom})`;
+        if (codeTag) codeTag.textContent = clsCode;
+        if (titleEl) titleEl.textContent = `Danh Sách Học Viên - Lớp [${clsCode}] ${clsName} (${roomName})`;
+
+        // Cập nhật thống kê
+        const total = students.length;
+        const rfidCount = students.filter(s => s.card_uid && s.card_uid.trim()).length;
+        const noRfidCount = total - rfidCount;
+
+        if ($("class-stat-total")) $("class-stat-total").textContent = total;
         if ($("class-stat-rfid")) $("class-stat-rfid").textContent = rfidCount;
         if ($("class-stat-norfid")) $("class-stat-norfid").textContent = noRfidCount;
 
-        // Cập nhật hint trong modal thêm
-        const addHint = $("modal-add-student-class-hint");
-        if (addHint) addHint.textContent = `Lớp: [${clsInfo.class_code}] ${clsInfo.class_name}`;
+        // Cập nhật badge trên sidebar
+        const badge = $("nav-class-students-tag") || $("nav-class-students-badge");
+        if (badge && currentRoom) {
+            badge.textContent = clsCode || `${total} HV`;
+        }
 
-        renderClassStudentsTable(currentClassStudents);
+        renderClassStudentsTable(students);
+    } catch (err) {
+        console.error("LOAD ROOM STUDENTS ERROR:", err);
+        showToast("Lỗi", err.message || "Không thể tải danh sách học viên", false);
+        renderEmptyClassStudentsTable("Không thể tải danh sách học viên của lớp này");
+    }
+}
+
+async function syncCurrentRoomStudentsMqtt() {
+    if (!currentRoom) {
+        showToast("Chưa chọn phòng", "Vui lòng chọn một phòng học trước!", false);
+        return;
+    }
+    const btn = $("btn-sync-room-students-mqtt");
+    if (btn) btn.disabled = true;
+    try {
+        const response = await fetch(`/api/rooms/${encodeURIComponent(currentRoom)}/students/sync-mqtt`, {
+            method: "POST"
+        });
+        const res = await response.json();
+        if (!response.ok || !res.success) {
+            throw new Error(res.message || "Đồng bộ MQTT thất bại");
+        }
+        showToast("Thành công", res.message || "Đã đồng bộ danh sách học viên qua MQTT", true);
     } catch (e) {
-        console.error("LOAD CLASS STUDENTS ERROR:", e);
-        renderEmptyClassStudentsTable("Không thể tải danh sách học viên của lớp này.");
+        console.error("SYNC MQTT ERROR:", e);
+        showToast("Lỗi đồng bộ", e.message, false);
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function loadClassesForManager() {
+    if (currentRoom) {
+        await loadClassStudentsForCurrentRoom();
+    }
+}
+
+async function loadClassStudents(classId) {
+    if (currentRoom) {
+        await loadClassStudentsForCurrentRoom();
     }
 }
 
@@ -1856,13 +1831,15 @@ function filterClassStudentsTable() {
 
 // --- MODAL THÊM HỌC VIÊN VÀO LỚP ---
 function openAddStudentModal() {
-    if (!currentClassId) {
-        showToast("Chưa chọn lớp", "Vui lòng chọn hoặc tạo lớp trước khi thêm học viên", false);
+    if (!currentRoom) {
+        showToast("Chưa chọn phòng", "Vui lòng chọn một phòng học trước khi thêm học viên!", false);
         return;
     }
-    const curCls = allClassesList.find(c => c.id === currentClassId);
+    const r = allRooms.find(x => x.room_id === currentRoom);
+    const clsCode = r && r.class_code ? r.class_code : "--";
+    const clsName = r && r.class_name ? r.class_name : "";
     const hint = $("modal-add-student-class-hint");
-    if (hint && curCls) hint.textContent = `Lớp: [${curCls.class_code}] ${curCls.class_name}`;
+    if (hint) hint.textContent = `Lớp: [${clsCode}] ${clsName} (Phòng ${r && r.name ? r.name : currentRoom})`;
 
     const form = $("form-add-student");
     if (form) form.reset();
@@ -1878,7 +1855,10 @@ function closeAddStudentModal() {
 
 async function submitNewStudent(event) {
     event.preventDefault();
-    if (!currentClassId) return;
+    if (!currentRoom) {
+        showToast("Chưa chọn phòng", "Vui lòng chọn một phòng học trước!", false);
+        return;
+    }
 
     const code = $("student-code-input").value.trim();
     const name = $("student-name-input").value.trim();
@@ -1895,7 +1875,7 @@ async function submitNewStudent(event) {
     if (btn) btn.disabled = true;
 
     try {
-        const response = await fetch(`/api/classes/${currentClassId}/students`, {
+        const response = await fetch(`/api/rooms/${encodeURIComponent(currentRoom)}/students`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -1914,8 +1894,8 @@ async function submitNewStudent(event) {
 
         showToast("Thành công", res.message || "Đã thêm học viên vào lớp", true);
         closeAddStudentModal();
-        await loadClassStudents(currentClassId);
-        await loadClassesForManager(); // cập nhật sĩ số
+        await loadClassStudentsForCurrentRoom();
+        await loadRooms(); // Cập nhật sĩ số trên portal
     } catch (e) {
         console.error("ADD STUDENT ERROR:", e);
         showToast("Lỗi thêm học viên", e.message, false);
@@ -1929,9 +1909,9 @@ function openEditStudentModal(studentId) {
     const student = currentClassStudents.find(s => s.id === studentId);
     if (!student) return;
 
-    const curCls = allClassesList.find(c => c.id === currentClassId);
+    const r = allRooms.find(c => c.room_id === currentRoom);
     const hint = $("modal-edit-student-class-hint");
-    if (hint && curCls) hint.textContent = `Lớp: [${curCls.class_code}] ${curCls.class_name}`;
+    if (hint && r) hint.textContent = `Lớp: [${r.class_code || '--'}] ${r.class_name || ''}`;
 
     $("edit-student-id").value = student.id;
     $("edit-student-code-input").value = student.student_code || "";
@@ -1980,7 +1960,7 @@ async function submitEditStudent(event) {
 
         showToast("Cập nhật thành công", "Đã lưu thông tin học viên", true);
         closeEditStudentModal();
-        await loadClassStudents(currentClassId);
+        await loadClassStudentsForCurrentRoom();
     } catch (e) {
         console.error("EDIT STUDENT ERROR:", e);
         showToast("Lỗi sửa học viên", e.message, false);
@@ -2004,8 +1984,8 @@ async function deleteClassStudent(studentId, studentName) {
         }
 
         showToast("Đã xóa", `Học viên "${studentName}" đã được xóa`, true);
-        await loadClassStudents(currentClassId);
-        await loadClassesForManager();
+        await loadClassStudentsForCurrentRoom();
+        await loadRooms();
     } catch (e) {
         console.error("DELETE STUDENT ERROR:", e);
         showToast("Lỗi xóa học viên", e.message, false);
@@ -2226,7 +2206,7 @@ async function submitAssignRfid(event) {
 
         showToast("Gán thẻ thành công", "Mã thẻ RFID đã được liên kết với học viên", true);
         closeAssignRfidModal();
-        await loadClassStudents(currentClassId);
+        await loadClassStudentsForCurrentRoom();
     } catch (e) {
         console.error("ASSIGN RFID ERROR:", e);
         showToast("Lỗi gán thẻ", e.message, false);
@@ -2235,30 +2215,15 @@ async function submitAssignRfid(event) {
 
 // --- ĐỒNG BỘ MQTT XUỐNG PHÒNG ---
 async function syncClassMqtt() {
-    if (!currentClassId) return;
-    const targetRoom = currentRoom || "room01";
-
-    try {
-        const response = await fetch(`/api/classes/${currentClassId}/sync-mqtt`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ room_id: targetRoom })
-        });
-
-        const res = await response.json();
-        if (!response.ok || !res.success) {
-            throw new Error(res.message || "Không thể đồng bộ MQTT");
-        }
-
-        showToast("Đồng bộ MQTT thành công", res.message || "Đã gửi danh sách học viên tới ESP32", true);
-    } catch (e) {
-        console.error("SYNC MQTT ERROR:", e);
-        showToast("Lỗi đồng bộ MQTT", e.message, false);
+    if (currentRoom) {
+        await syncCurrentRoomStudentsMqtt();
     }
 }
 
 // Gán các hàm ra window để truy cập từ HTML onclick
 window.loadClassesForManager = loadClassesForManager;
+window.loadClassStudentsForCurrentRoom = loadClassStudentsForCurrentRoom;
+window.syncCurrentRoomStudentsMqtt = syncCurrentRoomStudentsMqtt;
 window.onClassSelected = onClassSelected;
 window.loadClassStudents = loadClassStudents;
 window.filterClassStudentsTable = filterClassStudentsTable;

@@ -47,10 +47,10 @@
                 <span class="nav-text">Thời khóa biểu</span>
                 <span class="nav-tag locked" id="nav-schedule-tag">🔒 Khóa</span>
             </a>
-            <a href="#class-students" class="nav-item" data-tab="class-students" id="nav-class-students" title="Quản lý học viên theo từng lớp học">
+            <a href="#class-students" class="nav-item disabled" data-tab="class-students" id="nav-class-students" title="Chưa chọn phòng học. Vui lòng chọn 1 phòng trong danh sách trước.">
                 <span class="nav-icon">👨‍🎓</span>
                 <span class="nav-text">Học viên</span>
-                <span class="nav-tag" id="nav-class-students-badge" style="background: rgba(37,99,235,0.15); color: var(--primary); font-weight:700;">--</span>
+                <span class="nav-tag locked" id="nav-class-students-tag">🔒 Khóa</span>
             </a>
         </nav>
 
@@ -765,26 +765,30 @@
                             <div class="room-hero-details">
                                 <h2>Quản Lý Học Viên</h2>
                                 <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
-                                    Quản lý danh sách học viên theo từng lớp học đang chọn. Tại đây có thể thêm mới, sửa, xóa, chuyển lớp và gán thẻ RFID cho học viên của lớp.
+                                    Quản lý danh sách học viên riêng biệt của lớp học gắn với phòng đang chọn. Tại đây có thể thêm mới, sửa, xóa và gán thẻ RFID cho học viên của lớp này.
                                 </p>
 
-                                <div class="class-selector-row" style="margin-top: 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                                    <label for="current-class-select" style="font-weight: 700; font-size: 13px; color: var(--text-dim);">🏛️ CHỌN LỚP:</label>
-                                    <select id="current-class-select" class="custom-input" style="width: auto; min-width: 250px; font-weight: 600; cursor: pointer;" onchange="onClassSelected(this.value)">
-                                        <option value="">-- Đang tải danh sách lớp --</option>
-                                    </select>
-                                    <button type="button" class="btn btn-primary btn-sm" onclick="openAddClassModal()" title="Tạo thêm một lớp học mới">
-                                        <span>➕</span> Tạo lớp mới
-                                    </button>
-                                    <button type="button" class="btn btn-secondary btn-sm" onclick="openEditClassModal()" id="btn-edit-class" title="Chỉnh sửa thông tin lớp đang chọn">
-                                        <span>⚙</span> Sửa lớp
-                                    </button>
-                                    <button type="button" class="btn btn-secondary btn-sm" onclick="syncClassMqtt()" id="btn-sync-class-mqtt" title="Gửi danh sách học viên của lớp này qua MQTT xuống ESP32">
-                                        <span>📡</span> Đồng bộ MQTT
-                                    </button>
-                                    <button type="button" class="btn btn-secondary btn-sm" onclick="deleteCurrentClass()" id="btn-delete-class" title="Xóa lớp đang chọn" style="color: #ef4444;">
-                                        <span>🗑</span> Xóa lớp
-                                    </button>
+                                <div class="class-scope-banner" style="margin-top: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: rgba(37,99,235,0.06); border: 1px solid rgba(37,99,235,0.2); border-radius: 10px; padding: 12px 16px;">
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <span style="font-size: 22px;">🏛️</span>
+                                        <div>
+                                            <div style="font-size: 11px; text-transform: uppercase; font-weight: 800; color: var(--primary); letter-spacing: 0.5px;">Lớp Học Đang Quản Lý</div>
+                                            <div style="font-size: 15px; font-weight: 700; color: var(--text-pure);" id="class-scope-name-display">
+                                                [--] Đang tải thông tin lớp... &nbsp;·&nbsp; <span style="font-weight: 500; color: var(--text-muted);" id="class-scope-room-display">Phòng: --</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <button type="button" class="btn btn-primary btn-sm" onclick="openAddStudentModal()" id="btn-add-student-to-class" title="Thêm học viên mới vào lớp này">
+                                            <span>➕</span> Thêm học viên
+                                        </button>
+                                        <button type="button" class="btn btn-secondary btn-sm" onclick="syncCurrentRoomStudentsMqtt()" id="btn-sync-room-students-mqtt" title="Gửi danh sách học viên của lớp này qua MQTT xuống ESP32 phòng học">
+                                            <span>📡</span> Đồng bộ MQTT
+                                        </button>
+                                        <button type="button" class="btn btn-secondary btn-sm" onclick="loadClassStudentsForCurrentRoom()" title="Làm mới danh sách học viên">
+                                            <span>🔄</span> Làm mới
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div class="room-meta-tags" style="margin-top: 14px;">
@@ -801,15 +805,15 @@
                 <section class="table-container-card" style="margin-top: 20px;">
                     <div class="table-header-bar">
                         <div class="section-title-wrap">
-                            <span class="section-eyebrow">DANH SÁCH HỌC VIÊN</span>
+                            <span class="section-eyebrow">DANH SÁCH HỌC VIÊN CỦA LỚP</span>
                             <h3 id="class-table-title">Danh Sách Học Viên Lớp --</h3>
                         </div>
                         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                             <input type="text" id="class-student-search" placeholder="🔍 Tìm theo Mã HV, Họ tên, Thẻ..." oninput="filterClassStudentsTable()" class="custom-input" style="max-width: 280px; font-size: 13px;">
-                            <button type="button" class="btn btn-primary btn-sm" onclick="openAddStudentModal()" id="btn-add-student-to-class">
+                            <button type="button" class="btn btn-primary btn-sm" onclick="openAddStudentModal()">
                                 <span>➕</span> Thêm học viên
                             </button>
-                            <button type="button" class="btn btn-secondary btn-sm" onclick="loadClassStudents(currentClassId)" title="Làm mới danh sách">
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="loadClassStudentsForCurrentRoom()" title="Làm mới danh sách">
                                 <span>🔄</span> Làm mới
                             </button>
                         </div>

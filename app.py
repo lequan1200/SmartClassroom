@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request, render_template
 
 from database import (
-    lay_danh_sach_phong, lay_phong,
+    lay_danh_sach_phong, lay_phong, lay_lop_cua_phong,
     lay_sensor_hien_tai, lay_sensor, lay_sensor_history,
     lay_device_hien_tai, lay_device,
     lay_danh_sach_diem_danh,
@@ -414,6 +414,72 @@ def api_room_rfid_learn(room_id):
         return jsonify({"success": True, "message": f"Đã tắt chế độ chờ quẹt thẻ tại phòng {room_id}"}), 200
 
 
+@app.route("/api/rooms/<room_id>/class", methods=["GET"])
+def api_room_class(room_id):
+    cls = lay_lop_cua_phong(room_id)
+    if not cls:
+        return jsonify({"success": False, "message": "Phòng chưa được gán lớp học", "room_id": room_id}), 404
+    return jsonify({"success": True, "data": cls}), 200
+
+
+@app.route("/api/rooms/<room_id>/students", methods=["GET", "POST"])
+def api_room_students(room_id):
+    cls = lay_lop_cua_phong(room_id)
+    if not cls:
+        return jsonify({"success": False, "message": "Phòng chưa được gán lớp học", "room_id": room_id}), 404
+
+    if request.method == "GET":
+        search = request.args.get("search")
+        rows = lay_hoc_vien_theo_lop(cls["id"], search=search)
+        return jsonify({
+            "success": rows is not None,
+            "data": rows or [],
+            "students": rows or [],
+            "class": cls
+        }), 200 if rows is not None else 500
+
+    # POST: Thêm học sinh trực tiếp vào lớp của phòng này
+    data = request.get_json(silent=True) or {}
+    code = str(data.get("student_code", "")).strip()
+    name = str(data.get("full_name", "")).strip()
+    if not code or not name:
+        return jsonify({"success": False, "message": "Cần student_code và full_name"}), 400
+
+    card_uid = data.get("card_uid") or data.get("rfid_uid")
+    res = them_hoc_vien_vao_lop(
+        class_id=cls["id"],
+        student_code=code,
+        full_name=name,
+        card_uid=card_uid,
+        email=data.get("email"),
+        phone=data.get("phone")
+    )
+    if not res.get("success"):
+        return jsonify({"success": False, "message": res.get("error", "Không thể thêm học viên")}), 400
+    return jsonify({
+        "success": True,
+        "id": res.get("id"),
+        "student_id": res.get("id"),
+        "class_id": cls["id"],
+        "class": cls,
+        "message": res.get("message", "Thêm học viên vào lớp thành công")
+    }), 201
+
+
+@app.route("/api/rooms/<room_id>/students/sync-mqtt", methods=["POST"])
+def api_room_students_sync_mqtt(room_id):
+    cls = lay_lop_cua_phong(room_id)
+    if not cls:
+        return jsonify({"success": False, "message": "Phòng chưa được gán lớp học", "room_id": room_id}), 404
+
+    ok, msg = dong_bo_hoc_sinh_lop_mqtt(room_id, cls["id"])
+    return jsonify({
+        "success": ok,
+        "class": cls,
+        "message": msg if ok else f"Lỗi đồng bộ MQTT: {msg}"
+    }), 200 if ok else 500
+
+
 @app.route("/api/subjects", methods=["GET", "POST"])
 def api_subjects():
     if request.method == "GET":
@@ -451,10 +517,11 @@ def api_schedules():
         late_after = int(data.get("late_after_minutes") or data.get("late_threshold_minutes") or 15)
         checkin_open = int(data.get("checkin_open_minutes") or 15)
         active_from = data.get("active_from")
+        class_val = data.get("class_id")
 
         schedule_id = tao_thoi_khoa_bieu(subject_val, room_val, weekday,
                                          start_time, end_time, active_from, data.get("active_to"),
-                                         checkin_open, late_after)
+                                         checkin_open, late_after, class_id=class_val)
     except (ValueError, TypeError) as e:
         return jsonify({"success": False, "message": f"Dữ liệu thời khóa biểu không hợp lệ: {e}"}), 400
 
