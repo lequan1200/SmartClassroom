@@ -574,6 +574,43 @@ def luu_attendance_log(room_id, card_uid, event_type="CHECK_IN", status="DUNG_GI
         return False
 
 
+def lay_the_rfid_vua_quet_gan_nhat(room_id=None):
+    """Lấy bản ghi quét thẻ RFID mới nhất (từ attendance_logs)."""
+    conn = ket_noi()
+    if conn is None:
+        return None
+    try:
+        cur = conn.cursor()
+        query = """
+            SELECT att.card_uid, att.recorded_at, r.room_id, r.name AS room_name, att.status
+            FROM attendance_logs att
+            LEFT JOIN rooms r ON att.room_id = r.id
+        """
+        params = []
+        if room_id:
+            query += " WHERE (r.room_id = ? OR att.room_id = ?)"
+            params.extend([str(room_id), str(room_id)])
+        query += " ORDER BY att.id DESC LIMIT 1"
+        cur.execute(query, tuple(params))
+        row = cur.fetchone()
+        cur.close(); conn.close()
+        if not row:
+            return None
+        rec_at = row[1]
+        rec_at_str = rec_at.strftime("%Y-%m-%d %H:%M:%S") if hasattr(rec_at, "strftime") else str(rec_at)
+        return {
+            "card_uid": row[0],
+            "recorded_at": rec_at_str,
+            "room_id": row[2],
+            "room_name": row[3],
+            "status": row[4]
+        }
+    except mariadb.Error as e:
+        print(f"DB ERROR lay_the_rfid_vua_quet_gan_nhat: {e}")
+        if conn: conn.close()
+        return None
+
+
 def lay_danh_sach_diem_danh(room_id=None, limit=100, ngay=None):
     """Lấy nhật ký quét thẻ RFID thô từ attendance_logs."""
     conn = ket_noi()

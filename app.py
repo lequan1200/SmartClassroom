@@ -1,10 +1,19 @@
+import sys
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 from flask import Flask, jsonify, request, render_template
 
 from database import (
     lay_danh_sach_phong, lay_phong, lay_lop_cua_phong,
     lay_sensor_hien_tai, lay_sensor, lay_sensor_history,
     lay_device_hien_tai, lay_device,
-    lay_danh_sach_diem_danh,
+    lay_danh_sach_diem_danh, lay_the_rfid_vua_quet_gan_nhat,
     lay_danh_sach_lop, lay_chi_tiet_lop, tao_lop, cap_nhat_lop, xoa_lop,
     lay_danh_sach_mon_hoc, tao_mon_hoc,
     lay_hoc_vien_theo_lop, lay_hoc_vien_cua_lop, them_hoc_vien_vao_lop,
@@ -15,9 +24,11 @@ from database import (
 from mqtt_client import (
     client, ket_noi_mqtt, gui_lenh_thiet_bi,
     lay_che_do_hien_tai, gui_lenh_che_do, lay_trang_thai_phong,
-    dong_bo_hoc_sinh_lop_mqtt, dat_che_do_gan_the
+    dong_bo_hoc_sinh_lop_mqtt, dat_che_do_gan_the, lay_the_rfid_vua_quet
 )
 import threading
+import time
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -244,6 +255,50 @@ def api_rfid_log():
         return jsonify({"success": False, "message": "Khong the truy van RFID log"}), 500
 
     return jsonify({"success": True, "data": logs}), 200
+
+
+@app.route("/api/rfid/latest", methods=["GET"])
+@app.route("/api/rooms/<room_id>/rfid-latest", methods=["GET"])
+def api_rfid_latest(room_id=None):
+    """Lấy thông tin mã thẻ RFID vừa được quẹt gần nhất (real-time hoặc DB)."""
+    if not room_id:
+        room_id = request.args.get("room_id")
+
+    mem_scan = lay_the_rfid_vua_quet(room_id)
+    db_scan = lay_the_rfid_vua_quet_gan_nhat(room_id)
+
+    res_data = None
+    if mem_scan and mem_scan.get("card_uid"):
+        now_ts = time.time()
+        sec_ago = int(now_ts - mem_scan["timestamp"]) if "timestamp" in mem_scan else 0
+        res_data = {
+            "card_uid": mem_scan["card_uid"],
+            "room_id": mem_scan.get("room_id") or room_id,
+            "scanned_at": mem_scan.get("scanned_at") or mem_scan.get("time_str"),
+            "seconds_ago": sec_ago,
+            "source": "mqtt_live"
+        }
+    elif db_scan and db_scan.get("card_uid"):
+        sec_ago = None
+        if db_scan.get("recorded_at"):
+            try:
+                dt = datetime.strptime(str(db_scan["recorded_at"])[:19], "%Y-%m-%d %H:%M:%S")
+                sec_ago = max(0, int((datetime.now() - dt).total_seconds()))
+            except Exception:
+                pass
+        res_data = {
+            "card_uid": db_scan["card_uid"],
+            "room_id": db_scan.get("room_id") or room_id,
+            "room_name": db_scan.get("room_name"),
+            "scanned_at": db_scan.get("recorded_at"),
+            "seconds_ago": sec_ago,
+            "source": "db_log"
+        }
+
+    if not res_data:
+        return jsonify({"success": False, "message": "Chưa có lượt quét thẻ nào gần đây"}), 404
+
+    return jsonify({"success": True, "data": res_data}), 200
 
 
 # ===== API LỚP HỌC, THỜI KHÓA BIỂU, ĐIỂM DANH =====

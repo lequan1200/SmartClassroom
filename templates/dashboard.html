@@ -932,11 +932,25 @@
                 </div>
             </div>
             <div class="form-field">
-                <label for="student-card-input">Mã Thẻ RFID (Tùy chọn)</label>
-                <div style="display: flex; gap: 8px;">
-                    <input type="text" id="student-card-input" class="custom-input" placeholder="VD: DED8A700 (hoặc để trống gán sau)">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                    <label for="student-card-input" style="margin-bottom: 0;">Mã Thẻ RFID (Tùy chọn)</label>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="fetchLatestScannedCard('student-card-input')" id="btn-fetch-latest-rfid" style="padding: 3px 10px; font-size: 11px; font-weight: 700; color: var(--primary); border-color: rgba(37,99,235,0.3); background: rgba(37,99,235,0.08);" title="Lấy mã thẻ RFID vừa quẹt gần nhất tại phòng này">
+                        <span>⚡ Lấy thẻ vừa quét</span>
+                    </button>
                 </div>
-                <span class="form-help-tip">Mã thẻ RFID 8 ký tự hex trên thẻ sinh viên / thẻ quẹt phòng học.</span>
+                <div style="display: flex; gap: 8px; position: relative;">
+                    <input type="text" id="student-card-input" class="custom-input" placeholder="VD: DED8A700 (hoặc quẹt thẻ trên đầu đọc RFID)" style="font-family: monospace; font-weight: 700; letter-spacing: 0.5px;">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="fetchLatestScannedCard('student-card-input')" title="Lấy mã thẻ vừa quét">
+                        <span>🏷️ Lấy thẻ</span>
+                    </button>
+                </div>
+                <div id="rfid-latest-hint-box" style="margin-top: 6px; font-size: 12px; display: none; padding: 6px 12px; border-radius: 6px; background: rgba(16,185,129,0.08); border: 1px dashed rgba(16,185,129,0.35); color: var(--success); align-items: center; justify-content: space-between;">
+                    <span>🏷️ Thẻ vừa quẹt: <strong id="rfid-latest-uid-text" style="font-family: monospace; font-size: 13px;">--</strong> (<span id="rfid-latest-time-text">--</span>)</span>
+                    <button type="button" class="btn btn-sm" style="padding: 2px 8px; font-size: 11px; background: var(--success); color: #fff; border: none; border-radius: 4px; cursor: pointer;" onclick="applyLatestScannedCard('student-card-input')">
+                        ✓ Điền mã này
+                    </button>
+                </div>
+                <span class="form-help-tip">💡 Quẹt thẻ vật lý trên đầu đọc RFID của phòng, mã thẻ sẽ tự động được nhận diện và điền vào đây!</span>
             </div>
             <div class="form-grid-2">
                 <div class="form-field">
@@ -982,8 +996,18 @@
                 </div>
             </div>
             <div class="form-field">
-                <label for="edit-student-card-input">Mã Thẻ RFID</label>
-                <input type="text" id="edit-student-card-input" class="custom-input" placeholder="VD: DED8A700">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                    <label for="edit-student-card-input" style="margin-bottom: 0;">Mã Thẻ RFID</label>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="fetchLatestScannedCard('edit-student-card-input')" style="padding: 3px 10px; font-size: 11px; font-weight: 700; color: var(--primary); border-color: rgba(37,99,235,0.3); background: rgba(37,99,235,0.08);" title="Lấy mã thẻ RFID vừa quẹt gần nhất">
+                        <span>⚡ Lấy thẻ vừa quét</span>
+                    </button>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="edit-student-card-input" class="custom-input" placeholder="VD: DED8A700 (hoặc quẹt thẻ trên đầu đọc RFID)" style="font-family: monospace; font-weight: 700;">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="fetchLatestScannedCard('edit-student-card-input')" title="Lấy mã thẻ vừa quét">
+                        <span>🏷️ Lấy thẻ</span>
+                    </button>
+                </div>
             </div>
             <div class="form-grid-2">
                 <div class="form-field">
@@ -1094,9 +1118,19 @@
         <form id="form-assign-rfid" onsubmit="submitAssignRfid(event)">
             <input type="hidden" id="assign-rfid-student-id">
             <div class="form-field">
-                <label for="assign-rfid-input">Mã Thẻ RFID (UID) *</label>
-                <input type="text" id="assign-rfid-input" class="custom-input" placeholder="VD: DED8A700" required style="font-family: monospace; font-size: 16px; letter-spacing: 1px; text-transform: uppercase;">
-                <span class="form-help-tip">Gõ mã thẻ UID (8 ký tự Hex) hoặc dùng thiết bị đọc thẻ tại phòng.</span>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                    <label for="assign-rfid-input" style="margin-bottom: 0;">Mã Thẻ RFID (UID) *</label>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="fetchLatestScannedCard('assign-rfid-input')" style="padding: 3px 10px; font-size: 11px; font-weight: 700; color: var(--primary); border-color: rgba(37,99,235,0.3); background: rgba(37,99,235,0.08);" title="Lấy mã thẻ RFID vừa quẹt gần nhất">
+                        <span>⚡ Lấy thẻ vừa quét</span>
+                    </button>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="assign-rfid-input" class="custom-input" placeholder="VD: DED8A700" required style="font-family: monospace; font-size: 16px; letter-spacing: 1px; text-transform: uppercase;">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="fetchLatestScannedCard('assign-rfid-input')" title="Lấy mã thẻ vừa quét">
+                        <span>🏷️ Lấy thẻ</span>
+                    </button>
+                </div>
+                <span class="form-help-tip">Gõ mã thẻ UID hoặc quẹt thẻ trên đầu đọc RFID tại phòng để tự động điền.</span>
             </div>
             <div class="modal-actions">
                 <button type="button" class="btn btn-secondary" onclick="closeAssignRfidModal()">Hủy</button>

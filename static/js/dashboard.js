@@ -1830,6 +1830,136 @@ function filterClassStudentsTable() {
 }
 
 // --- MODAL THÊM HỌC VIÊN VÀO LỚP ---
+let rfidModalPollTimer = null;
+let latestScannedCardCache = null;
+
+async function fetchLatestScannedCard(targetInputId, notify = true) {
+    const input = $(targetInputId);
+    const url = currentRoom 
+        ? `/api/rooms/${encodeURIComponent(currentRoom)}/rfid-latest`
+        : `/api/rfid/latest`;
+
+    try {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (res.ok && data.success && data.data && data.data.card_uid) {
+            const card = data.data;
+            latestScannedCardCache = card;
+            if (input) {
+                input.value = card.card_uid;
+                input.style.transition = "all 0.3s ease";
+                input.style.borderColor = "var(--success)";
+                input.style.boxShadow = "0 0 0 3px rgba(16, 185, 129, 0.25)";
+                setTimeout(() => {
+                    input.style.borderColor = "";
+                    input.style.boxShadow = "";
+                }, 1500);
+            }
+
+            // Cập nhật hint box nếu có
+            const hintBox = $("rfid-latest-hint-box");
+            if (hintBox) {
+                const uidText = $("rfid-latest-uid-text");
+                const timeText = $("rfid-latest-time-text");
+                if (uidText) uidText.textContent = card.card_uid;
+                if (timeText) {
+                    timeText.textContent = card.seconds_ago !== null && card.seconds_ago !== undefined
+                        ? (card.seconds_ago <= 3 ? "vừa quẹt" : `${card.seconds_ago}s trước`)
+                        : (card.scanned_at || "vừa quẹt");
+                }
+                hintBox.style.display = "flex";
+            }
+
+            if (notify) {
+                const timeStr = card.seconds_ago !== null && card.seconds_ago !== undefined
+                    ? `${card.seconds_ago}s trước`
+                    : (card.scanned_at || "");
+                showToast("Đã lấy mã thẻ RFID", `Mã thẻ: ${card.card_uid} (${timeStr})`, true);
+            }
+            return card;
+        } else {
+            if (notify) {
+                showToast("Chưa có thẻ mới", "Chưa phát hiện lượt quẹt thẻ nào gần đây. Hãy quẹt thẻ lên đầu đọc RFID của phòng!", false);
+            }
+            return null;
+        }
+    } catch (e) {
+        console.error("FETCH LATEST RFID ERROR:", e);
+        if (notify) {
+            showToast("Lỗi lấy mã thẻ", "Không thể kết nối máy chủ để lấy mã thẻ.", false);
+        }
+        return null;
+    }
+}
+
+function applyLatestScannedCard(targetInputId) {
+    if (!latestScannedCardCache || !latestScannedCardCache.card_uid) {
+        fetchLatestScannedCard(targetInputId, true);
+        return;
+    }
+    const input = $(targetInputId);
+    if (input) {
+        input.value = latestScannedCardCache.card_uid;
+        input.style.transition = "all 0.3s ease";
+        input.style.borderColor = "var(--success)";
+        input.style.boxShadow = "0 0 0 3px rgba(16, 185, 129, 0.25)";
+        setTimeout(() => {
+            input.style.borderColor = "";
+            input.style.boxShadow = "";
+        }, 1500);
+        showToast("Đã điền thẻ", `Đã gán mã thẻ ${latestScannedCardCache.card_uid}`, true);
+    }
+}
+
+async function checkRecentScanForModal(targetInputId) {
+    const input = $(targetInputId);
+    const url = currentRoom 
+        ? `/api/rooms/${encodeURIComponent(currentRoom)}/rfid-latest`
+        : `/api/rfid/latest`;
+
+    try {
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.success || !data.data || !data.data.card_uid) return;
+
+        const card = data.data;
+        const isFresh = card.seconds_ago !== null && card.seconds_ago !== undefined && card.seconds_ago <= 45;
+
+        // Cập nhật hint box nếu có
+        const hintBox = $("rfid-latest-hint-box");
+        if (hintBox) {
+            const uidText = $("rfid-latest-uid-text");
+            const timeText = $("rfid-latest-time-text");
+            if (uidText) uidText.textContent = card.card_uid;
+            if (timeText) {
+                timeText.textContent = card.seconds_ago !== null && card.seconds_ago !== undefined
+                    ? (card.seconds_ago <= 3 ? "vừa quẹt" : `${card.seconds_ago}s trước`)
+                    : (card.scanned_at || "vừa quẹt");
+            }
+            hintBox.style.display = "flex";
+        }
+
+        // Tự động điền nếu input còn rỗng VÀ lượt quẹt mới xảy ra gần đây (< 45s)
+        if (input && !input.value.trim() && isFresh) {
+            if (!latestScannedCardCache || latestScannedCardCache.card_uid !== card.card_uid || latestScannedCardCache.scanned_at !== card.scanned_at) {
+                input.value = card.card_uid;
+                input.style.transition = "all 0.3s ease";
+                input.style.borderColor = "var(--success)";
+                input.style.boxShadow = "0 0 0 3px rgba(16, 185, 129, 0.25)";
+                setTimeout(() => {
+                    input.style.borderColor = "";
+                    input.style.boxShadow = "";
+                }, 1500);
+                showToast("⚡ Nhận diện thẻ RFID", `Đã tự động gán mã thẻ vừa quẹt: ${card.card_uid}`, true);
+            }
+        }
+        latestScannedCardCache = card;
+    } catch (e) {
+        // im lặng khi poll ngầm
+    }
+}
+
 function openAddStudentModal() {
     if (!currentRoom) {
         showToast("Chưa chọn phòng", "Vui lòng chọn một phòng học trước khi thêm học viên!", false);
@@ -1844,11 +1974,25 @@ function openAddStudentModal() {
     const form = $("form-add-student");
     if (form) form.reset();
 
+    const hintBox = $("rfid-latest-hint-box");
+    if (hintBox) hintBox.style.display = "none";
+
     const modal = $("modal-add-student");
     if (modal) modal.style.display = "flex";
+
+    // Khởi động lắng nghe quẹt thẻ thời gian thực
+    checkRecentScanForModal("student-card-input");
+    if (rfidModalPollTimer) clearInterval(rfidModalPollTimer);
+    rfidModalPollTimer = setInterval(() => {
+        checkRecentScanForModal("student-card-input");
+    }, 1500);
 }
 
 function closeAddStudentModal() {
+    if (rfidModalPollTimer) {
+        clearInterval(rfidModalPollTimer);
+        rfidModalPollTimer = null;
+    }
     const modal = $("modal-add-student");
     if (modal) modal.style.display = "none";
 }
@@ -2175,9 +2319,20 @@ function openAssignRfidModal(studentId, studentName) {
 
     const modal = $("modal-assign-rfid");
     if (modal) modal.style.display = "flex";
+
+    // Khởi động lắng nghe quẹt thẻ thời gian thực
+    checkRecentScanForModal("assign-rfid-input");
+    if (rfidModalPollTimer) clearInterval(rfidModalPollTimer);
+    rfidModalPollTimer = setInterval(() => {
+        checkRecentScanForModal("assign-rfid-input");
+    }, 1500);
 }
 
 function closeAssignRfidModal() {
+    if (rfidModalPollTimer) {
+        clearInterval(rfidModalPollTimer);
+        rfidModalPollTimer = null;
+    }
     const modal = $("modal-assign-rfid");
     if (modal) modal.style.display = "none";
 }
@@ -2246,6 +2401,8 @@ window.openAssignRfidModal = openAssignRfidModal;
 window.closeAssignRfidModal = closeAssignRfidModal;
 window.submitAssignRfid = submitAssignRfid;
 window.syncClassMqtt = syncClassMqtt;
+window.fetchLatestScannedCard = fetchLatestScannedCard;
+window.applyLatestScannedCard = applyLatestScannedCard;
 
 
 // ============================================================

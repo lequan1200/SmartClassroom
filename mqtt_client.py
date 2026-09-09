@@ -1,6 +1,15 @@
+import sys
 import json
 import time
 from datetime import datetime
+
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 
 import paho.mqtt.client as mqtt
 
@@ -25,6 +34,29 @@ TIMEOUT_PHONG_ONLINE = 10  # giây
 
 trang_thai_phong = {}          # room_id -> "ONLINE" | "OFFLINE"
 thoi_gian_nhan_tin_cuoi = {}   # room_id -> float (Unix timestamp)
+the_rfid_vua_quet = {}         # room_id -> {"card_uid": ..., "time_str": ..., "timestamp": ...}
+
+
+def cap_nhat_the_vua_quet(room_id, card_uid, time_str=None):
+    if not card_uid:
+        return
+    card_uid = str(card_uid).strip().upper()
+    now_str = time_str or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    entry = {
+        "card_uid": card_uid,
+        "room_id": room_id,
+        "time_str": now_str,
+        "scanned_at": now_str,
+        "timestamp": time.time()
+    }
+    the_rfid_vua_quet[room_id] = entry
+    the_rfid_vua_quet["_latest"] = entry
+
+
+def lay_the_rfid_vua_quet(room_id=None):
+    if room_id:
+        return the_rfid_vua_quet.get(room_id)
+    return the_rfid_vua_quet.get("_latest")
 
 
 def _danh_dau_online(room_id):
@@ -210,22 +242,25 @@ def khi_nhan_message(client, userdata, message):
         print("JSON ERROR: payload phai la object")
         return
 
-    if loai == "sensor":
-        xu_ly_sensor(thong_tin, data)
-    elif loai == "device":
-        xu_ly_device(thong_tin, data)
-    elif loai == "attendance":
-        xu_ly_attendance(thong_tin, data)
-    elif loai == "alert":
-        xu_ly_alert(thong_tin, data)
-    elif loai == "mode":
-        xu_ly_mode(thong_tin, data)
-    elif loai == "class_request":
-        xu_ly_class_request(thong_tin, data)
-    elif loai == "rfid_scanned":
-        xu_ly_rfid_scanned(thong_tin, data)
-    elif loai == "student_lookup":
-        xu_ly_student_lookup(thong_tin, data)
+    try:
+        if loai == "sensor":
+            xu_ly_sensor(thong_tin, data)
+        elif loai == "device":
+            xu_ly_device(thong_tin, data)
+        elif loai == "attendance":
+            xu_ly_attendance(thong_tin, data)
+        elif loai == "alert":
+            xu_ly_alert(thong_tin, data)
+        elif loai == "mode":
+            xu_ly_mode(thong_tin, data)
+        elif loai == "class_request":
+            xu_ly_class_request(thong_tin, data)
+        elif loai == "rfid_scanned":
+            xu_ly_rfid_scanned(thong_tin, data)
+        elif loai == "student_lookup":
+            xu_ly_student_lookup(thong_tin, data)
+    except Exception as e:
+        print(f"MQTT DISPATCH ERROR [{topic}]: {e}")
 
 
 def xu_ly_sensor(thong_tin, data):
@@ -326,7 +361,7 @@ def xu_ly_attendance(thong_tin, data):
     """Lưu log RFID thô, rồi điểm danh theo buổi học đang diễn ra tại phòng."""
     room_id = thong_tin["room_id"]
     card_uid = (data.get("card_uid") or data.get("uid") or data.get("card") or "").strip().upper()
-    timestamp_str = data.get("timestamp")
+    timestamp_str = data.get("timestamp") or data.get("time")
 
     if not card_uid:
         print(f"RFID ERROR: Missing card_uid for room {room_id}")
@@ -345,6 +380,7 @@ def xu_ly_attendance(thong_tin, data):
                 pass
 
     time_str = scan_dt.strftime("%Y-%m-%d %H:%M:%S")
+    cap_nhat_the_vua_quet(room_id, card_uid, time_str)
     print(f"\n========== RFID SCAN ==========\nRoom      : {room_id}\nCard UID  : {card_uid}\nScan Time : {time_str}")
 
     student = tim_hoc_vien_theo_card(card_uid)
@@ -619,6 +655,7 @@ def xu_ly_rfid_scanned(thong_tin, data):
     card_uid = (data.get("card_uid") or data.get("uid") or "").strip().upper()
     if not card_uid:
         return
+    cap_nhat_the_vua_quet(room_id, card_uid)
 
     student_id = che_do_gan_the_dang_cho.get(room_id)
     if student_id:
