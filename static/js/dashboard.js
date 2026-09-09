@@ -214,7 +214,7 @@ function updateRoomAccessState() {
         if (classStudentsTag) {
             classStudentsTag.textContent = clsCode || "Học viên";
             classStudentsTag.className = "nav-tag";
-            classStudentsTag.style = "background: rgba(37,99,235,0.15); color: var(--primary); font-weight:700;";
+            classStudentsTag.style.cssText = "background: rgba(37,99,235,0.15); color: var(--primary); font-weight:700;";
         }
 
         if (sidebarRoomBox) {
@@ -408,7 +408,7 @@ async function loadRoom() {
         if (isOnline) {
             statusBadge.textContent = "● ONLINE";
             statusBadge.className = "meta-chip active-chip";
-            statusBadge.style = "";
+            statusBadge.style.cssText = "";
         } else {
             statusBadge.textContent = "○ OFFLINE";
             statusBadge.className = "meta-chip";
@@ -2379,7 +2379,6 @@ async function syncClassMqtt() {
 window.loadClassesForManager = loadClassesForManager;
 window.loadClassStudentsForCurrentRoom = loadClassStudentsForCurrentRoom;
 window.syncCurrentRoomStudentsMqtt = syncCurrentRoomStudentsMqtt;
-window.onClassSelected = onClassSelected;
 window.loadClassStudents = loadClassStudents;
 window.filterClassStudentsTable = filterClassStudentsTable;
 window.openAddStudentModal = openAddStudentModal;
