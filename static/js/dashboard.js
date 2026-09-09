@@ -957,8 +957,8 @@ function switchView(tabName) {
     } else if (tabName === "class-students") {
         if (classStudentsView) classStudentsView.style.display = "block";
         if (multiRoomBar) multiRoomBar.style.display = "none";
-        if (breadcrumb) breadcrumb.textContent = "HỆ THỐNG / LỚP & HỌC SINH";
-        if (pageTitle) pageTitle.textContent = "Quản Lý Học Sinh Theo Từng Lớp";
+        if (breadcrumb) breadcrumb.textContent = "HỆ THỐNG / HỌC VIÊN";
+        if (pageTitle) pageTitle.textContent = "Quản Lý Học Viên Theo Lớp";
         loadClassesForManager();
     } else {
         if (dashView) dashView.style.display = "block";
@@ -1664,7 +1664,7 @@ async function loadClassesForManager() {
             } else {
                 select.innerHTML = allClassesList.map(c => `
                     <option value="${c.id}" ${c.id === currentClassId ? 'selected' : ''}>
-                        [${escapeHtml(c.class_code)}] ${escapeHtml(c.class_name)} (${c.student_count || 0} học sinh)
+                        [${escapeHtml(c.class_code)}] ${escapeHtml(c.class_name)} (${c.student_count || 0} học viên)
                     </option>
                 `).join("");
             }
@@ -1715,7 +1715,7 @@ async function loadClassStudents(classId) {
     if (!classId) return;
     const tbody = $("class-students-table-body");
     if (tbody) {
-        tbody.innerHTML = `<tr><td colspan="7" class="table-empty-cell">Đang tải danh sách học sinh lớp...</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="table-empty-cell">Đang tải danh sách học viên...</td></tr>`;
     }
 
     try {
@@ -1724,7 +1724,7 @@ async function loadClassStudents(classId) {
             fetch(`/api/classes/${classId}`)
         ]);
 
-        if (!studentsRes.ok) throw new Error("Lỗi tải học sinh");
+        if (!studentsRes.ok) throw new Error("Lỗi tải học viên");
         const sData = await studentsRes.json();
         currentClassStudents = sData.data || [];
 
@@ -1739,7 +1739,7 @@ async function loadClassStudents(classId) {
 
         // Cập nhật Header và Thống kê
         if ($("class-active-code-tag")) $("class-active-code-tag").textContent = clsInfo.class_code || "--";
-        if ($("class-table-title")) $("class-table-title").textContent = `Danh Sách Học Sinh - [${clsInfo.class_code}] ${clsInfo.class_name}`;
+        if ($("class-table-title")) $("class-table-title").textContent = `Danh Sách Học Viên - [${clsInfo.class_code}] ${clsInfo.class_name}`;
 
         const totalStudents = currentClassStudents.length;
         const rfidCount = currentClassStudents.filter(s => s.card_uid && s.card_uid.trim()).length;
@@ -1756,7 +1756,7 @@ async function loadClassStudents(classId) {
         renderClassStudentsTable(currentClassStudents);
     } catch (e) {
         console.error("LOAD CLASS STUDENTS ERROR:", e);
-        renderEmptyClassStudentsTable("Không thể tải danh sách học sinh của lớp này.");
+        renderEmptyClassStudentsTable("Không thể tải danh sách học viên của lớp này.");
     }
 }
 
@@ -1779,8 +1779,8 @@ function renderClassStudentsTable(students) {
             <tr>
                 <td colspan="7" class="table-empty-cell" style="padding: 40px; text-align: center;">
                     <div style="font-size: 28px; margin-bottom: 8px;">👨‍🎓</div>
-                    <strong style="color: var(--text-dim); display: block;">Lớp này hiện chưa có học sinh nào.</strong>
-                    <span style="font-size: 13px; color: var(--text-muted);">Bấm nút "+ Thêm học sinh" ở trên để đưa học sinh vào lớp.</span>
+                    <strong style="color: var(--text-dim); display: block;">Lớp này hiện chưa có học viên nào.</strong>
+                    <span style="font-size: 13px; color: var(--text-muted);">Bấm nút "+ Thêm học viên" ở trên để đưa học viên vào lớp.</span>
                 </td>
             </tr>
         `;
@@ -1816,13 +1816,13 @@ function renderClassStudentsTable(students) {
                 <td style="color: var(--text-dim);">${escapeHtml(st.email || "---")}</td>
                 <td style="text-align: right;">
                     <div class="table-actions-group">
-                        <button type="button" class="btn-icon-action" onclick="openEditStudentModal(${st.id})" title="Chỉnh sửa thông tin">
+                        <button type="button" class="btn-icon-action" onclick="openEditStudentModal(${st.id})" title="Chỉnh sửa thông tin học viên">
                             ✏️ Sửa
                         </button>
-                        <button type="button" class="btn-icon-action transfer" onclick="openTransferStudentModal(${st.id}, '${escapeHtml(st.full_name)}', '${escapeHtml(st.student_code)}')" title="Chuyển học sinh sang lớp khác">
+                        <button type="button" class="btn-icon-action transfer" onclick="openTransferStudentModal(${st.id}, '${escapeHtml(st.full_name)}', '${escapeHtml(st.student_code)}')" title="Chuyển học viên sang lớp khác">
                             🔄 Chuyển lớp
                         </button>
-                        <button type="button" class="btn-icon-action delete" onclick="deleteClassStudent(${st.id}, '${escapeHtml(st.full_name)}')" title="Xóa học sinh khỏi lớp">
+                        <button type="button" class="btn-icon-action delete" onclick="deleteClassStudent(${st.id}, '${escapeHtml(st.full_name)}')" title="Xóa học viên khỏi lớp">
                             🗑 Xóa
                         </button>
                     </div>
@@ -1854,10 +1854,10 @@ function filterClassStudentsTable() {
     renderClassStudentsTable(filtered);
 }
 
-// --- MODAL THÊM HỌC SINH VÀO LỚP ---
+// --- MODAL THÊM HỌC VIÊN VÀO LỚP ---
 function openAddStudentModal() {
     if (!currentClassId) {
-        showToast("Chưa chọn lớp", "Vui lòng chọn hoặc tạo lớp trước khi thêm học sinh", false);
+        showToast("Chưa chọn lớp", "Vui lòng chọn hoặc tạo lớp trước khi thêm học viên", false);
         return;
     }
     const curCls = allClassesList.find(c => c.id === currentClassId);
@@ -1887,7 +1887,7 @@ async function submitNewStudent(event) {
     const email = $("student-email-input").value.trim();
 
     if (!code || !name) {
-        showToast("Thiếu thông tin", "Vui lòng điền mã sinh viên và họ tên", false);
+        showToast("Thiếu thông tin", "Vui lòng điền mã học viên và họ tên", false);
         return;
     }
 
@@ -1909,22 +1909,22 @@ async function submitNewStudent(event) {
 
         const res = await response.json();
         if (!response.ok || !res.success) {
-            throw new Error(res.message || "Không thể thêm học sinh");
+            throw new Error(res.message || "Không thể thêm học viên");
         }
 
-        showToast("Thành công", res.message || "Đã thêm học sinh vào lớp", true);
+        showToast("Thành công", res.message || "Đã thêm học viên vào lớp", true);
         closeAddStudentModal();
         await loadClassStudents(currentClassId);
         await loadClassesForManager(); // cập nhật sĩ số
     } catch (e) {
         console.error("ADD STUDENT ERROR:", e);
-        showToast("Lỗi thêm học sinh", e.message, false);
+        showToast("Lỗi thêm học viên", e.message, false);
     } finally {
         if (btn) btn.disabled = false;
     }
 }
 
-// --- MODAL SỬA HỌC SINH ---
+// --- MODAL SỬA HỌC VIÊN ---
 function openEditStudentModal(studentId) {
     const student = currentClassStudents.find(s => s.id === studentId);
     if (!student) return;
@@ -1975,21 +1975,21 @@ async function submitEditStudent(event) {
 
         const res = await response.json();
         if (!response.ok || !res.success) {
-            throw new Error(res.message || "Không thể cập nhật học sinh");
+            throw new Error(res.message || "Không thể cập nhật học viên");
         }
 
-        showToast("Cập nhật thành công", "Đã lưu thông tin học sinh", true);
+        showToast("Cập nhật thành công", "Đã lưu thông tin học viên", true);
         closeEditStudentModal();
         await loadClassStudents(currentClassId);
     } catch (e) {
         console.error("EDIT STUDENT ERROR:", e);
-        showToast("Lỗi sửa học sinh", e.message, false);
+        showToast("Lỗi sửa học viên", e.message, false);
     }
 }
 
-// --- XÓA HỌC SINH KHỎI LỚP ---
+// --- XÓA HỌC VIÊN KHỎI LỚP ---
 async function deleteClassStudent(studentId, studentName) {
-    if (!confirm(`Bạn có chắc muốn xóa học sinh "${studentName}" khỏi lớp này không?`)) {
+    if (!confirm(`Bạn có chắc muốn xóa học viên "${studentName}" khỏi lớp này không?`)) {
         return;
     }
 
@@ -2000,26 +2000,26 @@ async function deleteClassStudent(studentId, studentName) {
 
         const res = await response.json();
         if (!response.ok || !res.success) {
-            throw new Error(res.message || "Không thể xóa học sinh");
+            throw new Error(res.message || "Không thể xóa học viên");
         }
 
-        showToast("Đã xóa", `Học sinh "${studentName}" đã được xóa`, true);
+        showToast("Đã xóa", `Học viên "${studentName}" đã được xóa`, true);
         await loadClassStudents(currentClassId);
         await loadClassesForManager();
     } catch (e) {
         console.error("DELETE STUDENT ERROR:", e);
-        showToast("Lỗi xóa học sinh", e.message, false);
+        showToast("Lỗi xóa học viên", e.message, false);
     }
 }
 
-// --- CHUYỂN LỚP HỌC SINH ---
+// --- CHUYỂN LỚP CHO HỌC VIÊN ---
 function openTransferStudentModal(studentId, studentName, studentCode) {
     const student = currentClassStudents.find(s => s.id === studentId);
     if (!student) return;
 
     const curCls = allClassesList.find(c => c.id === currentClassId);
     $("transfer-student-id").value = studentId;
-    $("modal-transfer-student-info").textContent = `Học sinh: [${studentCode}] ${studentName}`;
+    $("modal-transfer-student-info").textContent = `Học viên: [${studentCode}] ${studentName}`;
     $("transfer-current-class-name").value = curCls ? `[${curCls.class_code}] ${curCls.class_name}` : "Lớp hiện tại";
 
     // Re-fill target dropdown excluding current class
@@ -2062,7 +2062,7 @@ async function submitTransferStudent(event) {
             throw new Error(res.message || "Không thể chuyển lớp");
         }
 
-        showToast("Chuyển lớp thành công", res.message || "Học sinh đã được chuyển sang lớp mới", true);
+        showToast("Chuyển lớp thành công", res.message || "Học viên đã được chuyển sang lớp mới", true);
         closeTransferStudentModal();
         await loadClassStudents(currentClassId);
         await loadClassesForManager();
@@ -2190,7 +2190,7 @@ async function deleteCurrentClass() {
 // --- GÁN MÃ THẺ RFID NHANH ---
 function openAssignRfidModal(studentId, studentName) {
     $("assign-rfid-student-id").value = studentId;
-    $("modal-assign-rfid-student-name").textContent = `Học sinh: ${studentName}`;
+    $("modal-assign-rfid-student-name").textContent = `Học viên: ${studentName}`;
     $("assign-rfid-input").value = "";
 
     const modal = $("modal-assign-rfid");
@@ -2224,7 +2224,7 @@ async function submitAssignRfid(event) {
             throw new Error(res.message || "Không thể gán mã thẻ");
         }
 
-        showToast("Gán thẻ thành công", "Mã thẻ RFID đã được liên kết với học sinh", true);
+        showToast("Gán thẻ thành công", "Mã thẻ RFID đã được liên kết với học viên", true);
         closeAssignRfidModal();
         await loadClassStudents(currentClassId);
     } catch (e) {
@@ -2250,7 +2250,7 @@ async function syncClassMqtt() {
             throw new Error(res.message || "Không thể đồng bộ MQTT");
         }
 
-        showToast("Đồng bộ MQTT thành công", res.message || "Đã gửi danh sách học sinh tới ESP32", true);
+        showToast("Đồng bộ MQTT thành công", res.message || "Đã gửi danh sách học viên tới ESP32", true);
     } catch (e) {
         console.error("SYNC MQTT ERROR:", e);
         showToast("Lỗi đồng bộ MQTT", e.message, false);

@@ -47,9 +47,9 @@
                 <span class="nav-text">Thời khóa biểu</span>
                 <span class="nav-tag locked" id="nav-schedule-tag">🔒 Khóa</span>
             </a>
-            <a href="#class-students" class="nav-item" data-tab="class-students" id="nav-class-students" title="Quản lý học sinh độc lập theo từng lớp học">
-                <span class="nav-icon">👥</span>
-                <span class="nav-text">Lớp & Học sinh</span>
+            <a href="#class-students" class="nav-item" data-tab="class-students" id="nav-class-students" title="Quản lý học viên theo từng lớp học">
+                <span class="nav-icon">👨‍🎓</span>
+                <span class="nav-text">Học viên</span>
                 <span class="nav-tag" id="nav-class-students-badge" style="background: rgba(37,99,235,0.15); color: var(--primary); font-weight:700;">--</span>
             </a>
         </nav>
@@ -751,20 +751,21 @@
                         </div>
                     </div>
                 </section>
+            </div>
 
             <!-- ============================================================
-                 PHÂN HỆ 4: QUẢN LÝ HỌC SINH THEO TỪNG LỚP (TÁCH BIỆT HOÀN TOÀN)
+                 PHÂN HỆ 4: QUẢN LÝ HỌC VIÊN THEO TỪNG LỚP (TÁCH BIỆT HOÀN TOÀN)
                  ============================================================ -->
             <div class="content-view" id="class-students-view" style="display: none;">
 
                 <section class="room-hero-card">
                     <div class="room-hero-inner">
                         <div class="room-hero-info">
-                            <div class="room-hero-icon" style="background: rgba(37,99,235,0.12); border-color: rgba(37,99,235,0.3); color: var(--primary);">👥</div>
+                            <div class="room-hero-icon" style="background: rgba(37,99,235,0.12); border-color: rgba(37,99,235,0.3); color: var(--primary);">👨‍🎓</div>
                             <div class="room-hero-details">
-                                <h2>Quản Lý Học Sinh Theo Từng Lớp</h2>
+                                <h2>Quản Lý Học Viên</h2>
                                 <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
-                                    Học sinh được phân chia và quản lý <strong>tách biệt hoàn toàn</strong> theo từng lớp học. Mỗi học sinh chỉ thuộc về một lớp duy nhất.
+                                    Quản lý danh sách học viên theo từng lớp học đang chọn. Tại đây có thể thêm mới, sửa, xóa, chuyển lớp và gán thẻ RFID cho học viên của lớp.
                                 </p>
 
                                 <div class="class-selector-row" style="margin-top: 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
@@ -778,7 +779,7 @@
                                     <button type="button" class="btn btn-secondary btn-sm" onclick="openEditClassModal()" id="btn-edit-class" title="Chỉnh sửa thông tin lớp đang chọn">
                                         <span>⚙</span> Sửa lớp
                                     </button>
-                                    <button type="button" class="btn btn-secondary btn-sm" onclick="syncClassMqtt()" id="btn-sync-class-mqtt" title="Gửi danh sách học sinh của lớp này qua MQTT xuống ESP32">
+                                    <button type="button" class="btn btn-secondary btn-sm" onclick="syncClassMqtt()" id="btn-sync-class-mqtt" title="Gửi danh sách học viên của lớp này qua MQTT xuống ESP32">
                                         <span>📡</span> Đồng bộ MQTT
                                     </button>
                                     <button type="button" class="btn btn-secondary btn-sm" onclick="deleteCurrentClass()" id="btn-delete-class" title="Xóa lớp đang chọn" style="color: #ef4444;">
@@ -788,7 +789,7 @@
 
                                 <div class="room-meta-tags" style="margin-top: 14px;">
                                     <span class="meta-chip">LỚP HIỆN TẠI: <strong id="class-active-code-tag" style="color: var(--primary);">--</strong></span>
-                                    <span class="meta-chip active-chip">SĨ SỐ: <strong id="class-stat-total">0</strong> HỌC SINH</span>
+                                    <span class="meta-chip active-chip">SĨ SỐ: <strong id="class-stat-total">0</strong> HỌC VIÊN</span>
                                     <span class="meta-chip" style="background: rgba(16,185,129,0.12); color: var(--success); border-color: rgba(16,185,129,0.3);">● ĐÃ CÓ THẺ: <strong id="class-stat-rfid">0</strong></span>
                                     <span class="meta-chip" style="background: rgba(245,158,11,0.12); color: #d97706; border-color: rgba(245,158,11,0.3);">○ CHƯA CÓ THẺ: <strong id="class-stat-norfid">0</strong></span>
                                 </div>
@@ -800,13 +801,13 @@
                 <section class="table-container-card" style="margin-top: 20px;">
                     <div class="table-header-bar">
                         <div class="section-title-wrap">
-                            <span class="section-eyebrow">DANH SÁCH HỌC SINH</span>
-                            <h3 id="class-table-title">Danh Sách Học Sinh Lớp --</h3>
+                            <span class="section-eyebrow">DANH SÁCH HỌC VIÊN</span>
+                            <h3 id="class-table-title">Danh Sách Học Viên Lớp --</h3>
                         </div>
                         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                            <input type="text" id="class-student-search" placeholder="🔍 Tìm theo Mã SV, Họ tên, Thẻ..." oninput="filterClassStudentsTable()" class="custom-input" style="max-width: 280px; font-size: 13px;">
+                            <input type="text" id="class-student-search" placeholder="🔍 Tìm theo Mã HV, Họ tên, Thẻ..." oninput="filterClassStudentsTable()" class="custom-input" style="max-width: 280px; font-size: 13px;">
                             <button type="button" class="btn btn-primary btn-sm" onclick="openAddStudentModal()" id="btn-add-student-to-class">
-                                <span>➕</span> Thêm học sinh
+                                <span>➕</span> Thêm học viên
                             </button>
                             <button type="button" class="btn btn-secondary btn-sm" onclick="loadClassStudents(currentClassId)" title="Làm mới danh sách">
                                 <span>🔄</span> Làm mới
@@ -819,7 +820,7 @@
                             <thead>
                                 <tr>
                                     <th style="width: 50px;">STT</th>
-                                    <th>Mã SV</th>
+                                    <th>Mã HV</th>
                                     <th>Họ và Tên</th>
                                     <th>Mã Thẻ RFID</th>
                                     <th>Số Điện Thoại</th>
@@ -828,15 +829,15 @@
                                 </tr>
                             </thead>
                             <tbody id="class-students-table-body">
-                                <tr><td colspan="7" class="table-empty-cell">Vui lòng chọn lớp học để xem danh sách.</td></tr>
+                                <tr><td colspan="7" class="table-empty-cell">Vui lòng chọn lớp học để xem danh sách học viên.</td></tr>
                             </tbody>
                         </table>
                     </div>
                 </section>
 
                 <footer class="app-footer" style="margin-top: 24px;">
-                    <div>Hệ thống Quản lý Học sinh theo Lớp · Smart Classroom IoT System</div>
-                    <div>Tách biệt độc lập dữ liệu học sinh giữa các lớp · Đồng bộ thẻ RFID qua MQTT</div>
+                    <div>Hệ thống Quản lý Học viên theo Lớp · Smart Classroom IoT System</div>
+                    <div>Tách biệt độc lập dữ liệu học viên giữa các lớp · Đồng bộ thẻ RFID qua MQTT</div>
                 </footer>
             </div>
 
@@ -902,14 +903,14 @@
 </div>
 
 
-<!-- Modal Thêm Học Sinh Vào Lớp -->
+<!-- Modal Thêm Học Viên Vào Lớp -->
 <div class="modal-backdrop" id="modal-add-student" style="display: none;" onclick="if(event.target === this) closeAddStudentModal()">
     <div class="modal-dialog">
         <div class="modal-top">
             <div class="modal-title-group">
-                <div class="modal-avatar-icon" style="background: rgba(37,99,235,0.12); color: var(--primary);">👤</div>
+                <div class="modal-avatar-icon" style="background: rgba(37,99,235,0.12); color: var(--primary);">👨‍🎓</div>
                 <div>
-                    <h3>Thêm Học Sinh Vào Lớp</h3>
+                    <h3>Thêm Học Viên Vào Lớp</h3>
                     <p id="modal-add-student-class-hint">Lớp học: --</p>
                 </div>
             </div>
@@ -918,11 +919,11 @@
         <form id="form-add-student" onsubmit="submitNewStudent(event)">
             <div class="form-grid-2">
                 <div class="form-field">
-                    <label for="student-code-input">Mã Sinh Viên / Học Sinh *</label>
+                    <label for="student-code-input">Mã Học Viên *</label>
                     <input type="text" id="student-code-input" class="custom-input" placeholder="VD: 001 hoặc B21DCCN001" required>
                 </div>
                 <div class="form-field">
-                    <label for="student-name-input">Họ và Tên *</label>
+                    <label for="student-name-input">Họ và Tên Học Viên *</label>
                     <input type="text" id="student-name-input" class="custom-input" placeholder="VD: Nguyễn Văn An" required>
                 </div>
             </div>
@@ -945,20 +946,20 @@
             </div>
             <div class="modal-actions">
                 <button type="button" class="btn btn-secondary" onclick="closeAddStudentModal()">Hủy</button>
-                <button type="submit" class="btn btn-primary" id="btn-save-student">💾 Lưu học sinh</button>
+                <button type="submit" class="btn btn-primary" id="btn-save-student">💾 Lưu học viên</button>
             </div>
         </form>
     </div>
 </div>
 
-<!-- Modal Sửa Thông Tin Học Sinh -->
+<!-- Modal Sửa Thông Tin Học Viên -->
 <div class="modal-backdrop" id="modal-edit-student" style="display: none;" onclick="if(event.target === this) closeEditStudentModal()">
     <div class="modal-dialog">
         <div class="modal-top">
             <div class="modal-title-group">
                 <div class="modal-avatar-icon" style="background: rgba(14,165,233,0.12); color: var(--info);">✏️</div>
                 <div>
-                    <h3>Chỉnh Sửa Thông Tin Học Sinh</h3>
+                    <h3>Chỉnh Sửa Thông Tin Học Viên</h3>
                     <p id="modal-edit-student-class-hint">Lớp học: --</p>
                 </div>
             </div>
@@ -968,11 +969,11 @@
             <input type="hidden" id="edit-student-id">
             <div class="form-grid-2">
                 <div class="form-field">
-                    <label for="edit-student-code-input">Mã Sinh Viên / Học Sinh *</label>
+                    <label for="edit-student-code-input">Mã Học Viên *</label>
                     <input type="text" id="edit-student-code-input" class="custom-input" required>
                 </div>
                 <div class="form-field">
-                    <label for="edit-student-name-input">Họ và Tên *</label>
+                    <label for="edit-student-name-input">Họ và Tên Học Viên *</label>
                     <input type="text" id="edit-student-name-input" class="custom-input" required>
                 </div>
             </div>
@@ -998,15 +999,15 @@
     </div>
 </div>
 
-<!-- Modal Chuyển Lớp Học Sinh -->
+<!-- Modal Chuyển Lớp Cho Học Viên -->
 <div class="modal-backdrop" id="modal-transfer-student" style="display: none;" onclick="if(event.target === this) closeTransferStudentModal()">
     <div class="modal-dialog">
         <div class="modal-top">
             <div class="modal-title-group">
                 <div class="modal-avatar-icon" style="background: rgba(245,158,11,0.12); color: #d97706;">🔄</div>
                 <div>
-                    <h3>Chuyển Học Sinh Sang Lớp Khác</h3>
-                    <p id="modal-transfer-student-info">Học sinh: --</p>
+                    <h3>Chuyển Lớp Cho Học Viên</h3>
+                    <p id="modal-transfer-student-info">Học viên: --</p>
                 </div>
             </div>
             <button type="button" class="modal-close-btn" onclick="closeTransferStudentModal()" aria-label="Đóng">✕</button>
@@ -1022,7 +1023,7 @@
                 <select id="transfer-target-class-select" class="custom-input" required>
                     <option value="">-- Chọn lớp đích --</option>
                 </select>
-                <span class="form-help-tip">Học sinh sẽ được chuyển hoàn toàn sang lớp mới và không còn thuộc lớp hiện tại.</span>
+                <span class="form-help-tip">Học viên sẽ được chuyển hoàn toàn sang lớp mới và không còn thuộc lớp hiện tại.</span>
             </div>
             <div class="modal-actions">
                 <button type="button" class="btn btn-secondary" onclick="closeTransferStudentModal()">Hủy</button>
@@ -1080,8 +1081,8 @@
             <div class="modal-title-group">
                 <div class="modal-avatar-icon" style="background: rgba(16,185,129,0.12); color: var(--success);">🏷️</div>
                 <div>
-                    <h3>Gán Mã Thẻ RFID</h3>
-                    <p id="modal-assign-rfid-student-name">Học sinh: --</p>
+                    <h3>Gán Mã Thẻ RFID Cho Học Viên</h3>
+                    <p id="modal-assign-rfid-student-name">Học viên: --</p>
                 </div>
             </div>
             <button type="button" class="modal-close-btn" onclick="closeAssignRfidModal()" aria-label="Đóng">✕</button>
