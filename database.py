@@ -1,22 +1,28 @@
+import os
 import mariadb
 from datetime import datetime, timedelta, time, date
 
-DB_HOST = "10.123.122.225"
-DB_PORT = 3306
-DB_USER = "root"
-DB_PASSWORD = "1234"
-DB_NAME = "smartclassroom"
+DB_HOST = os.environ.get("DB_HOST", "10.123.122.225")
+DB_PORT = int(os.environ.get("DB_PORT", 3306))
+DB_USER = os.environ.get("DB_USER", "root")
+DB_PASSWORD = os.environ.get("DB_PASSWORD", "1234")
+DB_NAME = os.environ.get("DB_NAME", "smartclassroom")
 
 
 def ket_noi():
-    try:
-        return mariadb.connect(
-            host=DB_HOST, port=DB_PORT, user=DB_USER,
-            password=DB_PASSWORD, database=DB_NAME
-        )
-    except mariadb.Error as e:
-        print(f"DB ERROR: {e}")
-        return None
+    hosts = [DB_HOST]
+    if "127.0.0.1" not in hosts:
+        hosts.append("127.0.0.1")
+    for h in hosts:
+        try:
+            return mariadb.connect(
+                host=h, port=DB_PORT, user=DB_USER,
+                password=DB_PASSWORD, database=DB_NAME
+            )
+        except mariadb.Error:
+            continue
+    print(f"DB ERROR: Could not connect to MariaDB on {hosts}")
+    return None
 
 
 def tim_sensor_id(room_id, sensor_name):
@@ -231,7 +237,7 @@ def lay_danh_sach_phong():
         cursor.execute("""
             SELECT r.id, r.room_id, r.name, r.created_at, r.control_mode,
                    r.class_id, c.class_code, c.class_name,
-                   (SELECT COUNT(*) FROM students s WHERE s.class_id = r.class_id) AS student_count
+                   (SELECT COUNT(*) FROM students s WHERE s.room_id = r.id) AS student_count
             FROM rooms r
             LEFT JOIN classes c ON r.class_id = c.id
             ORDER BY r.id
@@ -267,7 +273,7 @@ def lay_phong(room_id):
         cursor.execute("""
             SELECT r.id, r.room_id, r.name, r.created_at, r.control_mode,
                    r.class_id, c.class_code, c.class_name,
-                   (SELECT COUNT(*) FROM students s WHERE s.class_id = r.class_id) AS student_count
+                   (SELECT COUNT(*) FROM students s WHERE s.room_id = r.id) AS student_count
             FROM rooms r
             LEFT JOIN classes c ON r.class_id = c.id
             WHERE r.room_id = ?
@@ -490,7 +496,7 @@ def lay_device(room_id, device_name):
 
 
 def tim_hoc_vien_theo_card(card_uid):
-    """Tìm học viên theo mã thẻ RFID (dùng để hiển thị tên trong nhật ký quét thẻ)."""
+    """Tìm học viên theo mã thẻ RFID (dùng để hiển thị tên trong nhật ký quét thẻ và điểm danh)."""
     if not card_uid:
         return None
     conn = ket_noi()
@@ -500,8 +506,10 @@ def tim_hoc_vien_theo_card(card_uid):
         cur = conn.cursor()
         cur.execute("""
             SELECT st.id, st.student_code, st.full_name, st.card_uid,
+                   st.room_id, r.room_id AS room_code, r.name AS room_name,
                    st.class_id, c.class_code, c.class_name
             FROM students st
+            LEFT JOIN rooms r ON r.id = st.room_id
             LEFT JOIN classes c ON c.id = st.class_id
             WHERE UPPER(st.card_uid) = UPPER(?)
         """, (card_uid.strip(),))
@@ -515,9 +523,12 @@ def tim_hoc_vien_theo_card(card_uid):
             "student_code": row[1],
             "full_name": row[2],
             "card_uid": row[3],
-            "class_id": row[4],
-            "class_code": row[5] or "",
-            "class_name": row[6] or row[5] or "---"
+            "room_id": row[4],
+            "room_code": row[5] or "",
+            "room_name": row[6] or "",
+            "class_id": row[7],
+            "class_code": row[8] or "",
+            "class_name": row[9] or row[8] or "---"
         }
     except mariadb.Error as e:
         print(f"DB ERROR tim_hoc_vien_theo_card: {e}")
@@ -791,8 +802,43 @@ def tao_mon_hoc(subject_code, subject_name, description=None):
         print(f"DB ERROR tao_mon_hoc: {e}"); conn.rollback(); conn.close(); return None
 
 
+def lay_hoc_vien_theo_phong(room_id, search=None):
+    """Lấy danh sách học sinh CHỈ THUỘC PHÒNG HỌC NÀY (quản lý trực tiếp theo phòng)."""
+    conn = ket_noi()
+    if not conn:
+        return None
+    try:
+        cur = conn.cursor()
+        query = """SELECT st.id, st.student_code, st.full_name, st.card_uid,
+                          st.room_id, r.room_id AS room_code, r.name AS room_name,
+                          st.email, st.phone, st.created_at
+                   FROM students st
+                   JOIN rooms r ON r.id = st.room_id
+                   WHERE (r.room_id = ? OR r.id = ?)"""
+        params = [str(room_id), str(room_id) if isinstance(room_id, int) or (isinstance(room_id, str) and str(room_id).isdigit()) else -1]
+        if search:
+            search_str = f"%{search.strip()}%"
+            query += " AND (st.student_code LIKE ? OR st.full_name LIKE ? OR st.card_uid LIKE ? OR st.phone LIKE ? OR st.email LIKE ?)"
+            params.extend([search_str, search_str, search_str, search_str, search_str])
+        query += " ORDER BY st.student_code ASC"
+        cur.execute(query, tuple(params))
+        columns = ["id", "student_code", "full_name", "card_uid", "room_id", "room_code", "room_name", "email", "phone", "created_at"]
+        rows = _rows_as_dicts(cur.fetchall(), columns)
+        for r in rows:
+            r["rfid_uid"] = r["card_uid"]
+            if r["created_at"] and hasattr(r["created_at"], "isoformat"):
+                r["created_at"] = r["created_at"].isoformat()
+            elif r["created_at"]:
+                r["created_at"] = str(r["created_at"])
+            r["status"] = "ACTIVE"
+        cur.close(); conn.close()
+        return rows
+    except mariadb.Error as e:
+        print(f"DB ERROR lay_hoc_vien_theo_phong: {e}"); conn.close(); return None
+
+
 def lay_hoc_vien_theo_lop(class_id, search=None):
-    """Lấy danh sách học sinh CHỈ THUỘC LỚP NÀY (tách biệt hoàn toàn)."""
+    """Lấy danh sách học sinh theo lớp hoặc theo phòng tương ứng."""
     conn = ket_noi()
     if not conn:
         return None
@@ -802,9 +848,10 @@ def lay_hoc_vien_theo_lop(class_id, search=None):
                           st.class_id, c.class_code, c.class_name,
                           st.email, st.phone, st.created_at
                    FROM students st
-                   JOIN classes c ON c.id = st.class_id
-                   WHERE st.class_id = ?"""
-        params = [class_id]
+                   LEFT JOIN classes c ON c.id = st.class_id
+                   LEFT JOIN rooms r ON r.id = st.room_id
+                   WHERE (st.class_id = ? OR r.class_id = ? OR st.room_id = ?)"""
+        params = [class_id, class_id, class_id]
         if search:
             search_str = f"%{search.strip()}%"
             query += " AND (st.student_code LIKE ? OR st.full_name LIKE ? OR st.card_uid LIKE ?)"
@@ -858,6 +905,63 @@ def lay_chi_tiet_hoc_vien(student_id):
         return d
     except mariadb.Error as e:
         print(f"DB ERROR lay_chi_tiet_hoc_vien: {e}"); conn.close(); return None
+
+
+def them_hoc_vien_vao_phong(room_id, student_code, full_name, card_uid=None, email=None, phone=None):
+    """Thêm học sinh mới trực tiếp vào phòng học đã chọn."""
+    conn = ket_noi()
+    if not conn:
+        return {"success": False, "error": "Không thể kết nối MariaDB"}
+    try:
+        cur = conn.cursor()
+        student_code = student_code.strip()
+        full_name = full_name.strip()
+        card_uid = card_uid.strip().upper() if card_uid and card_uid.strip() else None
+        email = email.strip() if email and email.strip() else None
+        phone = phone.strip() if phone and phone.strip() else None
+
+        # Kiểm tra phòng tồn tại
+        cur.execute("SELECT id, room_id, name, class_id FROM rooms WHERE room_id = ? OR id = ?", (str(room_id), str(room_id)))
+        r_row = cur.fetchone()
+        if not r_row:
+            cur.close(); conn.close()
+            return {"success": False, "error": f"Phòng học '{room_id}' không tồn tại"}
+
+        room_db_id = r_row[0]
+        room_class_id = r_row[3]
+
+        # Kiểm tra trùng thẻ RFID
+        if card_uid:
+            cur.execute("SELECT id, student_code, full_name FROM students WHERE UPPER(card_uid) = ?", (card_uid,))
+            dup_card = cur.fetchone()
+            if dup_card:
+                cur.close(); conn.close()
+                return {"success": False, "error": f"Mã thẻ RFID {card_uid} đã được gán cho học sinh {dup_card[2]} ({dup_card[1]})!"}
+
+        # Kiểm tra trùng mã sinh viên
+        cur.execute("SELECT id, full_name, room_id FROM students WHERE student_code = ?", (student_code,))
+        existing = cur.fetchone()
+        if existing:
+            if existing[2] is None:
+                cur.execute("UPDATE students SET room_id = ?, class_id = COALESCE(?, class_id), full_name = ?, card_uid = COALESCE(?, card_uid), email = COALESCE(?, email), phone = COALESCE(?, phone) WHERE id = ?",
+                            (room_db_id, room_class_id, full_name, card_uid, email, phone, existing[0]))
+                conn.commit()
+                cur.close(); conn.close()
+                return {"success": True, "id": existing[0], "message": f"Đã gán học sinh {student_code} vào phòng {r_row[2]}"}
+            cur.close(); conn.close()
+            return {"success": False, "error": f"Mã học sinh {student_code} đã tồn tại trong hệ thống!"}
+
+        cur.execute("""INSERT INTO students (student_code, full_name, card_uid, room_id, class_id, email, phone)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (student_code, full_name, card_uid, room_db_id, room_class_id, email, phone))
+        conn.commit()
+        new_id = cur.lastrowid
+        cur.close(); conn.close()
+        return {"success": True, "id": new_id, "message": f"Đã thêm học sinh vào phòng {r_row[2]} thành công"}
+    except mariadb.Error as e:
+        print(f"DB ERROR them_hoc_vien_vao_phong: {e}")
+        conn.rollback(); conn.close()
+        return {"success": False, "error": str(e)}
 
 
 def them_hoc_vien_vao_lop(class_id, student_code, full_name, card_uid=None, email=None, phone=None):
@@ -1012,6 +1116,33 @@ def chuyen_lop_hoc_vien(student_id, target_class_id):
         return {"success": False, "error": "Không tìm thấy học sinh để chuyển lớp"}
     except mariadb.Error as e:
         print(f"DB ERROR chuyen_lop_hoc_vien: {e}")
+        conn.rollback(); conn.close()
+        return {"success": False, "error": str(e)}
+
+
+def chuyen_phong_hoc_vien(student_id, target_room_id):
+    """Chuyển học sinh từ phòng hiện tại sang phòng đích."""
+    conn = ket_noi()
+    if not conn:
+        return {"success": False, "error": "Không thể kết nối MariaDB"}
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, room_id, name, class_id FROM rooms WHERE room_id = ? OR id = ?", (str(target_room_id), str(target_room_id)))
+        target_room = cur.fetchone()
+        if not target_room:
+            cur.close(); conn.close()
+            return {"success": False, "error": "Phòng học đích không tồn tại"}
+
+        cur.execute("UPDATE students SET room_id = ?, class_id = COALESCE(?, class_id) WHERE id = ?", (target_room[0], target_room[3], student_id))
+        conn.commit()
+        affected = cur.rowcount
+        cur.close(); conn.close()
+        if affected > 0:
+            return {"success": True, "target_room_id": target_room[1], "target_room_name": target_room[2],
+                    "message": f"Đã chuyển học sinh sang phòng {target_room[2]} ({target_room[1]})"}
+        return {"success": False, "error": "Không tìm thấy học sinh để chuyển phòng"}
+    except mariadb.Error as e:
+        print(f"DB ERROR chuyen_phong_hoc_vien: {e}")
         conn.rollback(); conn.close()
         return {"success": False, "error": str(e)}
 

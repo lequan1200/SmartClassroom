@@ -16,6 +16,7 @@ from database import (
     lay_danh_sach_diem_danh, lay_the_rfid_vua_quet_gan_nhat,
     lay_danh_sach_lop, lay_chi_tiet_lop, tao_lop, cap_nhat_lop, xoa_lop,
     lay_danh_sach_mon_hoc, tao_mon_hoc,
+    lay_hoc_vien_theo_phong, them_hoc_vien_vao_phong, chuyen_phong_hoc_vien,
     lay_hoc_vien_theo_lop, lay_hoc_vien_cua_lop, them_hoc_vien_vao_lop,
     sua_hoc_vien, xoa_hoc_vien, chuyen_lop_hoc_vien, gan_the_hoc_vien, gan_hoc_vien_vao_lop,
     tao_thoi_khoa_bieu, lay_thoi_khoa_bieu, xoa_thoi_khoa_bieu,
@@ -24,7 +25,8 @@ from database import (
 from mqtt_client import (
     client, ket_noi_mqtt, gui_lenh_thiet_bi,
     lay_che_do_hien_tai, gui_lenh_che_do, lay_trang_thai_phong,
-    dong_bo_hoc_sinh_lop_mqtt, dat_che_do_gan_the, lay_the_rfid_vua_quet
+    dong_bo_hoc_sinh_phong_mqtt, dong_bo_hoc_sinh_lop_mqtt,
+    dat_che_do_gan_the, lay_the_rfid_vua_quet
 )
 import threading
 import time
@@ -479,21 +481,22 @@ def api_room_class(room_id):
 
 @app.route("/api/rooms/<room_id>/students", methods=["GET", "POST"])
 def api_room_students(room_id):
-    cls = lay_lop_cua_phong(room_id)
-    if not cls:
-        return jsonify({"success": False, "message": "Phòng chưa được gán lớp học", "room_id": room_id}), 404
+    p = lay_phong(room_id)
+    if not p:
+        return jsonify({"success": False, "message": "Phòng học không tồn tại", "room_id": room_id}), 404
 
     if request.method == "GET":
         search = request.args.get("search")
-        rows = lay_hoc_vien_theo_lop(cls["id"], search=search)
+        rows = lay_hoc_vien_theo_phong(room_id, search=search)
         return jsonify({
             "success": rows is not None,
             "data": rows or [],
             "students": rows or [],
-            "class": cls
+            "room": p,
+            "room_id": room_id
         }), 200 if rows is not None else 500
 
-    # POST: Thêm học sinh trực tiếp vào lớp của phòng này
+    # POST: Thêm học sinh trực tiếp vào phòng này
     data = request.get_json(silent=True) or {}
     code = str(data.get("student_code", "")).strip()
     name = str(data.get("full_name", "")).strip()
@@ -501,8 +504,8 @@ def api_room_students(room_id):
         return jsonify({"success": False, "message": "Cần student_code và full_name"}), 400
 
     card_uid = data.get("card_uid") or data.get("rfid_uid")
-    res = them_hoc_vien_vao_lop(
-        class_id=cls["id"],
+    res = them_hoc_vien_vao_phong(
+        room_id=room_id,
         student_code=code,
         full_name=name,
         card_uid=card_uid,
@@ -515,22 +518,57 @@ def api_room_students(room_id):
         "success": True,
         "id": res.get("id"),
         "student_id": res.get("id"),
-        "class_id": cls["id"],
-        "class": cls,
-        "message": res.get("message", "Thêm học viên vào lớp thành công")
+        "room_id": room_id,
+        "message": res.get("message", "Thêm học viên vào phòng thành công")
     }), 201
+
+
+@app.route("/api/rooms/<room_id>/students/<int:student_id>", methods=["PUT", "DELETE"])
+def api_room_student_item(room_id, student_id):
+    if request.method == "PUT":
+        data = request.get_json(silent=True) or {}
+        card_uid = data.get("card_uid") or data.get("rfid_uid")
+        res = sua_hoc_vien(
+            student_id=student_id,
+            student_code=data.get("student_code"),
+            full_name=data.get("full_name"),
+            card_uid=card_uid,
+            email=data.get("email"),
+            phone=data.get("phone")
+        )
+        if not res.get("success"):
+            return jsonify({"success": False, "message": res.get("error", "Không thể sửa học sinh")}), 400
+        return jsonify({"success": True, "message": res.get("message", "Cập nhật thành công")}), 200
+
+    if request.method == "DELETE":
+        ok = xoa_hoc_vien(student_id)
+        if not ok:
+            return jsonify({"success": False, "message": "Không thể xóa học sinh"}), 400
+        return jsonify({"success": True, "message": "Đã xóa học sinh khỏi phòng thành công"}), 200
+
+
+@app.route("/api/rooms/<room_id>/students/<int:student_id>/transfer", methods=["POST"])
+def api_room_transfer_student(room_id, student_id):
+    data = request.get_json(silent=True) or {}
+    target_room_id = data.get("target_room_id") or data.get("target_room")
+    if not target_room_id:
+        return jsonify({"success": False, "message": "Thiếu target_room_id"}), 400
+
+    if str(target_room_id) == str(room_id):
+        return jsonify({"success": False, "message": "Phòng đích phải khác phòng hiện tại"}), 400
+
+    res = chuyen_phong_hoc_vien(student_id, target_room_id)
+    if not res.get("success"):
+        return jsonify({"success": False, "message": res.get("error", "Không thể chuyển phòng")}), 400
+    return jsonify({"success": True, "message": res.get("message", "Chuyển phòng thành công")}), 200
 
 
 @app.route("/api/rooms/<room_id>/students/sync-mqtt", methods=["POST"])
 def api_room_students_sync_mqtt(room_id):
-    cls = lay_lop_cua_phong(room_id)
-    if not cls:
-        return jsonify({"success": False, "message": "Phòng chưa được gán lớp học", "room_id": room_id}), 404
-
-    ok, msg = dong_bo_hoc_sinh_lop_mqtt(room_id, cls["id"])
+    ok, msg = dong_bo_hoc_sinh_phong_mqtt(room_id)
     return jsonify({
         "success": ok,
-        "class": cls,
+        "room_id": room_id,
         "message": msg if ok else f"Lỗi đồng bộ MQTT: {msg}"
     }), 200 if ok else 500
 

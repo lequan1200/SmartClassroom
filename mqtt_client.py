@@ -20,7 +20,8 @@ from database import (
     luu_attendance_log, tim_hoc_vien_theo_card,
     lay_che_do_phong, cap_nhat_che_do_phong,
     lay_hoac_tao_buoi_hoc_hien_tai, hoc_vien_thuoc_lop, ghi_nhan_diem_danh,
-    lay_hoc_vien_theo_lop, lay_chi_tiet_lop, gan_the_hoc_vien
+    lay_hoc_vien_theo_lop, lay_chi_tiet_lop, gan_the_hoc_vien,
+    lay_hoc_vien_theo_phong
 )
 
 MQTT_BROKER = "127.0.0.1"
@@ -568,16 +569,50 @@ def gui_lenh_che_do(room_id, mode):
         return False, f"Lỗi MQTT: {e}"
 
 
-# ===== QUẢN LÝ HỌC SINH VÀ LỚP QUA MQTT =====
+# ===== QUẢN LÝ HỌC SINH VÀ PHÒNG HỌC QUA MQTT =====
 
-def dong_bo_hoc_sinh_lop_mqtt(room_id, class_id):
-    """Gửi bản tin MQTT đồng bộ danh sách học sinh của riêng lớp này tới phòng học.
+def dong_bo_hoc_sinh_phong_mqtt(room_id):
+    """Gửi bản tin MQTT đồng bộ danh sách học sinh của riêng phòng học này tới ESP32.
     Topic: classroom/{room_id}/class/students
     """
-    cls_info = lay_chi_tiet_lop(class_id)
-    if not cls_info:
-        return False, "Lớp không tồn tại"
+    students = lay_hoc_vien_theo_phong(room_id)
+    if students is None:
+        return False, "Không thể đọc dữ liệu học sinh của phòng"
 
+    payload = {
+        "event": "SYNC_STUDENTS",
+        "room_id": room_id,
+        "total_students": len(students),
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "students": [
+            {
+                "id": s["id"],
+                "student_code": s["student_code"],
+                "full_name": s["full_name"],
+                "card_uid": s["card_uid"] or ""
+            }
+            for s in students
+        ]
+    }
+    topic = f"classroom/{room_id}/class/students"
+    try:
+        msg = json.dumps(payload, ensure_ascii=False)
+        client.publish(topic, msg, qos=1)
+        print(f"MQTT SYNC ROOM -> {topic}: {len(students)} students")
+        return True, f"Đã đồng bộ {len(students)} học sinh tới phòng {room_id}"
+    except Exception as e:
+        print(f"MQTT SYNC ERROR: {e}")
+        return False, str(e)
+
+
+def dong_bo_hoc_sinh_lop_mqtt(room_id, class_id):
+    """Gửi bản tin MQTT đồng bộ danh sách học sinh tới phòng học (tương thích)."""
+    # Ưu tiên đồng bộ học sinh của phòng
+    ok, msg = dong_bo_hoc_sinh_phong_mqtt(room_id)
+    if ok:
+        return True, msg
+
+    cls_info = lay_chi_tiet_lop(class_id)
     students = lay_hoc_vien_theo_lop(class_id)
     if students is None:
         return False, "Không thể đọc dữ liệu học sinh"
@@ -586,8 +621,8 @@ def dong_bo_hoc_sinh_lop_mqtt(room_id, class_id):
         "event": "SYNC_STUDENTS",
         "room_id": room_id,
         "class_id": class_id,
-        "class_code": cls_info.get("class_code", ""),
-        "class_name": cls_info.get("class_name", ""),
+        "class_code": cls_info.get("class_code", "") if cls_info else "",
+        "class_name": cls_info.get("class_name", "") if cls_info else "",
         "total_students": len(students),
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "students": [
@@ -605,7 +640,7 @@ def dong_bo_hoc_sinh_lop_mqtt(room_id, class_id):
         msg = json.dumps(payload, ensure_ascii=False)
         client.publish(topic, msg, qos=1)
         print(f"MQTT SYNC CLASS -> {topic}: {len(students)} students")
-        return True, f"Đã đồng bộ {len(students)} học sinh của lớp {cls_info.get('class_code')} tới {room_id}"
+        return True, f"Đã đồng bộ {len(students)} học sinh tới {room_id}"
     except Exception as e:
         print(f"MQTT SYNC ERROR: {e}")
         return False, str(e)
@@ -614,22 +649,23 @@ def dong_bo_hoc_sinh_lop_mqtt(room_id, class_id):
 def xu_ly_class_request(thong_tin, data):
     """Xử lý yêu cầu danh sách học sinh từ ESP32: classroom/{room_id}/class/request"""
     room_id = thong_tin["room_id"]
-    class_id = data.get("class_id")
+    ok, _ = dong_bo_hoc_sinh_phong_mqtt(room_id)
+    if not ok:
+        class_id = data.get("class_id")
+        if not class_id:
+            session = lay_hoac_tao_buoi_hoc_hien_tai(room_id)
+            if session and session.get("class_id"):
+                class_id = session["class_id"]
 
-    if not class_id:
-        session = lay_hoac_tao_buoi_hoc_hien_tai(room_id)
-        if session and session.get("class_id"):
-            class_id = session["class_id"]
-
-    if class_id:
-        dong_bo_hoc_sinh_lop_mqtt(room_id, class_id)
-    else:
-        topic = f"classroom/{room_id}/class/students"
-        client.publish(topic, json.dumps({
-            "event": "NO_CLASS",
-            "room_id": room_id,
-            "message": "Không có lớp học nào đang diễn ra tại phòng"
-        }, ensure_ascii=False), qos=0)
+        if class_id:
+            dong_bo_hoc_sinh_lop_mqtt(room_id, class_id)
+        else:
+            topic = f"classroom/{room_id}/class/students"
+            client.publish(topic, json.dumps({
+                "event": "NO_STUDENTS",
+                "room_id": room_id,
+                "message": "Chưa có học sinh nào trong phòng"
+            }, ensure_ascii=False), qos=0)
 
 
 che_do_gan_the_dang_cho = {}  # room_id -> student_id
