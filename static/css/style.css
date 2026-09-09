@@ -3133,3 +3133,108 @@ a {
     opacity: 0;
     transition: opacity 0.25s ease;
 }
+
+/* ============================================================
+   CLASS & STUDENT MANAGEMENT STYLES
+   ============================================================ */
+.class-selector-row {
+    background: rgba(248, 250, 252, 0.85);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+}
+
+.badge-rfid-code {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #1d4ed8;
+    background: rgba(37, 99, 235, 0.1);
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(37, 99, 235, 0.2);
+}
+
+.badge-rfid-empty {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #b45309;
+    background: rgba(245, 158, 11, 0.12);
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px dashed rgba(245, 158, 11, 0.35);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.badge-rfid-empty:hover {
+    background: rgba(245, 158, 11, 0.22);
+    transform: translateY(-1px);
+}
+
+.student-avatar-circle {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #3b82f6, #6366f1);
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.student-name-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.table-actions-group {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.btn-icon-action {
+    padding: 5px 9px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid var(--card-border);
+    background: #ffffff;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.btn-icon-action:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: var(--text-pure);
+}
+
+.btn-icon-action.transfer:hover {
+    background: rgba(245, 158, 11, 0.1);
+    color: #b45309;
+    border-color: rgba(245, 158, 11, 0.3);
+}
+
+.btn-icon-action.delete:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.3);
+}

@@ -5,11 +5,13 @@ from datetime import datetime
 import paho.mqtt.client as mqtt
 
 from database import (
+    ket_noi,
     tim_sensor_id, luu_sensor_data, cap_nhat_sensor_current,
     tim_device_id, cap_nhat_device_current, luu_device_log,
     luu_attendance_log, tim_hoc_vien_theo_card,
     lay_che_do_phong, cap_nhat_che_do_phong,
-    lay_hoac_tao_buoi_hoc_hien_tai, hoc_vien_thuoc_lop, ghi_nhan_diem_danh
+    lay_hoac_tao_buoi_hoc_hien_tai, hoc_vien_thuoc_lop, ghi_nhan_diem_danh,
+    lay_hoc_vien_theo_lop, lay_chi_tiet_lop, gan_the_hoc_vien
 )
 
 MQTT_BROKER = "127.0.0.1"
@@ -78,6 +80,21 @@ def phan_tich_topic(topic):
         return {"room_id": room_id, "loai": "alert"}
     if loai == "mode" and len(parts) == 4:
         return {"room_id": room_id, "loai": "mode", "hanh_dong": parts[3]}
+    if loai == "class":
+        if len(parts) >= 4 and parts[3] in ["students", "feedback"]:
+            return None
+        if len(parts) == 4 and parts[3] == "request":
+            return {"room_id": room_id, "loai": "class_request"}
+    if loai == "rfid":
+        if len(parts) == 4 and parts[3] == "scanned":
+            return {"room_id": room_id, "loai": "rfid_scanned"}
+        if len(parts) == 4 and parts[3] in ["mode", "feedback"]:
+            return None
+    if loai == "student":
+        if len(parts) == 4 and parts[3] == "lookup":
+            return {"room_id": room_id, "loai": "student_lookup"}
+        if len(parts) >= 5 and parts[3] == "lookup":
+            return None
 
     return None
 
@@ -203,6 +220,12 @@ def khi_nhan_message(client, userdata, message):
         xu_ly_alert(thong_tin, data)
     elif loai == "mode":
         xu_ly_mode(thong_tin, data)
+    elif loai == "class_request":
+        xu_ly_class_request(thong_tin, data)
+    elif loai == "rfid_scanned":
+        xu_ly_rfid_scanned(thong_tin, data)
+    elif loai == "student_lookup":
+        xu_ly_student_lookup(thong_tin, data)
 
 
 def xu_ly_sensor(thong_tin, data):
@@ -334,7 +357,36 @@ def xu_ly_attendance(thong_tin, data):
 
     student_name = student["full_name"]
     student_code = student["student_code"]
-    session = lay_hoac_tao_buoi_hoc_hien_tai(room_id, scan_dt)
+
+    session = None
+    explicit_session_id = data.get("session_id")
+    if explicit_session_id:
+        conn = ket_noi()
+        if conn:
+            try:
+                cur = conn.cursor()
+                cur.execute("""SELECT cs.id, cs.late_after_at, sub.subject_name,
+                                      cs.starts_at, cs.ends_at, cs.status,
+                                      cs.class_id, c.class_code, c.class_name
+                               FROM class_sessions cs
+                               JOIN subjects sub ON sub.id=cs.subject_id
+                               LEFT JOIN classes c ON c.id=cs.class_id
+                               WHERE cs.id=?""", (explicit_session_id,))
+                s_row = cur.fetchone()
+                cur.close(); conn.close()
+                if s_row:
+                    session = {
+                        "id": s_row[0], "session_id": s_row[0], "late_after_at": s_row[1],
+                        "subject_name": s_row[2], "starts_at": s_row[3], "ends_at": s_row[4],
+                        "status": s_row[5], "class_id": s_row[6], "class_code": s_row[7] or "",
+                        "class_name": s_row[8] or ""
+                    }
+            except Exception as ex:
+                if conn: conn.close()
+
+    if not session:
+        session = lay_hoac_tao_buoi_hoc_hien_tai(room_id, scan_dt)
+
     if not session:
         luu_attendance_log(room_id=room_id, card_uid=card_uid, event_type="CHECK_IN", status="KHONG_CO_BUOI_HOC", recorded_at=time_str)
         gui_phan_hoi_diem_danh(room_id, {
@@ -478,6 +530,141 @@ def gui_lenh_che_do(room_id, mode):
     except Exception as e:
         print(f"MQTT PUBLISH ERROR: {e}")
         return False, f"Lỗi MQTT: {e}"
+
+
+# ===== QUẢN LÝ HỌC SINH VÀ LỚP QUA MQTT =====
+
+def dong_bo_hoc_sinh_lop_mqtt(room_id, class_id):
+    """Gửi bản tin MQTT đồng bộ danh sách học sinh của riêng lớp này tới phòng học.
+    Topic: classroom/{room_id}/class/students
+    """
+    cls_info = lay_chi_tiet_lop(class_id)
+    if not cls_info:
+        return False, "Lớp không tồn tại"
+
+    students = lay_hoc_vien_theo_lop(class_id)
+    if students is None:
+        return False, "Không thể đọc dữ liệu học sinh"
+
+    payload = {
+        "event": "SYNC_STUDENTS",
+        "room_id": room_id,
+        "class_id": class_id,
+        "class_code": cls_info.get("class_code", ""),
+        "class_name": cls_info.get("class_name", ""),
+        "total_students": len(students),
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "students": [
+            {
+                "id": s["id"],
+                "student_code": s["student_code"],
+                "full_name": s["full_name"],
+                "card_uid": s["card_uid"] or ""
+            }
+            for s in students
+        ]
+    }
+    topic = f"classroom/{room_id}/class/students"
+    try:
+        msg = json.dumps(payload, ensure_ascii=False)
+        client.publish(topic, msg, qos=1)
+        print(f"MQTT SYNC CLASS -> {topic}: {len(students)} students")
+        return True, f"Đã đồng bộ {len(students)} học sinh của lớp {cls_info.get('class_code')} tới {room_id}"
+    except Exception as e:
+        print(f"MQTT SYNC ERROR: {e}")
+        return False, str(e)
+
+
+def xu_ly_class_request(thong_tin, data):
+    """Xử lý yêu cầu danh sách học sinh từ ESP32: classroom/{room_id}/class/request"""
+    room_id = thong_tin["room_id"]
+    class_id = data.get("class_id")
+
+    if not class_id:
+        session = lay_hoac_tao_buoi_hoc_hien_tai(room_id)
+        if session and session.get("class_id"):
+            class_id = session["class_id"]
+
+    if class_id:
+        dong_bo_hoc_sinh_lop_mqtt(room_id, class_id)
+    else:
+        topic = f"classroom/{room_id}/class/students"
+        client.publish(topic, json.dumps({
+            "event": "NO_CLASS",
+            "room_id": room_id,
+            "message": "Không có lớp học nào đang diễn ra tại phòng"
+        }, ensure_ascii=False), qos=0)
+
+
+che_do_gan_the_dang_cho = {}  # room_id -> student_id
+
+
+def dat_che_do_gan_the(room_id, student_id):
+    """Bật/tắt chế độ chờ quẹt thẻ RFID để gán cho học sinh."""
+    if student_id:
+        che_do_gan_the_dang_cho[room_id] = student_id
+        topic = f"classroom/{room_id}/rfid/mode"
+        client.publish(topic, json.dumps({"mode": "LEARN", "student_id": student_id}), qos=1)
+        print(f"RFID LEARN MODE ACTIVATED -> Room: {room_id} for Student: {student_id}")
+    else:
+        che_do_gan_the_dang_cho.pop(room_id, None)
+        topic = f"classroom/{room_id}/rfid/mode"
+        client.publish(topic, json.dumps({"mode": "NORMAL"}), qos=1)
+        print(f"RFID LEARN MODE CANCELLED -> Room: {room_id}")
+
+
+def xu_ly_rfid_scanned(thong_tin, data):
+    """Xử lý quẹt thẻ trong chế độ gán thẻ: classroom/{room_id}/rfid/scanned"""
+    room_id = thong_tin["room_id"]
+    card_uid = (data.get("card_uid") or data.get("uid") or "").strip().upper()
+    if not card_uid:
+        return
+
+    student_id = che_do_gan_the_dang_cho.get(room_id)
+    if student_id:
+        res = gan_the_hoc_vien(student_id, card_uid)
+        che_do_gan_the_dang_cho.pop(room_id, None)
+        topic_feedback = f"classroom/{room_id}/rfid/feedback"
+        if res.get("success"):
+            client.publish(topic_feedback, json.dumps({
+                "status": "SUCCESS", "card_uid": card_uid, "student_id": student_id,
+                "message": f"Đã gán mã thẻ {card_uid} thành công!"
+            }, ensure_ascii=False), qos=1)
+        else:
+            client.publish(topic_feedback, json.dumps({
+                "status": "ERROR", "card_uid": card_uid,
+                "message": res.get("error", "Lỗi gán thẻ")
+            }, ensure_ascii=False), qos=1)
+
+
+def xu_ly_student_lookup(thong_tin, data):
+    """Xử lý tra cứu học sinh theo thẻ: classroom/{room_id}/student/lookup"""
+    room_id = thong_tin["room_id"]
+    card_uid = (data.get("card_uid") or data.get("uid") or "").strip().upper()
+    if not card_uid:
+        return
+
+    student = tim_hoc_vien_theo_card(card_uid)
+    topic = f"classroom/{room_id}/student/lookup/feedback"
+    if student:
+        client.publish(topic, json.dumps({
+            "found": True,
+            "card_uid": card_uid,
+            "student": {
+                "id": student["id"],
+                "student_code": student["student_code"],
+                "full_name": student["full_name"],
+                "class_id": student.get("class_id"),
+                "class_code": student.get("class_code", ""),
+                "class_name": student.get("class_name", "")
+            }
+        }, ensure_ascii=False), qos=0)
+    else:
+        client.publish(topic, json.dumps({
+            "found": False,
+            "card_uid": card_uid,
+            "message": "Không tìm thấy học sinh với mã thẻ này"
+        }, ensure_ascii=False), qos=0)
 
 
 if __name__ == "__main__":
