@@ -472,7 +472,17 @@ def xu_ly_attendance(thong_tin, data):
 
 
 def xu_ly_alert(thong_tin, data):
-    print(f"ALERT | {thong_tin['room_id']} | {data}")
+    room_id = thong_tin.get("room_id", "")
+    alert_type = data.get("alert") or data.get("type") or "ALERT"
+    level = data.get("level") or "UNKNOWN"
+    msg_time = data.get("time") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    if alert_type == "AIR_QUALITY":
+        print(f"\n========== CẢNH BÁO CHẤT LƯỢNG KHÔNG KHÍ ==========\nPhòng: {room_id} | Mức: {level} | Thời gian: {msg_time}\n====================================================")
+    elif alert_type in ["GAS_LEAK", "GAS_DANGER"]:
+        print(f"\n========== CẢNH BÁO KHÍ GAS NGUY HIỂM ==========\nPhòng: {room_id} | Mức: {level} | Thời gian: {msg_time}\n================================================")
+    else:
+        print(f"ALERT | {room_id} | {data}")
 
 
 che_do_phong = {}

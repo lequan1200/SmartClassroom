@@ -25,6 +25,19 @@ def ket_noi():
     return None
 
 
+def _lay_sensor_alias(sensor_name):
+    s_lower = str(sensor_name).lower()
+    if s_lower == "door":
+        return "RFID"
+    if s_lower == "rfid":
+        return "door"
+    if s_lower in ["air_quality", "airquality", "aq", "chat_luong_khong_khi"]:
+        return "gas"
+    if s_lower in ["gas", "khi_gas"]:
+        return "air_quality"
+    return None
+
+
 def tim_sensor_id(room_id, sensor_name):
     conn = ket_noi()
     if conn is None:
@@ -39,7 +52,7 @@ def tim_sensor_id(room_id, sensor_name):
         result = cursor.fetchone()
 
         if result is None:
-            alias = "RFID" if str(sensor_name).lower() == "door" else ("door" if str(sensor_name).lower() == "rfid" else None)
+            alias = _lay_sensor_alias(sensor_name)
             if alias:
                 cursor.execute("""
                     SELECT sensors.id FROM sensors
@@ -385,7 +398,7 @@ def lay_sensor(room_id, sensor_name):
         row = cursor.fetchone()
 
         if row is None:
-            alias = "RFID" if str(sensor_name).lower() == "door" else ("door" if str(sensor_name).lower() == "rfid" else None)
+            alias = _lay_sensor_alias(sensor_name)
             if alias:
                 cursor.execute("""
                     SELECT sensors.id, sensors.sensor_name, sensors.sensor_type, sensors.unit,
@@ -438,7 +451,7 @@ def lay_sensor_history(room_id, sensor_name, limit=100):
         rows = cursor.fetchall()
 
         if not rows:
-            alias = "RFID" if str(sensor_name).lower() == "door" else ("door" if str(sensor_name).lower() == "rfid" else None)
+            alias = _lay_sensor_alias(sensor_name)
             if alias:
                 cursor.execute("""
                     SELECT sensor_data.value, sensor_data.recorded_at

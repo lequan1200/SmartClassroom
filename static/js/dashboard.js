@@ -489,11 +489,14 @@ function updateSensor(name, value, unit, time) {
             updateHumidityStatus(numericValue);
             break;
 
+        case "air_quality":
+        case "airquality":
+        case "aq":
         case "gas":
-            const gasRound = Math.round(numericValue);
-            if ($("gas-value")) $("gas-value").textContent = gasRound;
-            if ($("summary-gas")) $("summary-gas").textContent = `${gasRound} ADC`;
-            updateGasStatus(numericValue);
+            const aqRound = Math.round(numericValue);
+            if ($("air-quality-value")) $("air-quality-value").textContent = aqRound;
+            if ($("gas-value")) $("gas-value").textContent = aqRound;
+            updateAirQualityStatus(numericValue);
             break;
 
         case "light":
@@ -532,15 +535,56 @@ function updateHumidityStatus(value) {
     else { el.textContent = "NORMAL"; el.className = "sensor-status-tag normal"; }
 }
 
+function updateAirQualityStatus(value) {
+    const el = $("air-quality-status") || $("gas-status");
+    const summaryEl = $("summary-air-quality") || $("summary-gas");
+    const levelEl = $("air-quality-level");
+    const progressEl = $("air-quality-progress") || $("gas-progress");
+
+    let level = "GOOD";
+    let levelVi = "TỐT";
+    let tagClass = "sensor-status-tag normal";
+
+    if (value >= 2500) {
+        level = "HAZARDOUS";
+        levelVi = "NGUY HẠI";
+        tagClass = "sensor-status-tag danger";
+        addAirQualityAlert(value, "HAZARDOUS");
+    } else if (value >= 1500) {
+        level = "POOR";
+        levelVi = "KÉM";
+        tagClass = "sensor-status-tag danger";
+        addAirQualityAlert(value, "POOR");
+    } else if (value >= 800) {
+        level = "MODERATE";
+        levelVi = "TRUNG BÌNH";
+        tagClass = "sensor-status-tag warning";
+        resetAirQualityAlertIfSafe();
+    } else {
+        level = "GOOD";
+        levelVi = "TỐT";
+        tagClass = "sensor-status-tag normal";
+        resetAirQualityAlertIfSafe();
+    }
+
+    if (el) {
+        el.textContent = level;
+        el.className = tagClass;
+    }
+    if (levelEl) {
+        levelEl.textContent = levelVi;
+    }
+    if (summaryEl) {
+        summaryEl.textContent = `${Math.round(value)} (${levelVi})`;
+    }
+    if (progressEl) {
+        const progress = Math.max(5, Math.min(100, (value / 3000) * 100));
+        progressEl.style.width = `${progress}%`;
+    }
+}
+
 function updateGasStatus(value) {
-    const el = $("gas-status");
-    if (!el) return;
-    const progress = Math.min(100, (value / 1500) * 100);
-    const progressEl = $("gas-progress");
-    if (progressEl) progressEl.style.width = `${progress}%`;
-    if (value >= 1500) { el.textContent = "DANGER"; el.className = "sensor-status-tag danger"; addGasAlert(value); }
-    else if (value >= 1000) { el.textContent = "WARNING"; el.className = "sensor-status-tag warning"; }
-    else { el.textContent = "NORMAL"; el.className = "sensor-status-tag normal"; }
+    updateAirQualityStatus(value);
 }
 
 function updateLightStatus(value) {
@@ -837,22 +881,55 @@ function drawTemperatureChart(history) {
     });
 }
 
-function addGasAlert(value) {
+function addAirQualityAlert(value, level) {
     const list = $("alert-list");
     const count = $("alert-count");
     if (!list || !count) return;
+
+    const isHazardous = level === "HAZARDOUS" || value >= 2500;
+    const title = isHazardous
+        ? "Cảnh báo ô nhiễm không khí nghiêm trọng!"
+        : "Cảnh báo chất lượng không khí kém!";
+    const advice = isHazardous
+        ? "Nồng độ khí ô nhiễm vượt ngưỡng nguy hại. Cần mở toàn bộ cửa sổ và bật quạt thông gió ngay!"
+        : "Khuyến nghị mở cửa thông gió hoặc bật quạt để cải thiện chất lượng không khí.";
+
     list.innerHTML = `
-        <div class="alert-item danger">
-            <div class="alert-icon-box danger">!</div>
+        <div class="alert-item ${isHazardous ? "danger" : "warning"}">
+            <div class="alert-icon-box ${isHazardous ? "danger" : "warning"}">!</div>
             <div>
-                <strong>Cảnh báo nồng độ khí gas nguy hiểm!</strong>
-                <span>Giá trị đo đạt: ${Math.round(value)} ADC (vượt ngưỡng an toàn 1500)</span>
+                <strong>${title}</strong>
+                <span>Chỉ số: ${Math.round(value)} raw (${level}). ${advice}</span>
             </div>
         </div>
     `;
     count.textContent = "1";
-    count.style.background = "rgba(244,63,94,0.18)";
-    count.style.color = "var(--danger)";
+    count.style.background = isHazardous ? "rgba(244,63,94,0.18)" : "rgba(245,158,11,0.18)";
+    count.style.color = isHazardous ? "var(--danger)" : "var(--warning)";
+}
+
+function resetAirQualityAlertIfSafe() {
+    const list = $("alert-list");
+    const count = $("alert-count");
+    if (!list || !count) return;
+    if (list.innerHTML.includes("không khí") || list.innerHTML.includes("khí gas")) {
+        list.innerHTML = `
+            <div class="alert-item normal">
+                <div class="alert-icon-box normal">✓</div>
+                <div>
+                    <strong>Môi trường an toàn</strong>
+                    <span>Không phát hiện ô nhiễm không khí hoặc nhiệt độ bất thường</span>
+                </div>
+            </div>
+        `;
+        count.textContent = "0";
+        count.style.background = "";
+        count.style.color = "";
+    }
+}
+
+function addGasAlert(value) {
+    addAirQualityAlert(value, value >= 1500 ? "POOR" : "MODERATE");
 }
 
 // ============================================================

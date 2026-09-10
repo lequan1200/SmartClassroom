@@ -239,10 +239,10 @@
                         </div>
                     </div>
                     <div class="kpi-card">
-                        <div class="kpi-icon gas">⚠️</div>
+                        <div class="kpi-icon air-quality gas">🍃</div>
                         <div class="kpi-body">
-                            <span>Nồng độ Gas (MQ-2)</span>
-                            <strong id="summary-gas">-- ADC</strong>
+                            <span>Chất lượng không khí (MQ-135)</span>
+                            <strong id="summary-air-quality">-- (TỐT)</strong>
                         </div>
                     </div>
                     <div class="kpi-card">
@@ -316,24 +316,24 @@
                         <article class="sensor-card">
                             <div class="sensor-top">
                                 <div class="sensor-label-group">
-                                    <div class="sensor-icon-box" style="color: var(--warning); background: rgba(245,158,11,0.1);">☁️</div>
+                                    <div class="sensor-icon-box" style="color: #10b981; background: rgba(16,185,129,0.1);">🍃</div>
                                     <div>
-                                        <h4>Khí Gas & Khói</h4>
-                                        <span>Cảm biến MQ-2</span>
+                                        <h4>Chất lượng không khí</h4>
+                                        <span>Cảm biến MQ-135</span>
                                     </div>
                                 </div>
-                                <span class="sensor-status-tag normal" id="gas-status">NORMAL</span>
+                                <span class="sensor-status-tag normal" id="air-quality-status">GOOD</span>
                             </div>
                             <div class="sensor-metric">
-                                <strong id="gas-value">--</strong>
-                                <span>ADC</span>
+                                <strong id="air-quality-value">--</strong>
+                                <span id="air-quality-unit">raw</span>
                             </div>
                             <div class="telemetry-bar-wrap">
-                                <div class="telemetry-bar-fill gas" id="gas-progress" style="width: 0%;"></div>
+                                <div class="telemetry-bar-fill air-quality gas" id="air-quality-progress" style="width: 0%;"></div>
                             </div>
                             <div class="sensor-footer">
-                                <span>Ngưỡng cảnh báo:</span>
-                                <strong>1500 ADC</strong>
+                                <span>Đánh giá:</span>
+                                <strong id="air-quality-level">TỐT</strong>
                             </div>
                         </article>
 
@@ -552,7 +552,7 @@
                                 <div class="alert-icon-box normal">✓</div>
                                 <div>
                                     <strong>Môi trường an toàn</strong>
-                                    <span>Không phát hiện nồng độ khí gas hoặc nhiệt độ bất thường</span>
+                                    <span>Không phát hiện ô nhiễm không khí hoặc nhiệt độ bất thường</span>
                                 </div>
                             </div>
                         </div>

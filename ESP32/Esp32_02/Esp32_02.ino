@@ -18,7 +18,7 @@ const char *WIFI_PASS = "123123123";
 const char *MQTT_HOSTNAME = "mypi5";
 const int MQTT_PORT = 1883;
 
-#define ROOM_ID "room01"
+#define ROOM_ID "room02"
 
 // =====================================================
 // 2. GPIO
@@ -28,8 +28,8 @@ const int MQTT_PORT = 1883;
 #define DHTPIN 4
 #define DHTTYPE DHT11
 
-// MQ-2 (gas)
-#define GAS_PIN 34
+// MQ-135 (chat luong khong khi)
+#define AQ_PIN 34
 
 // Cam bien cua
 #define DOOR_PIN 14
@@ -51,8 +51,8 @@ const int MQTT_PORT = 1883;
 #define RELAY_FAN 21    // Quat (IN2)
 #define RELAY_AC 32     // Dieu hoa (neu co)
 
-#define RELAY_ON LOW
-#define RELAY_OFF HIGH
+#define RELAY_ON HIGH
+#define RELAY_OFF LOW
 
 // =====================================================
 // 3. OBJECTS
@@ -75,15 +75,21 @@ const char *NTP_SERVER = "pool.ntp.org";
 const long GMT_OFFSET_SEC = 7 * 3600;
 const int DAYLIGHT_OFFSET_SEC = 0;
 
-// ================================== ===================
+// =====================================================
 // 5. CAU HINH CAM BIEN
 // =====================================================
-
-const int GAS_THRESHOLD = 1500;
 
 // Doc cam bien moi 2 giay
 const unsigned long SENSOR_INTERVAL = 2000;
 unsigned long lastSensorRead = 0;
+
+// Nguong phan loai chat luong khong khi theo gia tri analog MQ135
+// (ESP32 ADC 12-bit: 0 - 4095). Cac nguong nay chi mang tinh tuong doi,
+// nen hieu chuan lai theo cam bien thuc te va moi truong lop hoc cua ban.
+const int AQ_GOOD_MAX = 800;      // < 800          -> Tot (GOOD)
+const int AQ_MODERATE_MAX = 1500; // 800  - 1500     -> Trung binh (MODERATE)
+const int AQ_POOR_MAX = 2500;     // 1500 - 2500     -> Kem (POOR)
+// > 2500                                            -> Rat kem (HAZARDOUS)
 
 // Nguong tu dong bat/tat den theo anh sang (co hysteresis chong nhap nhay)
 // Light1: den chinh, hoat dong doc lap theo lux
@@ -116,14 +122,11 @@ const unsigned long WIFI_RETRY_INTERVAL = 5000;
 const unsigned long MQTT_RETRY_INTERVAL = 5000;
 
 // =====================================================
-// 7. GAS ALARM
+// 7. CHAT LUONG KHONG KHI - THEO DOI THAY DOI MUC DE CANH BAO (khong dung
+// coi lien tuc nhu gas, chi publish MQTT khi muc thay doi)
 // =====================================================
 
-bool isGasDanger = false;
-bool previousGasDanger = false;
-unsigned long lastAlarmToggle = 0;
-const unsigned long ALARM_TOGGLE_INTERVAL = 100;
-bool alarmToggleState = false;
+String previousAQLevel = "";
 
 // =====================================================
 // 8. BUZZER (non-blocking)
@@ -170,7 +173,7 @@ String topicSetWildcard;        // classroom/room01/device/+/set
 String topicAttendance;         // classroom/room01/attendance
 String topicAttendanceFeedback; // classroom/room01/attendance/feedback
 String topicAlert;              // classroom/room01/alert
-String topicStatus;             // classroom/room01/status  (LWT + Online announce)
+String topicStatus; // classroom/room01/status  (LWT + Online announce)
 
 // =====================================================
 // 11. THOI GIAN
@@ -248,6 +251,42 @@ void publishSensor(const char *sensorName, float value, const char *unit) {
   serializeJson(doc, buf);
 
   String topic = topicSensorPrefix + sensorName;
+
+  if (mqtt.connected()) {
+    mqtt.publish(topic.c_str(), buf);
+  }
+
+  Serial.printf("[SENSOR] %s -> %s\n", topic.c_str(), buf);
+}
+
+// =====================================================
+// 15B. PHAN LOAI & PUBLISH CHAT LUONG KHONG KHI (MQ135)
+// =====================================================
+// Payload:
+// {"room_id":"room01","value":812,"unit":"raw","level":"MODERATE","time":"..."}
+
+const char *phanLoaiChatLuongKhongKhi(int raw) {
+  if (raw < AQ_GOOD_MAX)
+    return "GOOD";
+  if (raw < AQ_MODERATE_MAX)
+    return "MODERATE";
+  if (raw < AQ_POOR_MAX)
+    return "POOR";
+  return "HAZARDOUS";
+}
+
+void publishAirQuality(int raw, const char *level) {
+  JsonDocument doc;
+  doc["room_id"] = ROOM_ID;
+  doc["value"] = raw;
+  doc["unit"] = "raw";
+  doc["level"] = level;
+  doc["time"] = getCurrentTime();
+
+  char buf[192];
+  serializeJson(doc, buf);
+
+  String topic = topicSensorPrefix + "air_quality";
 
   if (mqtt.connected()) {
     mqtt.publish(topic.c_str(), buf);
@@ -559,14 +598,14 @@ void ketNoiMQTT() {
 
   String clientID = String("ESP32_") + ROOM_ID;
   String willTopic = topicStatus;
-  String willMsg   = "OFFLINE";
+  String willMsg = "OFFLINE";
 
   Serial.println("[MQTT] Dang ket noi...");
 
-  // Ket noi voi Last Will & Testament: Broker tu dong gui 'OFFLINE' khi mat ket noi
-  if (mqtt.connect(clientID.c_str(),
-                   NULL, NULL,
-                   willTopic.c_str(), 1, true, willMsg.c_str())) {
+  // Ket noi voi Last Will & Testament: Broker tu dong gui 'OFFLINE' khi mat ket
+  // noi
+  if (mqtt.connect(clientID.c_str(), NULL, NULL, willTopic.c_str(), 1, true,
+                   willMsg.c_str())) {
     Serial.println("[MQTT] KET NOI THANH CONG!");
 
     // Bao hieu phong dang ONLINE (retained, QoS 1)
@@ -680,8 +719,9 @@ void docCamBien() {
     hum = 0;
   }
 
-  // ---- MQ-2 (gas) ----
-  int gasVal = analogRead(GAS_PIN);
+  // ---- MQ-135 (chat luong khong khi) ----
+  int aqRaw = analogRead(AQ_PIN);
+  const char *aqLevel = phanLoaiChatLuongKhongKhi(aqRaw);
 
   // ---- Cua ----
   bool doorOpen = (digitalRead(DOOR_PIN) == HIGH);
@@ -693,41 +733,41 @@ void docCamBien() {
     lux = 0;
   }
 
-  // ---- Trang thai gas nguy hiem ----
-  isGasDanger = (gasVal > GAS_THRESHOLD);
-
   // ---- Tu dong bat/tat den theo anh sang (rieng cho tung den dang AUTO) ----
   autoControlLights(lux);
 
   // ---- Publish tung sensor rieng ----
   publishSensor("temperature", temp, "C");
   publishSensor("humidity", hum, "%");
-  publishSensor("gas", gasVal, "ppm");
+  publishAirQuality(aqRaw, aqLevel);
   publishSensor("door", doorOpen ? 1 : 0, "state");
   publishSensor("light", lux, "lux");
   publishSensor("RFID", rfidCardLocked ? 1 : 0, "card");
 
   // ---- Log gon ----
   Serial.println("------------- SENSOR -------------");
-  Serial.printf("Nhiet do : %.1f C\n", temp);
-  Serial.printf("Do am    : %.1f %%\n", hum);
-  Serial.printf("Khi gas  : %d ppm\n", gasVal);
-  Serial.printf("Anh sang : %.1f lux\n", lux);
-  Serial.printf("Cua      : %s\n", doorOpen ? "DANG MO" : "DA DONG");
-  Serial.printf("Light1   : %s (%s)\n", light1IsOn ? "BAT" : "TAT",
+  Serial.printf("Nhiet do      : %.1f C\n", temp);
+  Serial.printf("Do am         : %.1f %%\n", hum);
+  Serial.printf("Khong khi     : %d (raw) - %s\n", aqRaw, aqLevel);
+  Serial.printf("Anh sang      : %.1f lux\n", lux);
+  Serial.printf("Cua           : %s\n", doorOpen ? "DANG MO" : "DA DONG");
+  Serial.printf("Light1        : %s (%s)\n", light1IsOn ? "BAT" : "TAT",
                 light1AutoMode ? "AUTO" : "MANUAL");
-  Serial.printf("Light2   : %s (%s)\n", light2IsOn ? "BAT" : "TAT",
+  Serial.printf("Light2        : %s (%s)\n", light2IsOn ? "BAT" : "TAT",
                 light2AutoMode ? "AUTO" : "MANUAL");
   Serial.println("-----------------------------------");
 
-  // ---- Canh bao gas (rieng, khong phai sensor thuong) ----
-  if (isGasDanger != previousGasDanger) {
-    previousGasDanger = isGasDanger;
+  // ---- Canh bao khi muc chat luong khong khi thay doi ----
+  // (chi publish MQTT retained de FE/Server biet, KHONG keu coi lien tuc
+  // nhu gas vi lop hoc khong can bao dong am thanh cho khoan nay)
+  String currentLevel = String(aqLevel);
+  if (currentLevel != previousAQLevel) {
+    previousAQLevel = currentLevel;
 
     JsonDocument alertDoc;
     alertDoc["room_id"] = ROOM_ID;
-    alertDoc["alert"] = isGasDanger ? "GAS_LEAK" : "GAS_NORMAL";
-    alertDoc["level"] = isGasDanger ? "DANGER" : "NORMAL";
+    alertDoc["alert"] = "AIR_QUALITY";
+    alertDoc["level"] = aqLevel;
     alertDoc["time"] = getCurrentTime();
 
     char alertBuf[160];
@@ -737,30 +777,7 @@ void docCamBien() {
       mqtt.publish(topicAlert.c_str(), alertBuf, true);
     }
 
-    Serial.println(isGasDanger ? "!!! CANH BAO GAS !!!"
-                               : "[GAS] Da tro lai binh thuong.");
-  }
-}
-
-// =====================================================
-// 25. BUZZER CANH BAO GAS (nhap nhay lien tuc)
-// =====================================================
-
-void xuLyGasAlarm() {
-  if (!isGasDanger) {
-    noTone(BUZZER_PIN);
-    alarmToggleState = false;
-    return;
-  }
-
-  unsigned long now = millis();
-  if (now - lastAlarmToggle >= ALARM_TOGGLE_INTERVAL) {
-    lastAlarmToggle = now;
-    alarmToggleState = !alarmToggleState;
-    if (alarmToggleState)
-      tone(BUZZER_PIN, 2000);
-    else
-      noTone(BUZZER_PIN);
+    Serial.printf("[AIR QUALITY] Muc thay doi -> %s\n", aqLevel);
   }
 }
 
@@ -777,7 +794,7 @@ void setup() {
   Serial.println("====================================");
 
   // ---- GPIO ----
-  pinMode(GAS_PIN, INPUT);
+  pinMode(AQ_PIN, INPUT);
   pinMode(DOOR_PIN, INPUT_PULLUP);
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(RELAY_LIGHT1, OUTPUT);
@@ -814,7 +831,7 @@ void setup() {
   topicAttendance = "classroom/" + String(ROOM_ID) + "/attendance";
   topicAttendanceFeedback =
       "classroom/" + String(ROOM_ID) + "/attendance/feedback";
-  topicAlert  = "classroom/" + String(ROOM_ID) + "/alert";
+  topicAlert = "classroom/" + String(ROOM_ID) + "/alert";
   topicStatus = "classroom/" + String(ROOM_ID) + "/status";
 
   // ---- WIFI ----
@@ -869,7 +886,6 @@ void loop() {
     mqtt.loop();
 
   updateBuzzer();
-  xuLyGasAlarm();
   xuLyRFID(); // van hoat dong ke ca khi MQTT mat
   docCamBien();
 
