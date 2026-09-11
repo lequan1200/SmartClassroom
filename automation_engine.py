@@ -264,6 +264,9 @@ class AutomationEngine:
             elif s_name in ["humidity", "hum"]:
                 room.sensors["humidity"] = float(value)
 
+            elif s_name in ["air_quality", "aq", "airquality"]:
+                room.sensors["air_quality"] = float(value)
+
     def reevaluate_room(self, room_id: str):
         """Đánh giá lại toàn bộ các thiết bị của phòng dựa trên giá trị cảm biến hiện có."""
         with self._lock:

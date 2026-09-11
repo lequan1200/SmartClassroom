@@ -26,7 +26,11 @@ def ket_noi():
 
 
 def _lay_sensor_alias(sensor_name):
-    # Không còn dùng cảm biến gas và door
+    if not sensor_name:
+        return None
+    s = sensor_name.lower().strip()
+    if s in ["aq", "airquality"]:
+        return "air_quality"
     return None
 
 

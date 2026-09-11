@@ -869,9 +869,7 @@ INSERT INTO `sensor_current` (`sensor_id`, `value`, `updated_at`) VALUES
 	(8, 403, '2026-09-07 17:29:53'),
 	(9, 119.1667, '2026-09-07 17:29:53'),
 	(11, 0, '2026-09-07 17:29:53'),
-	(12, 0, '2026-09-06 21:58:23'),
-	(13, 1, '2026-09-06 21:58:23'),
-	(14, 1, '2026-09-07 17:29:53');
+	(12, 0, '2026-09-06 21:58:23');
 
 -- Đang kết xuất đổ cấu trúc cho bảng smartclassroom.sensor_data
 CREATE TABLE IF NOT EXISTS `sensor_data` (
@@ -48365,9 +48363,7 @@ INSERT INTO `sensors` (`id`, `room_id`, `sensor_name`, `sensor_type`, `unit`, `c
 	(8, 2, 'air_quality', 'MQ135', 'raw', '2026-09-06 14:43:05'),
 	(9, 2, 'light', 'BH1750', 'lux', '2026-09-06 14:43:05'),
 	(11, 2, 'RFID', 'RC522', 'card', '2026-09-06 14:43:05'),
-	(12, 1, 'RFID', 'RC522', 'card', '2026-09-06 14:56:38'),
-	(13, 1, 'door', 'DOOR', 'state', '2026-09-06 14:56:38'),
-	(14, 2, 'door', 'DOOR', 'state', '2026-09-06 14:56:38');
+	(12, 1, 'RFID', 'RC522', 'card', '2026-09-06 14:56:38');
 
 -- Đang kết xuất đổ cấu trúc cho bảng smartclassroom.students
 CREATE TABLE IF NOT EXISTS `students` (

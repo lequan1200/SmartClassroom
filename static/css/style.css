@@ -1377,14 +1377,16 @@ a {
     background: linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%);
 }
 
-.door-state-box {
+.door-state-box,
+.rfid-state-box {
     display: flex;
     align-items: center;
     gap: 12px;
     padding: 6px 0 12px;
 }
 
-.door-avatar {
+.door-avatar,
+.rfid-avatar {
     width: 44px;
     height: 44px;
     border-radius: var(--radius-md);
@@ -1396,14 +1398,16 @@ a {
     border: 1px solid rgba(124, 58, 237, 0.2);
 }
 
-.door-avatar-text strong {
+.door-avatar-text strong,
+.rfid-avatar-text strong {
     display: block;
     font-size: 14px;
     font-weight: 700;
     color: var(--text-pure);
 }
 
-.door-avatar-text span {
+.door-avatar-text span,
+.rfid-avatar-text span {
     font-size: 10px;
     color: var(--text-muted);
 }

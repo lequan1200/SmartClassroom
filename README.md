@@ -96,8 +96,8 @@ Danh sách cảm biến chuẩn trên hệ thống và trong Database:
 ```text
 temperature   - Cảm biến nhiệt độ (DHT11, °C)
 humidity      - Cảm biến độ ẩm (DHT11, %)
-gas           - Cảm biến khí gas / khói (MQ-2, ppm / ADC)
 light         - Cảm biến cường độ ánh sáng (BH1750, lux)
+air_quality   - Cảm biến chất lượng không khí (MQ-135, raw)
 RFID          - Trạng thái thẻ quẹt tại đầu đọc (RC522, 1 = có thẻ, 0 = không có thẻ)
 ```
 
@@ -106,8 +106,8 @@ Ví dụ các topic:
 ```text
 classroom/room01/sensor/temperature
 classroom/room01/sensor/humidity
-classroom/room01/sensor/gas
 classroom/room01/sensor/light
+classroom/room01/sensor/air_quality
 classroom/room01/sensor/RFID
 ```
 
@@ -133,12 +133,13 @@ classroom/room01/sensor/RFID
 }
 ```
 
-**3. Khí gas (`gas`):**
+**3. Chất lượng không khí (`air_quality`):**
 ```json
 {
   "room_id": "room01",
   "value": 450,
-  "unit": "ppm",
+  "level": "GOOD",
+  "unit": "raw",
   "time": "2026-09-06 14:15:00"
 }
 ```
@@ -386,30 +387,24 @@ Ví dụ:
 classroom/room01/alert
 ```
 
-## 7.1. Phát hiện rò rỉ khí gas
+## 7. Cảnh báo chất lượng không khí (`AIR_QUALITY`)
 
 ```json
 {
-  "alert": "GAS_LEAK",
-  "level": "DANGER"
+  "room_id": "room01",
+  "alert": "AIR_QUALITY",
+  "level": "POOR",
+  "time": "2026-09-06 14:15:00"
 }
 ```
 
-## 7.2. Gas trở lại bình thường
-
-```json
-{
-  "alert": "GAS_NORMAL",
-  "level": "NORMAL"
-}
-```
-
-Các mức cảnh báo:
+Các mức đánh giá chất lượng không khí:
 
 ```text
-NORMAL
-WARNING
-DANGER
+GOOD       (< 800 raw: Tốt)
+MODERATE   (800 - 1500 raw: Trung bình)
+POOR       (1500 - 2500 raw: Kém)
+HAZARDOUS  (> 2500 raw: Nguy hại)
 ```
 
 ---
@@ -420,13 +415,13 @@ DANGER
 | ------------------- | ------------------------------------------------- | -------------- | ----------------- |
 | Nhiệt độ            | `classroom/{room_id}/sensor/temperature`          | ESP32 → Server | Dữ liệu nhiệt độ DHT11 (°C) |
 | Độ ẩm               | `classroom/{room_id}/sensor/humidity`             | ESP32 → Server | Dữ liệu độ ẩm DHT11 (%) |
-| Gas                 | `classroom/{room_id}/sensor/gas`                  | ESP32 → Server | Nồng độ khí gas MQ-2 (ppm/ADC) |
 | Ánh sáng            | `classroom/{room_id}/sensor/light`                | ESP32 → Server | Cường độ ánh sáng BH1750 (lux) |
+| Chất lượng không khí| `classroom/{room_id}/sensor/air_quality`          | ESP32 → Server | Chỉ số chất lượng không khí MQ-135 (raw) |
 | Thẻ RFID (Sensor)   | `classroom/{room_id}/sensor/RFID`                 | ESP32 → Server | Trạng thái quẹt thẻ (1/0) |
 | Điều khiển thiết bị | `classroom/{room_id}/device/{device_name}/set`    | Server → ESP32 | Gửi lệnh bật/tắt thiết bị |
 | Trạng thái thiết bị | `classroom/{room_id}/device/{device_name}/status` | ESP32 → Server | Phản hồi trạng thái thiết bị |
 | Điểm danh RFID      | `classroom/{room_id}/attendance`                  | ESP32 → Server | Gói tin điểm danh học viên |
-| Cảnh báo            | `classroom/{room_id}/alert`                       | ESP32 → Server | Cảnh báo khẩn cấp (Gas leak...) |
+| Cảnh báo            | `classroom/{room_id}/alert`                       | ESP32 → Server | Cảnh báo ô nhiễm không khí MQ-135 |
 
 ---
 
@@ -438,8 +433,8 @@ Bảng đối chiếu chuẩn hóa sự đồng bộ giữa các tầng: **ESP32
 |---|---|---|---|---|
 | **Nhiệt độ** | `classroom/{room_id}/sensor/temperature` | `{"room_id":"...","value":32.5,"unit":"C","time":"..."}` | `sensors`, `sensor_current`, `sensor_data` | `sensors.sensor_name='temperature'`, `value=32.5` |
 | **Độ ẩm** | `classroom/{room_id}/sensor/humidity` | `{"room_id":"...","value":65.0,"unit":"%","time":"..."}` | `sensors`, `sensor_current`, `sensor_data` | `sensors.sensor_name='humidity'`, `value=65.0` |
-| **Khí gas** | `classroom/{room_id}/sensor/gas` | `{"room_id":"...","value":450,"unit":"ppm","time":"..."}` | `sensors`, `sensor_current`, `sensor_data` | `sensors.sensor_name='gas'`, `value=450` |
 | **Ánh sáng** | `classroom/{room_id}/sensor/light` | `{"room_id":"...","value":380.5,"unit":"lux","time":"..."}` | `sensors`, `sensor_current`, `sensor_data` | `sensors.sensor_name='light'`, `value=380.5` |
+| **Chất lượng không khí** | `classroom/{room_id}/sensor/air_quality` | `{"room_id":"...","value":450,"level":"GOOD","unit":"raw","time":"..."}` | `sensors`, `sensor_current`, `sensor_data` | `sensors.sensor_name='air_quality'`, `value=450` |
 | **Đầu đọc RFID** | `classroom/{room_id}/sensor/RFID` | `{"room_id":"...","value":1,"unit":"card","time":"..."}` | `sensors`, `sensor_current`, `sensor_data` | `sensors.sensor_name='RFID'`, `value=1` (khi chạm), `0` (khi nhấc) |
 | **Điều khiển Đèn 1** | `classroom/{room_id}/device/light1/set` | `{"command":"ON"}` / `{"command":"OFF"}` | -- (Gửi tới ESP32) | -- |
 | **Trạng thái Đèn 1** | `classroom/{room_id}/device/light1/status` | `{"room_id":"...","device":"light1","state":"ON"}` | `devices`, `device_current`, `device_logs` | `devices.device_name='light1'`, `state='ON'` |
@@ -450,7 +445,7 @@ Bảng đối chiếu chuẩn hóa sự đồng bộ giữa các tầng: **ESP32
 | **Điều khiển Điều hòa** | `classroom/{room_id}/device/ac/set` | `{"command":"ON"}` / `{"command":"OFF"}` | -- (Gửi tới ESP32) | -- |
 | **Trạng thái Điều hòa** | `classroom/{room_id}/device/ac/status` | `{"room_id":"...","device":"ac","state":"ON"}` | `devices`, `device_current`, `device_logs` | `devices.device_name='ac'`, `state='ON'` |
 | **Điểm danh quẹt thẻ** | `classroom/{room_id}/attendance` | `{"room_id":"...","card_uid":"A1B2C3D4","event_type":"CHECK_IN","timestamp":"...","status":"DUNG_GIO"}` | `students`, `attendance_logs` | Tra cứu `students.card_uid` → Ghi vào `attendance_logs` (`room_id`, `student_id`, `card_uid`, `event_type`, `status`) |
-| **Cảnh báo khẩn cấp** | `classroom/{room_id}/alert` | `{"room_id":"...","alert":"GAS_LEAK","level":"DANGER","time":"..."}` | MQTT Client logs / UI Banner | Cảnh báo gas vượt ngưỡng |
+| **Cảnh báo chất lượng không khí** | `classroom/{room_id}/alert` | `{"room_id":"...","alert":"AIR_QUALITY","level":"POOR","time":"..."}` | MQTT Client logs / UI Banner | Cảnh báo ô nhiễm không khí |
 
 ---
 
@@ -487,9 +482,9 @@ Cơ sở dữ liệu: `smartclassroom` (Charset: `utf8mb4_unicode_ci`)
 2. **`sensors`** (Danh mục cảm biến thuộc phòng):
    * `id` (INT, PK, AUTO_INCREMENT)
    * `room_id` (INT, FK → `rooms.id`)
-   * `sensor_name` (VARCHAR(50)) — Tên cảm biến (`temperature`, `humidity`, `gas`, `light`, `RFID`)
-   * `sensor_type` (VARCHAR(50)) — Loại phần cứng (`DHT11`, `GAS`, `BH1750`, `RC522`)
-   * `unit` (VARCHAR(20)) — Đơn vị (`C`, `%`, `ppm`, `lux`, `card`)
+   * `sensor_name` (VARCHAR(50)) — Tên cảm biến (`temperature`, `humidity`, `light`, `air_quality`, `RFID`)
+   * `sensor_type` (VARCHAR(50)) — Loại phần cứng (`DHT11`, `BH1750`, `MQ135`, `RC522`)
+   * `unit` (VARCHAR(20)) — Đơn vị (`C`, `%`, `lux`, `raw`, `card`)
    * `created_at` (TIMESTAMP)
    * UNIQUE (`room_id`, `sensor_name`)
 
@@ -1030,7 +1025,7 @@ Response mẫu:
        └────┬────┘        └────┬────┘        └─────────┘
             │                  │
         Sensors            Sensors
-        (DHT11, Gas,       (DHT11, Gas,
+        (DHT11, MQ-135,    (DHT11, MQ-135,
         Light, RFID)       Light, RFID)
         Devices            Devices
         (Lights, Fan, AC)  (Lights, Fan, AC)
@@ -1133,11 +1128,10 @@ mosquitto_sub -h 127.0.0.1 -p 1883 \
 
 # 20. Ghi chú và Nguyên tắc Vận hành
 
-* **Đồng bộ hóa**: Mọi topic, tên cảm biến, tên thiết bị và các trường trong CSDL đều được định danh thống nhất theo chuẩn (ví dụ: `temperature`, `humidity`, `gas`, `light`, `RFID`; `light1`, `light2`, `fan`, `ac`).
+* **Đồng bộ hóa**: Mọi topic, tên cảm biến, tên thiết bị và các trường trong CSDL đều được định danh thống nhất theo chuẩn (ví dụ: `temperature`, `humidity`, `light`, `air_quality`, `RFID`; `light1`, `light2`, `fan`, `ac`).
 * **Hỗ trợ Alias linh hoạt**: 
   - Gửi lệnh tới `light` sẽ tự động điều khiển cả `light1` và `light2`.
   - Gửi lệnh tới `all` sẽ điều khiển toàn bộ thiết bị trong phòng.
-  - Hệ thống tự động nhận diện tương thích ngược giữa `RFID` và `door`.
 * **Phân hệ Điểm danh độc lập**: Thẻ RFID quẹt tại ESP32 được xử lý lưu trữ vào bảng `attendance_logs` và liên kết trực tiếp với bảng `students`. Quản trị viên có thể thêm, sửa, xóa học viên và gán thẻ tự động ngay trên Web Dashboard.
 * **Thời gian thực**: Mọi thay đổi về cảm biến, thiết bị và điểm danh đều được cập nhật tức thời qua MQTT và tự động làm mới trên Web Dashboard.
 

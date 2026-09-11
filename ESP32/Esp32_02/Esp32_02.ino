@@ -18,20 +18,22 @@ const char* WIFI_PASS = "123123123";
 const char* MQTT_HOSTNAME = "mypi5";
 const int MQTT_PORT = 1883;
 
-#define ROOM_ID "room01"
+#define ROOM_ID "room02"
 
 // =====================================================
-// 2. GPIO PIN DEFINITIONS (ESP32_02 Hardware)
+// 2. GPIO PIN DEFINITIONS (Phần cứng Board 02)
 // =====================================================
 
 // DHT11
-#define DHTPIN        4
+#define DHTPIN        2    // Chân dữ liệu DHT11
 #define DHTTYPE       DHT11
 
+// MQ-135 (Cảm biến chất lượng không khí)
+#define AQ_PIN        34   // Chân Analog đọc MQ-135
 
 // RFID RC522 - SPI (SCK=18, MISO=19, MOSI=23)
 #define RFID_SS_PIN   17
-#define RFID_RST_PIN  12
+#define RFID_RST_PIN  12   // Chân RST trên Board 02 là GPIO 12
 
 // BH1750 - I2C
 #define BH1750_SDA    26
@@ -40,11 +42,11 @@ const int MQTT_PORT = 1883;
 // Buzzer
 #define BUZZER_PIN    15
 
-// Relay - active HIGH trên Board 02
-#define RELAY_LIGHT1  25   // Den 1 (IN1)
-#define RELAY_LIGHT2  22   // Den 2 (phu)
-#define RELAY_FAN     21   // Quat (IN2)
-#define RELAY_AC      32   // Dieu hoa
+// Relay - Active HIGH trên Board 02 (HIGH = BẬT, LOW = TẮT)
+#define RELAY_LIGHT1  25   // Đèn 1 (chính)
+#define RELAY_LIGHT2  22   // Đèn 2 (phụ - GPIO 22 trên Board 02)
+#define RELAY_FAN     21   // Quạt
+#define RELAY_AC      32   // Điều hòa
 
 #define RELAY_ON      HIGH
 #define RELAY_OFF     LOW
@@ -66,9 +68,17 @@ const char* NTP_SERVER = "pool.ntp.org";
 const long GMT_OFFSET_SEC = 7 * 3600;
 const int DAYLIGHT_OFFSET_SEC = 0;
 
-// Chu ky doc cam bien (2 giay)
+// Chu kỳ đọc cảm biến (2 giây)
 const unsigned long SENSOR_INTERVAL = 2000;
 unsigned long lastSensorRead = 0;
+
+// Cấu hình ngưỡng MQ-135 (Chất lượng không khí)
+const int AQ_GOOD_MAX = 800;      // < 800: TỐT (GOOD)
+const int AQ_MODERATE_MAX = 1500; // 800 - 1500: TRUNG BÌNH (MODERATE)
+const int AQ_POOR_MAX = 2500;     // 1500 - 2500: KÉM (POOR)
+                                  // > 2500: NGUY HẠI (HAZARDOUS)
+const int AQ_CALIBRATION_OFFSET = 1100;
+String previousAQLevel = "";
 
 // Reconnect intervals
 unsigned long lastWiFiAttempt = 0;
@@ -76,13 +86,13 @@ unsigned long lastMQTTAttempt = 0;
 const unsigned long WIFI_RETRY_INTERVAL = 5000;
 const unsigned long MQTT_RETRY_INTERVAL = 5000;
 
-// Trang thai thuc te cua relay
+// Trạng thái thực tế của relay
 bool light1IsOn = false;
 bool light2IsOn = false;
 bool fanIsOn    = false;
 bool acIsOn     = false;
 
-// Coi bao dong (Buzzer non-blocking)
+// Còi phản hồi (Buzzer non-blocking)
 bool buzzerActive = false;
 int buzzerRemaining = 0;
 unsigned long buzzerTimer = 0;
@@ -90,7 +100,7 @@ const unsigned long BUZZER_ON_TIME = 100;
 const unsigned long BUZZER_GAP_TIME = 80;
 bool buzzerState = false;
 
-// Coi hu bao dong (Siren do Pi 5 ra lenh tu xa)
+// Còi hú báo động từ xa (điều khiển bởi Raspberry Pi 5)
 bool remoteAlarmActive = false;
 unsigned long lastAlarmToggle = 0;
 const unsigned long ALARM_TOGGLE_INTERVAL = 100;
@@ -105,16 +115,17 @@ bool rfidCardLocked = false;
 // =====================================================
 // 4. MQTT TOPICS
 // =====================================================
-String topicSensorPrefix;        // classroom/room01/sensor/
-String topicDevicePrefix;        // classroom/room01/device/
-String topicSetWildcard;         // classroom/room01/device/+/set
-String topicBuzzerSet;           // classroom/room01/buzzer/set
-String topicAttendance;          // classroom/room01/attendance
-String topicAttendanceFeedback;  // classroom/room01/attendance/feedback
-String topicStatus;              // classroom/room01/status (LWT)
+String topicSensorPrefix;        // classroom/room02/sensor/
+String topicDevicePrefix;        // classroom/room02/device/
+String topicSetWildcard;         // classroom/room02/device/+/set
+String topicBuzzerSet;           // classroom/room02/buzzer/set
+String topicAttendance;          // classroom/room02/attendance
+String topicAttendanceFeedback;  // classroom/room02/attendance/feedback
+String topicAlert;               // classroom/room02/alert
+String topicStatus;              // classroom/room02/status (LWT)
 
 // =====================================================
-// 5. HELPER FUNCTIONS: THOI GIAN & BUZZER
+// 5. HELPER FUNCTIONS
 // =====================================================
 
 String getCurrentTime() {
@@ -123,6 +134,13 @@ String getCurrentTime() {
   char buffer[25];
   strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &timeinfo);
   return String(buffer);
+}
+
+const char* phanLoaiChatLuongKhongKhi(int rawVal) {
+  if (rawVal < AQ_GOOD_MAX) return "GOOD";
+  if (rawVal < AQ_MODERATE_MAX) return "MODERATE";
+  if (rawVal < AQ_POOR_MAX) return "POOR";
+  return "HAZARDOUS";
 }
 
 void startBuzzer(int times) {
@@ -198,6 +216,24 @@ void publishSensor(const char* sensorName, float value, const char* unit) {
   Serial.printf("[SENSOR] %s -> %s\n", topic.c_str(), buf);
 }
 
+void publishAirQuality(int rawValue, const char* level) {
+  JsonDocument doc;
+  doc["room_id"] = ROOM_ID;
+  doc["value"] = rawValue;
+  doc["level"] = level;
+  doc["unit"] = "raw";
+  doc["time"] = getCurrentTime();
+
+  char buf[192];
+  serializeJson(doc, buf);
+
+  String topic = topicSensorPrefix + "air_quality";
+  if (mqtt.connected()) {
+    mqtt.publish(topic.c_str(), buf);
+  }
+  Serial.printf("[AQ] %s -> %s\n", topic.c_str(), buf);
+}
+
 void publishDeviceStatus(const String& devName, const char* state) {
   if (!mqtt.connected()) return;
 
@@ -245,7 +281,7 @@ void applyAc(bool turnOn) {
 }
 
 // =====================================================
-// 8. XU LY LENH MQTT TU RASPBERRY PI 5
+// 8. XỬ LÝ LỆNH MQTT TỪ RASPBERRY PI 5
 // =====================================================
 
 void xuLyMQTT(char* topic, byte* payload, unsigned int length) {
@@ -324,7 +360,7 @@ void xuLyMQTT(char* topic, byte* payload, unsigned int length) {
 }
 
 // =====================================================
-// 9. KET NOI WIFI & MQTT
+// 9. KẾT NỐI WIFI & MQTT
 // =====================================================
 
 void ketNoiWiFi() {
@@ -376,15 +412,15 @@ void ketNoiMQTT() {
                    willTopic.c_str(), 1, true, willMsg.c_str())) {
     Serial.println("[MQTT] KET NOI THANH CONG!");
 
-    // Bao hieu phong ONLINE
+    // Báo hiệu phòng ONLINE
     mqtt.publish(topicStatus.c_str(), "ONLINE", true);
 
-    // Subscribe cac topic nhan lenh tu Pi 5
+    // Subscribe các topic nhận lệnh từ Pi 5
     mqtt.subscribe(topicSetWildcard.c_str());
     mqtt.subscribe(topicBuzzerSet.c_str());
     mqtt.subscribe(topicAttendanceFeedback.c_str());
 
-    // Gui trang thai hien tai de Server dong bo ngay
+    // Gửi trạng thái hiện tại để Server đồng bộ ngay
     publishDeviceStatus("light1", light1IsOn ? "ON" : "OFF");
     publishDeviceStatus("light2", light2IsOn ? "ON" : "OFF");
     publishDeviceStatus("fan", fanIsOn ? "ON" : "OFF");
@@ -395,7 +431,7 @@ void ketNoiMQTT() {
 }
 
 // =====================================================
-// 10. DOC CAM BIEN (THIN SENSOR NODE)
+// 10. ĐỌC CẢM BIẾN (THIN SENSOR NODE CÓ MQ-135)
 // =====================================================
 
 void docCamBien() {
@@ -412,26 +448,53 @@ void docCamBien() {
     hum = 0;
   }
 
-  // 2. BH1750 Anh sang
+  // 2. BH1750 Ánh sáng
   float lux = lightMeter.readLightLevel();
   if (lux < 0) {
     Serial.println("[BH1750] Loi doc cam bien!");
     lux = 0;
   }
 
-  // 3. Gui du lieu do ve Raspberry Pi 5 qua MQTT
+  // 3. MQ-135 Chất lượng không khí
+  int aqRawSensor = analogRead(AQ_PIN);
+  int aqRaw = aqRawSensor - AQ_CALIBRATION_OFFSET;
+  if (aqRaw < 0) aqRaw = 0;
+  const char* aqLevel = phanLoaiChatLuongKhongKhi(aqRaw);
+
+  // 4. Gửi dữ liệu đo về Raspberry Pi 5 qua MQTT
   publishSensor("temperature", temp, "C");
   publishSensor("humidity", hum, "%");
   publishSensor("light", lux, "lux");
+  publishAirQuality(aqRaw, aqLevel);
   publishSensor("RFID", rfidCardLocked ? 1 : 0, "card");
 
-  // Log giam sat
-  Serial.printf("[DATA] T=%.1fC | H=%.1f%% | Lux=%.1f\n",
-                temp, hum, lux);
+  // Log giám sát
+  Serial.printf("[DATA Room02] T=%.1fC | H=%.1f%% | Lux=%.1f | AQ=%d (%s)\n",
+                temp, hum, lux, aqRaw, aqLevel);
+
+  // 5. Cảnh báo khi mức chất lượng không khí thay đổi
+  String currentLevel = String(aqLevel);
+  if (currentLevel != previousAQLevel) {
+    previousAQLevel = currentLevel;
+
+    JsonDocument alertDoc;
+    alertDoc["room_id"] = ROOM_ID;
+    alertDoc["alert"] = "AIR_QUALITY";
+    alertDoc["level"] = aqLevel;
+    alertDoc["time"] = getCurrentTime();
+
+    char alertBuf[160];
+    serializeJson(alertDoc, alertBuf);
+
+    if (mqtt.connected()) {
+      mqtt.publish(topicAlert.c_str(), alertBuf, true);
+    }
+    Serial.printf("[AIR QUALITY] Muc thay doi -> %s\n", aqLevel);
+  }
 }
 
 // =====================================================
-// 11. XU LY QUET THE RFID
+// 11. XỬ LÝ QUẸT THẺ RFID
 // =====================================================
 
 void xuLyRFID() {
@@ -466,12 +529,12 @@ void xuLyRFID() {
   lastRFIDScan = now;
   rfidCardLocked = true;
 
-  // Bip 1 tieng phan hoi vat ly tai cho
+  // Bíp 1 tiếng phản hồi vật lý tại chỗ
   startBuzzer(1);
 
   String scanTime = getCurrentTime();
 
-  // Gui ban tin diem danh ve Pi 5
+  // Gửi bản tin điểm danh về Pi 5
   JsonDocument doc;
   doc["room_id"] = ROOM_ID;
   doc["card_uid"] = cardUID;
@@ -502,10 +565,11 @@ void setup() {
   delay(500);
 
   Serial.println("\n====================================");
-  Serial.println(" ESP32_02 SMART CLASSROOM (THIN GATEWAY)");
+  Serial.println(" ESP32_02 SMART CLASSROOM (THIN GATEWAY + MQ-135)");
   Serial.println("====================================");
 
   // GPIO
+  pinMode(AQ_PIN, INPUT);
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(RELAY_LIGHT1, OUTPUT);
   pinMode(RELAY_LIGHT2, OUTPUT);
@@ -538,6 +602,7 @@ void setup() {
   topicBuzzerSet          = "classroom/" + String(ROOM_ID) + "/buzzer/set";
   topicAttendance         = "classroom/" + String(ROOM_ID) + "/attendance";
   topicAttendanceFeedback = "classroom/" + String(ROOM_ID) + "/attendance/feedback";
+  topicAlert              = "classroom/" + String(ROOM_ID) + "/alert";
   topicStatus             = "classroom/" + String(ROOM_ID) + "/status";
 
   // WiFi

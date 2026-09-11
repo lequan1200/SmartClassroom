@@ -511,7 +511,10 @@ def xu_ly_alert(thong_tin, data):
     alert_type = data.get("alert") or data.get("type") or "ALERT"
     level = data.get("level") or "UNKNOWN"
     msg_time = data.get("time") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[ALERT] Phòng: {room_id} | Loại: {alert_type} | Mức: {level} | Thời gian: {msg_time} | Data: {data}")
+    if alert_type == "AIR_QUALITY":
+        print(f"\n========== CẢNH BÁO CHẤT LƯỢNG KHÔNG KHÍ (MQ-135) ==========\nPhòng: {room_id} | Mức: {level} | Thời gian: {msg_time}\n============================================================")
+    else:
+        print(f"[ALERT] Phòng: {room_id} | Loại: {alert_type} | Mức: {level} | Thời gian: {msg_time} | Data: {data}")
 
 
 che_do_phong = {}

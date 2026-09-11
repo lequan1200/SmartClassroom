@@ -246,6 +246,13 @@
                         </div>
                     </div>
                     <div class="kpi-card">
+                        <div class="kpi-icon air-quality" style="color: #10b981; background: rgba(16,185,129,0.1);">🍃</div>
+                        <div class="kpi-body">
+                            <span>Chất lượng không khí (MQ-135)</span>
+                            <strong id="summary-air-quality">-- (TỐT)</strong>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
                         <div class="kpi-icon card">🪪</div>
                         <div class="kpi-body">
                             <span>Đầu đọc RFID</span>
@@ -340,6 +347,30 @@
                         <article class="sensor-card">
                             <div class="sensor-top">
                                 <div class="sensor-label-group">
+                                    <div class="sensor-icon-box" style="color: #10b981; background: rgba(16,185,129,0.1);">🍃</div>
+                                    <div>
+                                        <h4>Chất lượng không khí</h4>
+                                        <span>Cảm biến MQ-135</span>
+                                    </div>
+                                </div>
+                                <span class="sensor-status-tag normal" id="air-quality-status">GOOD</span>
+                            </div>
+                            <div class="sensor-metric">
+                                <strong id="air-quality-value">--</strong>
+                                <span id="air-quality-unit">raw</span>
+                            </div>
+                            <div class="telemetry-bar-wrap">
+                                <div class="telemetry-bar-fill air-quality" id="air-quality-progress" style="width: 20%;"></div>
+                            </div>
+                            <div class="sensor-footer">
+                                <span>Đánh giá:</span>
+                                <strong id="air-quality-level">TỐT</strong>
+                            </div>
+                        </article>
+
+                        <article class="sensor-card">
+                            <div class="sensor-top">
+                                <div class="sensor-label-group">
                                     <div class="sensor-icon-box" style="color: var(--accent); background: rgba(129,140,248,0.1);">🪪</div>
                                     <div>
                                         <h4>Cổng RFID</h4>
@@ -348,9 +379,9 @@
                                 </div>
                                 <span class="sensor-status-tag normal" id="rfid-status">READY</span>
                             </div>
-                            <div class="door-state-box">
-                                <div class="door-avatar" id="rfid-visual">💳</div>
-                                <div class="door-avatar-text">
+                            <div class="rfid-state-box">
+                                <div class="rfid-avatar" id="rfid-visual">💳</div>
+                                <div class="rfid-avatar-text">
                                     <strong id="rfid-value">Sẵn sàng</strong>
                                     <span>Chờ quẹt thẻ học viên</span>
                                 </div>
