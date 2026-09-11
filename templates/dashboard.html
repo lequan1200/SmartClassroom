@@ -239,17 +239,17 @@
                         </div>
                     </div>
                     <div class="kpi-card">
-                        <div class="kpi-icon air-quality gas">🍃</div>
+                        <div class="kpi-icon light">☀️</div>
                         <div class="kpi-body">
-                            <span>Chất lượng không khí (MQ-135)</span>
-                            <strong id="summary-air-quality">-- (TỐT)</strong>
+                            <span>Cường độ ánh sáng</span>
+                            <strong id="summary-light">-- lux</strong>
                         </div>
                     </div>
                     <div class="kpi-card">
                         <div class="kpi-icon card">🪪</div>
                         <div class="kpi-body">
                             <span>Đầu đọc RFID</span>
-                            <strong id="summary-door">Sẵn sàng</strong>
+                            <strong id="summary-rfid">Sẵn sàng</strong>
                         </div>
                     </div>
                 </section>
@@ -316,34 +316,10 @@
                         <article class="sensor-card">
                             <div class="sensor-top">
                                 <div class="sensor-label-group">
-                                    <div class="sensor-icon-box" style="color: #10b981; background: rgba(16,185,129,0.1);">🍃</div>
-                                    <div>
-                                        <h4>Chất lượng không khí</h4>
-                                        <span>Cảm biến MQ-135</span>
-                                    </div>
-                                </div>
-                                <span class="sensor-status-tag normal" id="air-quality-status">GOOD</span>
-                            </div>
-                            <div class="sensor-metric">
-                                <strong id="air-quality-value">--</strong>
-                                <span id="air-quality-unit">raw</span>
-                            </div>
-                            <div class="telemetry-bar-wrap">
-                                <div class="telemetry-bar-fill air-quality gas" id="air-quality-progress" style="width: 0%;"></div>
-                            </div>
-                            <div class="sensor-footer">
-                                <span>Đánh giá:</span>
-                                <strong id="air-quality-level">TỐT</strong>
-                            </div>
-                        </article>
-
-                        <article class="sensor-card">
-                            <div class="sensor-top">
-                                <div class="sensor-label-group">
                                     <div class="sensor-icon-box" style="color: #fbbf24; background: rgba(251,191,36,0.1);">☀️</div>
                                     <div>
                                         <h4>Ánh sáng</h4>
-                                        <span>Cảm biến quang LDR</span>
+                                        <span>Cảm biến quang BH1750</span>
                                     </div>
                                 </div>
                                 <span class="sensor-status-tag normal" id="light-status">NORMAL</span>
@@ -356,8 +332,8 @@
                                 <div class="telemetry-bar-fill light" id="light-progress" style="width: 0%;"></div>
                             </div>
                             <div class="sensor-footer">
-                                <span>Ngưỡng bật đèn:</span>
-                                <strong>&lt; 250 lux</strong>
+                                <span>Cập nhật lúc:</span>
+                                <strong id="light-time">--:--:--</strong>
                             </div>
                         </article>
 
@@ -370,18 +346,18 @@
                                         <span>Đầu đọc RC522</span>
                                     </div>
                                 </div>
-                                <span class="sensor-status-tag normal" id="door-status">READY</span>
+                                <span class="sensor-status-tag normal" id="rfid-status">READY</span>
                             </div>
                             <div class="door-state-box">
-                                <div class="door-avatar" id="door-visual">💳</div>
+                                <div class="door-avatar" id="rfid-visual">💳</div>
                                 <div class="door-avatar-text">
-                                    <strong id="door-value">Sẵn sàng</strong>
+                                    <strong id="rfid-value">Sẵn sàng</strong>
                                     <span>Chờ quẹt thẻ học viên</span>
                                 </div>
                             </div>
                             <div class="sensor-footer">
                                 <span>Lần quẹt cuối:</span>
-                                <strong id="door-time">--:--:--</strong>
+                                <strong id="rfid-time">--:--:--</strong>
                             </div>
                         </article>
                     </div>
@@ -395,7 +371,7 @@
                             <h3>Thiết Bị Phòng Học</h3>
                         </div>
 
-                        <div class="control-mode-container">
+                        <div class="control-mode-container" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                             <span style="font-size: 11px; font-weight: 700; color: var(--text-muted);">CHẾ ĐỘ HỆ THỐNG:</span>
                             <div class="control-mode-pill">
                                 <button type="button" class="mode-btn active" id="btn-mode-manual" onclick="setRoomMode('MANUAL')" title="Điều khiển thủ công bằng các nút bấm">
@@ -405,6 +381,9 @@
                                     <span class="mode-dot"></span>Tự động (AUTO)
                                 </button>
                             </div>
+                            <button type="button" class="btn btn-secondary" id="btn-open-threshold-modal" onclick="openThresholdModal()" title="Cài đặt ngưỡng tự động bật/tắt thiết bị cho phòng này" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 12px; font-weight: 700; border-radius: 9999px; height: 34px; background: rgba(99,102,241,0.1); color: var(--accent); border-color: rgba(99,102,241,0.25);">
+                                <span>⚙️</span> Cài đặt Ngưỡng
+                            </button>
                         </div>
                     </div>
 
@@ -412,7 +391,7 @@
                         <div class="auto-info-icon">⚡</div>
                         <div class="auto-info-text">
                             <strong>Chế độ Tự động (AUTO) đang kích hoạt</strong>
-                            <span>💡 <strong>Đèn 1 & 2:</strong> Tự bật khi ánh sáng &lt; 250 lux, tự tắt khi &gt; 450 lux. &nbsp;|&nbsp; 🌀 <strong>Quạt:</strong> Tự bật khi nhiệt độ &ge; 31.0°C, tự tắt khi &le; 28.5°C. <em>(Bấm nút bật/tắt thủ công sẽ đưa hệ thống về chế độ Thủ công).</em></span>
+                            <span id="auto-mode-info-text">💡 <strong>Đèn 1 & 2:</strong> Tự bật khi ánh sáng &lt; 50 lux, tự tắt khi &gt; 80 lux. &nbsp;|&nbsp; 🌀 <strong>Quạt:</strong> Tự bật khi nhiệt độ &ge; 31.0°C, tự tắt khi &le; 28.5°C. <em>(Bấm nút bật/tắt thủ công sẽ đưa hệ thống về chế độ Thủ công).</em></span>
                         </div>
                     </div>
 
@@ -552,7 +531,7 @@
                                 <div class="alert-icon-box normal">✓</div>
                                 <div>
                                     <strong>Môi trường an toàn</strong>
-                                    <span>Không phát hiện ô nhiễm không khí hoặc nhiệt độ bất thường</span>
+                                    <span>Môi trường phòng học hoạt động bình thường, không có bất thường nhiệt độ</span>
                                 </div>
                             </div>
                         </div>
@@ -1115,6 +1094,89 @@
             <div class="modal-actions">
                 <button type="button" class="btn btn-secondary" onclick="closeAssignRfidModal()">Hủy</button>
                 <button type="submit" class="btn btn-primary">💾 Lưu mã thẻ</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Cài đặt Ngưỡng Tự Động Hóa -->
+<div class="modal-backdrop" id="modal-threshold-settings" style="display: none;" onclick="if(event.target === this) closeThresholdModal()">
+    <div class="modal-dialog" style="max-width: 600px;">
+        <div class="modal-top">
+            <div class="modal-title-group">
+                <div class="modal-avatar-icon" style="background: rgba(99,102,241,0.12); color: var(--accent);">⚙️</div>
+                <div>
+                    <h3>Cài Đặt Ngưỡng Tự Động Hóa</h3>
+                    <p id="modal-thresh-room-hint">Phòng học: --</p>
+                </div>
+            </div>
+            <button type="button" class="modal-close-btn" onclick="closeThresholdModal()" aria-label="Đóng">✕</button>
+        </div>
+
+        <form id="form-threshold-settings" onsubmit="submitThresholdSettings(event)">
+            <!-- Nhóm Đèn 1 -->
+            <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px; margin-bottom: 14px;">
+                <div style="font-weight: 700; font-size: 13px; color: #fbbf24; display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
+                    <span>💡</span> ĐÈN 1 (Đèn chiếu sáng chính)
+                </div>
+                <div class="form-grid-2">
+                    <div class="form-field">
+                        <label for="thresh-lux-light1-on">Ngưỡng BẬT khi tối hơn (lux) *</label>
+                        <input type="number" id="thresh-lux-light1-on" class="custom-input" min="1" max="2000" step="1" required value="50">
+                    </div>
+                    <div class="form-field">
+                        <label for="thresh-lux-light1-off">Ngưỡng TẮT khi sáng hơn (lux) *</label>
+                        <input type="number" id="thresh-lux-light1-off" class="custom-input" min="1" max="2000" step="1" required value="80">
+                    </div>
+                </div>
+                <span class="form-help-tip" style="margin-top: 4px;">Đèn 1 bật khi &lt; [Bật] lux và chỉ tắt khi &gt; [Tắt] lux (chống chập chờn).</span>
+            </div>
+
+            <!-- Nhóm Đèn 2 -->
+            <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px; margin-bottom: 14px;">
+                <div style="font-weight: 700; font-size: 13px; color: #f59e0b; display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
+                    <span>💡</span> ĐÈN 2 (Đèn phụ trợ / Tăng cường)
+                </div>
+                <div class="form-grid-2">
+                    <div class="form-field">
+                        <label for="thresh-lux-light2-on">Ngưỡng BẬT thêm (lux) *</label>
+                        <input type="number" id="thresh-lux-light2-on" class="custom-input" min="1" max="2000" step="1" required value="15">
+                    </div>
+                    <div class="form-field">
+                        <label for="thresh-lux-light2-off">Ngưỡng TẮT (lux) *</label>
+                        <input type="number" id="thresh-lux-light2-off" class="custom-input" min="1" max="2000" step="1" required value="25">
+                    </div>
+                </div>
+                <span class="form-help-tip" style="margin-top: 4px;">Chỉ bật thêm khi Đèn 1 đang bật và phòng vẫn quá tối (&lt; [Bật] lux).</span>
+            </div>
+
+            <!-- Nhóm Quạt -->
+            <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px; margin-bottom: 14px;">
+                <div style="font-weight: 700; font-size: 13px; color: #38bdf8; display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
+                    <span>🌀</span> QUẠT LÀM MÁT (Nhiệt độ)
+                </div>
+                <div class="form-grid-2">
+                    <div class="form-field">
+                        <label for="thresh-temp-fan-on">Ngưỡng BẬT khi nóng hơn (°C) *</label>
+                        <input type="number" id="thresh-temp-fan-on" class="custom-input" min="15" max="50" step="0.5" required value="31.0">
+                    </div>
+                    <div class="form-field">
+                        <label for="thresh-temp-fan-off">Ngưỡng TẮT khi mát hơn (°C) *</label>
+                        <input type="number" id="thresh-temp-fan-off" class="custom-input" min="15" max="50" step="0.5" required value="28.5">
+                    </div>
+                </div>
+                <span class="form-help-tip" style="margin-top: 4px;">Quạt tự bật khi &ge; [Bật] °C và chỉ ngắt khi nhiệt độ giảm xuống &le; [Tắt] °C.</span>
+            </div>
+
+
+            <div class="modal-actions" style="display: flex; justify-content: space-between; align-items: center;">
+                <button type="button" class="btn btn-secondary" onclick="resetDefaultThresholds()" style="font-size: 12px;">
+                    ↺ Mặc định
+                </button>
+                <div style="display: flex; gap: 8px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeThresholdModal()">Hủy</button>
+                    <button type="submit" class="btn btn-primary" id="btn-save-thresholds">💾 Lưu thay đổi</button>
+                </div>
             </div>
         </form>
     </div>

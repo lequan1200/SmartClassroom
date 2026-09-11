@@ -489,20 +489,11 @@ function updateSensor(name, value, unit, time) {
             updateHumidityStatus(numericValue);
             break;
 
-        case "air_quality":
-        case "airquality":
-        case "aq":
-        case "gas":
-            const aqRound = Math.round(numericValue);
-            if ($("air-quality-value")) $("air-quality-value").textContent = aqRound;
-            if ($("gas-value")) $("gas-value").textContent = aqRound;
-            updateAirQualityStatus(numericValue);
-            break;
-
         case "light":
         case "ldr":
             const lightVal = Math.round(numericValue);
             if ($("light-value")) $("light-value").textContent = lightVal;
+            if ($("summary-light")) $("summary-light").textContent = `${lightVal} lux`;
             if ($("light-time")) $("light-time").textContent = formatTime(time);
             if ($("light-progress")) {
                 const lightPercent = Math.max(0, Math.min(100, (lightVal / 1000) * 100));
@@ -511,11 +502,10 @@ function updateSensor(name, value, unit, time) {
             updateLightStatus(lightVal);
             break;
 
-        case "door":
         case "rfid":
         case "RFID":
-            const isOpen = numericValue === 1 || value === true || value === "1" || String(value).toLowerCase() === "open";
-            updateDoor(isOpen, time);
+            const isCardPresent = numericValue === 1 || value === true || value === "1";
+            updateRfidReader(isCardPresent, time);
             break;
     }
 }
@@ -535,58 +525,6 @@ function updateHumidityStatus(value) {
     else { el.textContent = "NORMAL"; el.className = "sensor-status-tag normal"; }
 }
 
-function updateAirQualityStatus(value) {
-    const el = $("air-quality-status") || $("gas-status");
-    const summaryEl = $("summary-air-quality") || $("summary-gas");
-    const levelEl = $("air-quality-level");
-    const progressEl = $("air-quality-progress") || $("gas-progress");
-
-    let level = "GOOD";
-    let levelVi = "TỐT";
-    let tagClass = "sensor-status-tag normal";
-
-    if (value >= 2500) {
-        level = "HAZARDOUS";
-        levelVi = "NGUY HẠI";
-        tagClass = "sensor-status-tag danger";
-        addAirQualityAlert(value, "HAZARDOUS");
-    } else if (value >= 1500) {
-        level = "POOR";
-        levelVi = "KÉM";
-        tagClass = "sensor-status-tag danger";
-        addAirQualityAlert(value, "POOR");
-    } else if (value >= 800) {
-        level = "MODERATE";
-        levelVi = "TRUNG BÌNH";
-        tagClass = "sensor-status-tag warning";
-        resetAirQualityAlertIfSafe();
-    } else {
-        level = "GOOD";
-        levelVi = "TỐT";
-        tagClass = "sensor-status-tag normal";
-        resetAirQualityAlertIfSafe();
-    }
-
-    if (el) {
-        el.textContent = level;
-        el.className = tagClass;
-    }
-    if (levelEl) {
-        levelEl.textContent = levelVi;
-    }
-    if (summaryEl) {
-        summaryEl.textContent = `${Math.round(value)} (${levelVi})`;
-    }
-    if (progressEl) {
-        const progress = Math.max(5, Math.min(100, (value / 3000) * 100));
-        progressEl.style.width = `${progress}%`;
-    }
-}
-
-function updateGasStatus(value) {
-    updateAirQualityStatus(value);
-}
-
 function updateLightStatus(value) {
     const el = $("light-status");
     if (!el) return;
@@ -595,18 +533,18 @@ function updateLightStatus(value) {
     else { el.textContent = "NORMAL"; el.className = "sensor-status-tag normal"; }
 }
 
-function updateDoor(isOpen, time) {
-    const value = $("door-value");
-    const visual = $("door-visual");
-    const status = $("door-status");
-    const summary = $("summary-door");
-    const timeEl = $("door-time");
+function updateRfidReader(isCardPresent, time) {
+    const value = $("rfid-value");
+    const visual = $("rfid-visual");
+    const status = $("rfid-status");
+    const summary = $("summary-rfid");
+    const timeEl = $("rfid-time");
     if (!value || !visual || !status) return;
 
-    if (summary) summary.textContent = isOpen ? "Đã quẹt thẻ" : "Sẵn sàng";
+    if (summary) summary.textContent = isCardPresent ? "Đã quẹt thẻ" : "Sẵn sàng";
     if (timeEl) timeEl.textContent = formatTime(time);
 
-    if (isOpen) {
+    if (isCardPresent) {
         value.textContent = "Đã quẹt thẻ";
         visual.textContent = "🪪";
         visual.style.background = "rgba(56, 189, 248, 0.15)";
@@ -733,8 +671,27 @@ async function loadRoomMode() {
         const data = await response.json();
         currentControlMode = (data.mode || "MANUAL").toUpperCase();
         updateModeUI(currentControlMode);
+        await loadRoomThresholdsBanner(currentRoom);
     } catch (error) {
         console.error("LOAD ROOM MODE ERROR:", error);
+    }
+}
+
+async function loadRoomThresholdsBanner(roomId) {
+    if (!roomId) return;
+    try {
+        const res = await fetch(`/api/rooms/${roomId}/automation/thresholds`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && data.thresholds) {
+            const t = data.thresholds;
+            const infoText = $("auto-mode-info-text");
+            if (infoText) {
+                infoText.innerHTML = `💡 <strong>Đèn 1:</strong> Bật khi &lt; ${t.lux_light1_on ?? 50} lux, tắt khi &gt; ${t.lux_light1_off ?? 80} lux. &nbsp;|&nbsp; 🌀 <strong>Quạt:</strong> Bật khi &ge; ${t.temp_fan_on ?? 31}°C, tắt khi &le; ${t.temp_fan_off ?? 28.5}°C.`;
+            }
+        }
+    } catch (e) {
+        // bỏ qua lỗi banner phụ
     }
 }
 
@@ -881,56 +838,7 @@ function drawTemperatureChart(history) {
     });
 }
 
-function addAirQualityAlert(value, level) {
-    const list = $("alert-list");
-    const count = $("alert-count");
-    if (!list || !count) return;
 
-    const isHazardous = level === "HAZARDOUS" || value >= 2500;
-    const title = isHazardous
-        ? "Cảnh báo ô nhiễm không khí nghiêm trọng!"
-        : "Cảnh báo chất lượng không khí kém!";
-    const advice = isHazardous
-        ? "Nồng độ khí ô nhiễm vượt ngưỡng nguy hại. Cần mở toàn bộ cửa sổ và bật quạt thông gió ngay!"
-        : "Khuyến nghị mở cửa thông gió hoặc bật quạt để cải thiện chất lượng không khí.";
-
-    list.innerHTML = `
-        <div class="alert-item ${isHazardous ? "danger" : "warning"}">
-            <div class="alert-icon-box ${isHazardous ? "danger" : "warning"}">!</div>
-            <div>
-                <strong>${title}</strong>
-                <span>Chỉ số: ${Math.round(value)} raw (${level}). ${advice}</span>
-            </div>
-        </div>
-    `;
-    count.textContent = "1";
-    count.style.background = isHazardous ? "rgba(244,63,94,0.18)" : "rgba(245,158,11,0.18)";
-    count.style.color = isHazardous ? "var(--danger)" : "var(--warning)";
-}
-
-function resetAirQualityAlertIfSafe() {
-    const list = $("alert-list");
-    const count = $("alert-count");
-    if (!list || !count) return;
-    if (list.innerHTML.includes("không khí") || list.innerHTML.includes("khí gas")) {
-        list.innerHTML = `
-            <div class="alert-item normal">
-                <div class="alert-icon-box normal">✓</div>
-                <div>
-                    <strong>Môi trường an toàn</strong>
-                    <span>Không phát hiện ô nhiễm không khí hoặc nhiệt độ bất thường</span>
-                </div>
-            </div>
-        `;
-        count.textContent = "0";
-        count.style.background = "";
-        count.style.color = "";
-    }
-}
-
-function addGasAlert(value) {
-    addAirQualityAlert(value, value >= 1500 ? "POOR" : "MODERATE");
-}
 
 // ============================================================
 // TAB NAVIGATION
@@ -2470,6 +2378,131 @@ window.submitAssignRfid = submitAssignRfid;
 window.syncClassMqtt = syncClassMqtt;
 window.fetchLatestScannedCard = fetchLatestScannedCard;
 window.applyLatestScannedCard = applyLatestScannedCard;
+
+// ============================================================
+// AUTOMATION THRESHOLDS MODAL & LOGIC
+// ============================================================
+async function openThresholdModal() {
+    if (!currentRoom) {
+        showToast("Chưa chọn phòng", "Vui lòng chọn một phòng học trước khi cài đặt ngưỡng!", false);
+        return;
+    }
+
+    const hint = $("modal-thresh-room-hint");
+    if (hint) {
+        const rObj = allRooms.find(r => r.room_id === currentRoom);
+        hint.textContent = `Phòng học: ${rObj ? rObj.name : currentRoom} (${currentRoom})`;
+    }
+
+    // Tải cấu hình ngưỡng hiện tại của phòng từ API
+    try {
+        const res = await fetch(`/api/rooms/${currentRoom}/automation/thresholds`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data.success && data.thresholds) {
+                const t = data.thresholds;
+                if ($("thresh-lux-light1-on") && t.lux_light1_on !== undefined) $("thresh-lux-light1-on").value = t.lux_light1_on;
+                if ($("thresh-lux-light1-off") && t.lux_light1_off !== undefined) $("thresh-lux-light1-off").value = t.lux_light1_off;
+                if ($("thresh-lux-light2-on") && t.lux_light2_on !== undefined) $("thresh-lux-light2-on").value = t.lux_light2_on;
+                if ($("thresh-lux-light2-off") && t.lux_light2_off !== undefined) $("thresh-lux-light2-off").value = t.lux_light2_off;
+                if ($("thresh-temp-fan-on") && t.temp_fan_on !== undefined) $("thresh-temp-fan-on").value = t.temp_fan_on;
+                if ($("thresh-temp-fan-off") && t.temp_fan_off !== undefined) $("thresh-temp-fan-off").value = t.temp_fan_off;
+            }
+        }
+    } catch (err) {
+        console.error("Lỗi đọc ngưỡng tự động hóa:", err);
+    }
+
+    const modal = $("modal-threshold-settings");
+    if (modal) modal.style.display = "flex";
+}
+
+function closeThresholdModal() {
+    const modal = $("modal-threshold-settings");
+    if (modal) modal.style.display = "none";
+}
+
+function resetDefaultThresholds() {
+    if ($("thresh-lux-light1-on")) $("thresh-lux-light1-on").value = 50;
+    if ($("thresh-lux-light1-off")) $("thresh-lux-light1-off").value = 80;
+    if ($("thresh-lux-light2-on")) $("thresh-lux-light2-on").value = 15;
+    if ($("thresh-lux-light2-off")) $("thresh-lux-light2-off").value = 25;
+    if ($("thresh-temp-fan-on")) $("thresh-temp-fan-on").value = 31.0;
+    if ($("thresh-temp-fan-off")) $("thresh-temp-fan-off").value = 28.5;
+    showToast("Mặc định", "Đã khôi phục các giá trị ngưỡng chuẩn.", true);
+}
+
+async function submitThresholdSettings(e) {
+    e.preventDefault();
+    if (!currentRoom) {
+        showToast("Lỗi", "Chưa chọn phòng học", false);
+        return;
+    }
+
+    const luxL1On = parseFloat($("thresh-lux-light1-on")?.value);
+    const luxL1Off = parseFloat($("thresh-lux-light1-off")?.value);
+    const luxL2On = parseFloat($("thresh-lux-light2-on")?.value);
+    const luxL2Off = parseFloat($("thresh-lux-light2-off")?.value);
+    const tempFanOn = parseFloat($("thresh-temp-fan-on")?.value);
+    const tempFanOff = parseFloat($("thresh-temp-fan-off")?.value);
+
+    // Kiểm tra tính hợp lệ của dải trễ Hysteresis
+    if (luxL1On >= luxL1Off) {
+        showToast("Lỗi dải trễ Đèn 1", "Ngưỡng BẬT đèn 1 phải nhỏ hơn ngưỡng TẮT để chống chập chờn!", false);
+        return;
+    }
+    if (luxL2On >= luxL2Off) {
+        showToast("Lỗi dải trễ Đèn 2", "Ngưỡng BẬT đèn 2 phải nhỏ hơn ngưỡng TẮT!", false);
+        return;
+    }
+    if (tempFanOn <= tempFanOff) {
+        showToast("Lỗi dải trễ Quạt", "Nhiệt độ BẬT quạt phải cao hơn nhiệt độ TẮT quạt!", false);
+        return;
+    }
+
+    const payload = {
+        lux_light1_on: luxL1On,
+        lux_light1_off: luxL1Off,
+        lux_light2_on: luxL2On,
+        lux_light2_off: luxL2Off,
+        temp_fan_on: tempFanOn,
+        temp_fan_off: tempFanOff
+    };
+
+    try {
+        const btn = $("btn-save-thresholds");
+        if (btn) btn.disabled = true;
+
+        const res = await fetch(`/api/rooms/${currentRoom}/automation/thresholds`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || "Không thể cập nhật ngưỡng");
+
+        showToast("Thành công", `Đã lưu ngưỡng tự động hóa cho phòng ${currentRoom}!`, true);
+        closeThresholdModal();
+
+        // Cập nhật text trong auto-mode-info banner
+        const infoText = $("auto-mode-info-text");
+        if (infoText) {
+            infoText.innerHTML = `💡 <strong>Đèn 1:</strong> Bật khi &lt; ${luxL1On} lux, tắt khi &gt; ${luxL1Off} lux. &nbsp;|&nbsp; 🌀 <strong>Quạt:</strong> Bật khi &ge; ${tempFanOn}°C, tắt khi &le; ${tempFanOff}°C.`;
+        }
+    } catch (err) {
+        console.error("SAVE THRESHOLDS ERROR:", err);
+        showToast("Lỗi lưu ngưỡng", err.message, false);
+    } finally {
+        const btn = $("btn-save-thresholds");
+        if (btn) btn.disabled = false;
+    }
+}
+
+window.openThresholdModal = openThresholdModal;
+window.closeThresholdModal = closeThresholdModal;
+window.resetDefaultThresholds = resetDefaultThresholds;
+window.submitThresholdSettings = submitThresholdSettings;
+window.loadRoomThresholdsBanner = loadRoomThresholdsBanner;
 
 
 // ============================================================

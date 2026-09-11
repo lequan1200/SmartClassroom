@@ -221,14 +221,19 @@ mosquitto_pub -h 127.0.0.1 -p 1883 -t "classroom/room01/device/light1/set" -m '{
 
 # Tắt đèn 1:
 mosquitto_pub -h 127.0.0.1 -p 1883 -t "classroom/room01/device/light1/set" -m '{"command":"OFF"}'
+```
 
 ## 4.1. Chế độ điều khiển Thủ công (MANUAL) và Tự động (AUTO)
 
+Hệ thống sử dụng mô hình **Tự động hóa Tập trung trên Raspberry Pi 5 (`automation_engine.py`)**:
+- **ESP32**: Đóng vai trò là **Thin I/O Node / Smart Gateway**: chỉ đo cảm biến (DHT11, BH1750, MQ-2/135, Cửa, RFID) gửi về MQTT; nhận lệnh điều khiển rơ-le / còi buzzer và chấp hành.
+- **Raspberry Pi 5**: Đóng vai trò là **Bộ não Tự động hóa**: thu thập dữ liệu thời gian thực, quản lý trạng thái từng phòng riêng biệt, tính toán điều kiện Hysteresis và phát lệnh MQTT điều khiển ngược lại cho ESP32.
+
 Hệ thống hỗ trợ 2 cơ chế điều khiển linh hoạt:
 1. **Chế độ phòng (Room-level Mode)**: Cho phép chuyển toàn bộ phòng sang Thủ công hoặc Tự động chỉ bằng 1 nút bấm trên Dashboard hoặc 1 lệnh MQTT / API.
-2. **Chế độ thiết bị con (Device-level Mode)**: Cho phép cấu hình Auto độc lập cho từng thiết bị (`light1_mode`, `light2_mode`, `fan_mode`).
+2. **Chế độ thiết bị con (Device-level Mode)**: Cho phép cấu hình Auto độc lập cho từng thiết bị (`light1`, `light2`, `fan`).
 
-### Bảng cơ chế Tự động (AUTO Logic)
+### Bảng cơ chế Tự động (AUTO Logic trên Pi 5)
 
 | Thiết bị | Cảm biến kích hoạt | Ngưỡng Tự Động BẬT (ON) | Ngưỡng Tự Động TẮT (OFF) | Ghi chú Logic |
 | :--- | :--- | :--- | :--- | :--- |
@@ -236,7 +241,7 @@ Hệ thống hỗ trợ 2 cơ chế điều khiển linh hoạt:
 | **Đèn 2 (`light2`)** | Ánh sáng BH1750 | `lux < 15.0` *(và Đèn 1 đang ON)* | `lux > 25.0` *(hoặc khi Đèn 1 đã OFF)* | Đèn phụ trợ, chỉ bật thêm khi quá tối và tự tắt khi Đèn 1 tắt |
 | **Quạt (`fan`)** | Nhiệt độ DHT11 | `temp >= 31.0 °C` | `temp <= 28.5 °C` | Hysteresis 2.5°C chống bật/tắt nhấp nháy |
 
-> **Cơ chế Can thiệp thủ công (Manual Override):** Khi hệ thống đang ở chế độ `AUTO`, nếu người dùng bấm bật/tắt thiết bị thủ công trên Web hoặc gửi lệnh `device/{name}/set`, thiết bị đó (và trạng thái phòng) sẽ **tự động chuyển sang chế độ `MANUAL`**. Điều này đảm bảo cảm biến sẽ không tự ý đè lại thao tác vừa bấm của người dùng!
+> **Cơ chế Can thiệp thủ công (Manual Override):** Khi hệ thống đang ở chế độ `AUTO`, nếu người dùng bấm bật/tắt thiết bị thủ công trên Web hoặc gửi lệnh `device/{name}/set`, Pi 5 sẽ **tự động chuyển thiết bị đó (và trạng thái phòng) sang chế độ `MANUAL`**. Điều này đảm bảo cảm biến sẽ không tự ý đè lại thao tác vừa bấm của người dùng! Khi người dùng bấm lại nút `AUTO`, Pi 5 sẽ lập tức đánh giá lại cảm biến và kích hoạt lại điều khiển tự động.
 
 ### Topic chuyển chế độ phòng:
 ```text
@@ -1084,7 +1089,7 @@ mosquitto_sub -h 127.0.0.1 -p 1883 \
 | Database        | MariaDB 11+                         |
 | Message Broker  | Eclipse Mosquitto MQTT v2.0+        |
 | Frontend Web    | Vanilla HTML5 / Modern CSS3 / JS    |
-| Sensors         | Temperature, Humidity, Gas, Light, RFID |
+| Sensors         | Temperature, Humidity, Light, RFID |
 | Peripherals     | Relay 4 kênh, Buzzer, RC522, BH1750 |
 | Protocols       | MQTT (QoS 1), HTTP/REST, NTP, mDNS  |
 

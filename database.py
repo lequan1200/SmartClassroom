@@ -2,7 +2,7 @@ import os
 import mariadb
 from datetime import datetime, timedelta, time, date
 
-DB_HOST = os.environ.get("DB_HOST", "10.123.122.225")
+DB_HOST = os.environ.get("DB_HOST", "10.144.216.225")
 DB_PORT = int(os.environ.get("DB_PORT", 3306))
 DB_USER = os.environ.get("DB_USER", "root")
 DB_PASSWORD = os.environ.get("DB_PASSWORD", "1234")
@@ -26,15 +26,7 @@ def ket_noi():
 
 
 def _lay_sensor_alias(sensor_name):
-    s_lower = str(sensor_name).lower()
-    if s_lower == "door":
-        return "RFID"
-    if s_lower == "rfid":
-        return "door"
-    if s_lower in ["air_quality", "airquality", "aq", "chat_luong_khong_khi"]:
-        return "gas"
-    if s_lower in ["gas", "khi_gas"]:
-        return "air_quality"
+    # Không còn dùng cảm biến gas và door
     return None
 
 

@@ -21,8 +21,9 @@ from database import (
     lay_che_do_phong, cap_nhat_che_do_phong,
     lay_hoac_tao_buoi_hoc_hien_tai, hoc_vien_thuoc_lop, ghi_nhan_diem_danh,
     lay_hoc_vien_theo_lop, lay_chi_tiet_lop, gan_the_hoc_vien,
-    lay_hoc_vien_theo_phong
+    lay_hoc_vien_theo_phong, lay_danh_sach_phong, lay_device_hien_tai
 )
+from automation_engine import engine
 
 MQTT_BROKER = "127.0.0.1"
 MQTT_PORT = 1883
@@ -132,6 +133,30 @@ def phan_tich_topic(topic):
     return None
 
 
+def khoi_tao_automation():
+    """Khởi tạo đồng bộ trạng thái ban đầu của các phòng từ MariaDB vào AutomationEngine."""
+    try:
+        rooms = lay_danh_sach_phong()
+        if rooms:
+            for r in rooms:
+                rid = r.get("room_id")
+                if not rid:
+                    continue
+                mode = r.get("control_mode") or "MANUAL"
+                engine.set_room_mode(rid, mode)
+                che_do_phong[rid] = mode
+                devs = lay_device_hien_tai(rid)
+                if devs:
+                    for d in devs:
+                        dname = d.get("device_name")
+                        dstate = d.get("state") or "OFF"
+                        if dname:
+                            engine.sync_device_state(rid, dname, dstate)
+            print(f"[AUTOMATION] Da khoi tao trang thai cho {len(rooms)} phong hoc tu DB.")
+    except Exception as e:
+        print(f"[AUTOMATION] Khoi tao that bai: {e}")
+
+
 def khi_ket_noi(client, userdata, flags, reason_code, properties):
     if reason_code == 0:
         print("MQTT OK")
@@ -140,6 +165,7 @@ def khi_ket_noi(client, userdata, flags, reason_code, properties):
             print(f"SUB {MQTT_TOPIC}")
         else:
             print(f"SUB ERROR: {result[0]}")
+        khoi_tao_automation()
     else:
         print(f"MQTT ERROR: {reason_code}")
 
@@ -285,6 +311,11 @@ def xu_ly_sensor(thong_tin, data):
         print("SENSOR ERROR: value khong hop le")
         return
 
+    try:
+        engine.process_sensor_data(room_id, sensor_name, value)
+    except Exception as e:
+        print(f"[AUTOMATION ENGINE ERROR] {e}")
+
     sensor_id = tim_sensor_id(room_id, sensor_name)
     if sensor_id is None:
         print(f"SENSOR NOT FOUND: {room_id}/{sensor_name}")
@@ -299,6 +330,7 @@ def xu_ly_sensor(thong_tin, data):
         return
 
     print(f"SENSOR DB OK | {room_id} | {sensor_name} | {value} {unit or ''}")
+
 
     if "card_uid" in data or "event_type" in data:
         xu_ly_attendance(thong_tin, data)
@@ -335,6 +367,9 @@ def xu_ly_device(thong_tin, data):
     if device_id is None:
         print(f"DEVICE NOT FOUND: {room_id}/{device_name}")
         return
+
+    # Đồng bộ trạng thái vào AutomationEngine
+    engine.sync_device_state(room_id, device_name, state)
 
     if not cap_nhat_device_current(device_id, state): 
         print("DEVICE CURRENT ERROR")
@@ -476,19 +511,17 @@ def xu_ly_alert(thong_tin, data):
     alert_type = data.get("alert") or data.get("type") or "ALERT"
     level = data.get("level") or "UNKNOWN"
     msg_time = data.get("time") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    if alert_type == "AIR_QUALITY":
-        print(f"\n========== CẢNH BÁO CHẤT LƯỢNG KHÔNG KHÍ ==========\nPhòng: {room_id} | Mức: {level} | Thời gian: {msg_time}\n====================================================")
-    elif alert_type in ["GAS_LEAK", "GAS_DANGER"]:
-        print(f"\n========== CẢNH BÁO KHÍ GAS NGUY HIỂM ==========\nPhòng: {room_id} | Mức: {level} | Thời gian: {msg_time}\n================================================")
-    else:
-        print(f"ALERT | {room_id} | {data}")
+    print(f"[ALERT] Phòng: {room_id} | Loại: {alert_type} | Mức: {level} | Thời gian: {msg_time} | Data: {data}")
 
 
 che_do_phong = {}
 
 
 def lay_che_do_hien_tai(room_id):
+    mode = engine.get_room_mode(room_id)
+    if mode:
+        che_do_phong[room_id] = mode
+        return mode
     if room_id in che_do_phong:
         return che_do_phong[room_id]
     mode = lay_che_do_phong(room_id)
@@ -510,6 +543,7 @@ def xu_ly_mode(thong_tin, data):
         print(f"MODE INVALID: {mode}")
         return
 
+    engine.set_room_mode(room_id, mode)
     che_do_phong[room_id] = mode
     cap_nhat_che_do_phong(room_id, mode)
     print(f"MODE UPDATE | Room: {room_id} | Mode: {mode} | Action: {hanh_dong}")
@@ -519,6 +553,35 @@ client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="raspberry-pi-b
 client.on_connect = khi_ket_noi
 client.on_disconnect = khi_ngat_ket_noi
 client.on_message = khi_nhan_message
+
+
+def auto_command_callback(room_id, device_name, command, reason):
+    gui_lenh_thiet_bi(room_id, device_name, command, is_auto=True)
+
+
+def auto_alert_callback(room_id, alert_type, level, message):
+    topic = f"classroom/{room_id}/alert"
+    payload = json.dumps({
+        "room_id": room_id,
+        "alert": alert_type,
+        "level": level,
+        "message": message,
+        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }, ensure_ascii=False)
+    try:
+        client.publish(topic, payload, qos=1, retain=True)
+        print(f"[AUTO ALERT -> MQTT] {topic}: {payload}")
+    except Exception as e:
+        print(f"[AUTO ALERT ERROR] {e}")
+
+
+def auto_buzzer_callback(room_id, beeps, alarm):
+    gui_lenh_buzzer(room_id, beeps=beeps, alarm=alarm)
+
+
+engine.command_callback = auto_command_callback
+engine.alert_callback = auto_alert_callback
+engine.buzzer_callback = auto_buzzer_callback
 
 
 def ket_noi_mqtt():
@@ -531,10 +594,25 @@ def ket_noi_mqtt():
         return False
 
 
-def gui_lenh_thiet_bi(room_id, device_name, command):
+def gui_lenh_thiet_bi(room_id, device_name, command, is_auto=False):
     command = str(command).upper()
     if command not in ["ON", "OFF"]:
         return False, "Command chi chap nhan ON hoac OFF"
+
+    # Nếu đây là lệnh thủ công (từ Web/API), kích hoạt Manual Override
+    if not is_auto:
+        engine.notify_manual_override(room_id, device_name, command)
+        current_mode = engine.get_room_mode(room_id)
+        che_do_phong[room_id] = current_mode
+        cap_nhat_che_do_phong(room_id, current_mode)
+        try:
+            client.publish(
+                f"classroom/{room_id}/mode/status",
+                json.dumps({"room_id": room_id, "mode": current_mode, "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}),
+                qos=1, retain=True
+            )
+        except Exception:
+            pass
 
     topic = f"classroom/{room_id}/device/{device_name}/set"
     payload_json = json.dumps({"command": command})
@@ -544,7 +622,7 @@ def gui_lenh_thiet_bi(room_id, device_name, command):
         if result.rc != mqtt.MQTT_ERR_SUCCESS:
             print(f"MQTT PUBLISH ERROR: {result.rc}")
             return False, "Khong the publish MQTT"
-        print(f"\n========== MQTT TX ==========\nTopic: {topic}\nPayload: {payload_json}\n=============================")
+        print(f"\n========== MQTT TX {'[AUTO]' if is_auto else '[MANUAL]'} ==========\nTopic: {topic}\nPayload: {payload_json}\n=============================")
         return True, "Command da gui"
     except Exception as e:
         print(f"MQTT PUBLISH ERROR: {e}")
@@ -556,27 +634,41 @@ def gui_lenh_che_do(room_id, mode):
     if mode not in ["MANUAL", "AUTO"]:
         return False, "Chế độ không hợp lệ (chỉ chấp nhận MANUAL hoặc AUTO)"
 
-    topic = f"classroom/{room_id}/mode/set"
-    payload_json = json.dumps({"mode": mode})
+    engine.set_room_mode(room_id, mode)
+    che_do_phong[room_id] = mode
+    cap_nhat_che_do_phong(room_id, mode)
+
+    topic = f"classroom/{room_id}/mode/status"
+    payload_json = json.dumps({
+        "room_id": room_id,
+        "mode": mode,
+        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    })
 
     try:
         result = client.publish(topic, payload_json, qos=1, retain=True)
-
-        for dev_mode in ["light1_mode", "light2_mode", "fan_mode"]:
-            client.publish(f"classroom/{room_id}/device/{dev_mode}/set", json.dumps({"command": mode}), qos=1)
-
         if result.rc != mqtt.MQTT_ERR_SUCCESS:
             print(f"MQTT PUBLISH MODE ERROR: {result.rc}")
             return False, "Không thể gửi lệnh MQTT mode"
-
-        che_do_phong[room_id] = mode
-        cap_nhat_che_do_phong(room_id, mode)
 
         print(f"\n========== MQTT MODE TX ==========\nTopic: {topic}\nPayload: {payload_json}\n==================================")
         return True, f"Đã chuyển sang chế độ {mode}"
     except Exception as e:
         print(f"MQTT PUBLISH ERROR: {e}")
         return False, f"Lỗi MQTT: {e}"
+
+
+def gui_lenh_buzzer(room_id, beeps=1, alarm=False):
+    """Gửi lệnh điều khiển còi buzzer tới ESP32: classroom/{room_id}/buzzer/set"""
+    topic = f"classroom/{room_id}/buzzer/set"
+    payload_json = json.dumps({"room_id": room_id, "beeps": beeps, "alarm": alarm})
+    try:
+        client.publish(topic, payload_json, qos=1)
+        print(f"\n========== BUZZER CMD ==========\nTopic: {topic}\nPayload: {payload_json}\n===============================")
+        return True, "Buzzer command da gui"
+    except Exception as e:
+        print(f"BUZZER ERROR: {e}")
+        return False, str(e)
 
 
 # ===== QUẢN LÝ HỌC SINH VÀ PHÒNG HỌC QUA MQTT =====

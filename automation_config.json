@@ -1,0 +1,18 @@
+{
+  "room01": {
+    "lux_light1_on": 50.0,
+    "lux_light1_off": 80.0,
+    "lux_light2_on": 15.0,
+    "lux_light2_off": 25.0,
+    "temp_fan_on": 31.0,
+    "temp_fan_off": 28.5
+  },
+  "room02": {
+    "lux_light1_on": 50.0,
+    "lux_light1_off": 80.0,
+    "lux_light2_on": 15.0,
+    "lux_light2_off": 25.0,
+    "temp_fan_on": 31.0,
+    "temp_fan_off": 28.5
+  }
+}

@@ -243,6 +243,32 @@ def api_set_room_mode(room_id):
     return jsonify({"success": True, "message": message, "room_id": room_id, "mode": mode}), 200
 
 
+@app.route("/api/rooms/<room_id>/automation/thresholds", methods=["GET"])
+def api_get_automation_thresholds(room_id):
+    """Lấy cấu hình ngưỡng tự động hóa của riêng phòng này."""
+    from automation_engine import engine
+    thresholds = engine.get_room_thresholds(room_id)
+    return jsonify({"success": True, "room_id": room_id, "thresholds": thresholds}), 200
+
+
+@app.route("/api/rooms/<room_id>/automation/thresholds", methods=["POST"])
+def api_set_automation_thresholds(room_id):
+    """Cập nhật cấu hình ngưỡng tự động hóa cho riêng phòng này."""
+    if not request.is_json:
+        return jsonify({"success": False, "message": "Request phải có Content-Type: application/json"}), 400
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "message": "JSON không hợp lệ"}), 400
+    from automation_engine import engine
+    engine.set_room_thresholds(room_id, data)
+    return jsonify({
+        "success": True,
+        "message": f"Đã cập nhật ngưỡng tự động hóa cho phòng {room_id}",
+        "room_id": room_id,
+        "thresholds": engine.get_room_thresholds(room_id)
+    }), 200
+
+
 @app.route("/api/rfid-log", methods=["GET"])
 @app.route("/api/attendance/logs", methods=["GET"])
 def api_rfid_log():
