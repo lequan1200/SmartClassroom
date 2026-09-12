@@ -2,7 +2,7 @@ import os
 import mariadb
 from datetime import datetime, timedelta, time, date
 
-DB_HOST = os.environ.get("DB_HOST", "10.144.216.225")
+DB_HOST = os.environ.get("DB_HOST", "127.0.0.1")
 DB_PORT = int(os.environ.get("DB_PORT", 3306))
 DB_USER = os.environ.get("DB_USER", "root")
 DB_PASSWORD = os.environ.get("DB_PASSWORD", "1234")
@@ -10,19 +10,14 @@ DB_NAME = os.environ.get("DB_NAME", "smartclassroom")
 
 
 def ket_noi():
-    hosts = [DB_HOST]
-    if "127.0.0.1" not in hosts:
-        hosts.append("127.0.0.1")
-    for h in hosts:
-        try:
-            return mariadb.connect(
-                host=h, port=DB_PORT, user=DB_USER,
-                password=DB_PASSWORD, database=DB_NAME
-            )
-        except mariadb.Error:
-            continue
-    print(f"DB ERROR: Could not connect to MariaDB on {hosts}")
-    return None
+    try:
+        return mariadb.connect(
+            host=DB_HOST, port=DB_PORT, user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+    except mariadb.Error as e:
+        print(f"DB ERROR: Could not connect to MariaDB on {DB_HOST}: {e}")
+        return None
 
 
 def _lay_sensor_alias(sensor_name):

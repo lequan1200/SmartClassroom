@@ -12,7 +12,7 @@
 // =====================================================
 // 1. WIFI & MQTT CONFIGURATION
 // =====================================================
-const char* WIFI_SSID = "P100";
+const char* WIFI_SSID = "P1001A";
 const char* WIFI_PASS = "123123123";
 
 const char* MQTT_HOSTNAME = "mypi5";
@@ -498,12 +498,15 @@ void docCamBien() {
 // =====================================================
 
 void xuLyRFID() {
+  unsigned long now = millis();
+
+  // Kiểm tra nếu đang trong thời gian giữ trạng thái thẻ
   if (rfidCardLocked) {
-    if (!rfid.PICC_IsNewCardPresent()) {
+    if (now - lastRFIDScan >= RFID_COOLDOWN) {
       rfidCardLocked = false;
       currentRFID = "";
       publishSensor("RFID", 0, "card");
-      Serial.println("[RFID] The da duoc nhac ra.");
+      Serial.println("[RFID] San sang quet the tiep theo.");
     }
     return;
   }
@@ -517,13 +520,6 @@ void xuLyRFID() {
     cardUID += String(rfid.uid.uidByte[i], HEX);
   }
   cardUID.toUpperCase();
-
-  unsigned long now = millis();
-  if (cardUID == currentRFID && now - lastRFIDScan < RFID_COOLDOWN) {
-    rfid.PICC_HaltA();
-    rfid.PCD_StopCrypto1();
-    return;
-  }
 
   currentRFID = cardUID;
   lastRFIDScan = now;
@@ -571,16 +567,19 @@ void setup() {
   // GPIO
   pinMode(AQ_PIN, INPUT);
   pinMode(BUZZER_PIN, OUTPUT);
-  pinMode(RELAY_LIGHT1, OUTPUT);
-  pinMode(RELAY_LIGHT2, OUTPUT);
-  pinMode(RELAY_FAN, OUTPUT);
-  pinMode(RELAY_AC, OUTPUT);
+  noTone(BUZZER_PIN);
+  digitalWrite(BUZZER_PIN, LOW);
 
+  // Chống giật Relay: Ghi mức tắt (RELAY_OFF) TRƯỚC KHI cấu hình OUTPUT
   digitalWrite(RELAY_LIGHT1, RELAY_OFF);
   digitalWrite(RELAY_LIGHT2, RELAY_OFF);
   digitalWrite(RELAY_FAN, RELAY_OFF);
   digitalWrite(RELAY_AC, RELAY_OFF);
-  digitalWrite(BUZZER_PIN, LOW);
+
+  pinMode(RELAY_LIGHT1, OUTPUT);
+  pinMode(RELAY_LIGHT2, OUTPUT);
+  pinMode(RELAY_FAN, OUTPUT);
+  pinMode(RELAY_AC, OUTPUT);
 
   // Sensors
   dht.begin();
