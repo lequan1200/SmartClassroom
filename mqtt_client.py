@@ -234,13 +234,8 @@ def khi_nhan_message(client, userdata, message):
         print("PAYLOAD ERROR")
         return
 
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    retain_tag = " [RETAINED]" if is_retained else ""
-    print(f"\n========== MQTT RX ==========\nTopic: {topic}{retain_tag}\nPayload: {payload}\nTIME: {timestamp}\n=============================")
-
     thong_tin = phan_tich_topic(topic)
     if thong_tin is None:
-        print("TOPIC IGNORED")
         return
 
     room_id = thong_tin["room_id"]
@@ -341,10 +336,7 @@ def xu_ly_device(thong_tin, data):
     device_name = thong_tin["ten"]
     action = thong_tin["hanh_dong"]
 
-    print(f"DEVICE | {room_id} | {device_name} | {action} | {data}")
-
     if action != "status":
-        print("DEVICE COMMAND - KHONG LUU DATABASE")
         return
 
     if device_name.endswith("_mode"):
@@ -379,7 +371,7 @@ def xu_ly_device(thong_tin, data):
         print("DEVICE LOG ERROR")
         return
 
-    print(f"DEVICE DB OK | device_id={device_id} | state={state}")
+    print(f"[DEVICE] {room_id} | {device_name} -> {state}")
 
 
 def gui_phan_hoi_diem_danh(room_id, feedback_data):
@@ -417,14 +409,13 @@ def xu_ly_attendance(thong_tin, data):
 
     time_str = scan_dt.strftime("%Y-%m-%d %H:%M:%S")
     cap_nhat_the_vua_quet(room_id, card_uid, time_str)
-    print(f"\n========== RFID SCAN ==========\nRoom      : {room_id}\nCard UID  : {card_uid}\nScan Time : {time_str}")
+    print(f"[RFID SCAN] {room_id} | Card: {card_uid} | Time: {time_str}")
 
     student = tim_hoc_vien_theo_card(card_uid)
     if not student:
-        print(f"RFID ALERT: Thẻ {card_uid} chưa được gán cho học viên nào!")
+        print(f"RFID ALERT: The {card_uid} chua duoc gan cho hoc vien nao!")
         luu_attendance_log(room_id=room_id, card_uid=card_uid, event_type="CHECK_IN", status="CHUA_DANG_KY", recorded_at=time_str)
         gui_phan_hoi_diem_danh(room_id, {"status": "UNKNOWN_CARD", "card_uid": card_uid, "message": "Thẻ chưa đăng ký học viên", "beeps": 3})
-        print("===============================\n")
         return
 
     student_name = student["full_name"]
@@ -502,8 +493,7 @@ def xu_ly_attendance(thong_tin, data):
         "message": "Đã ghi nhận điểm danh", "beeps": 1
     })
 
-    print(f"RFID OK: {student_name} ({student_code}) | Phòng: {room_id}")
-    print("===============================\n")
+    print(f"[RFID OK] {student_name} ({student_code}) | {room_id}")
 
 
 def xu_ly_alert(thong_tin, data):
@@ -512,9 +502,9 @@ def xu_ly_alert(thong_tin, data):
     level = data.get("level") or "UNKNOWN"
     msg_time = data.get("time") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     if alert_type == "AIR_QUALITY":
-        print(f"\n========== CẢNH BÁO CHẤT LƯỢNG KHÔNG KHÍ (MQ-135) ==========\nPhòng: {room_id} | Mức: {level} | Thời gian: {msg_time}\n============================================================")
+        print(f"[AIR QUALITY ALERT] Room: {room_id} | Level: {level} | Time: {msg_time}")
     else:
-        print(f"[ALERT] Phòng: {room_id} | Loại: {alert_type} | Mức: {level} | Thời gian: {msg_time} | Data: {data}")
+        print(f"[ALERT] Room: {room_id} | Type: {alert_type} | Level: {level}")
 
 
 che_do_phong = {}
@@ -625,7 +615,7 @@ def gui_lenh_thiet_bi(room_id, device_name, command, is_auto=False):
         if result.rc != mqtt.MQTT_ERR_SUCCESS:
             print(f"MQTT PUBLISH ERROR: {result.rc}")
             return False, "Khong the publish MQTT"
-        print(f"\n========== MQTT TX {'[AUTO]' if is_auto else '[MANUAL]'} ==========\nTopic: {topic}\nPayload: {payload_json}\n=============================")
+        print(f"[MQTT TX {'AUTO' if is_auto else 'MANUAL'}] {topic} -> {payload_json}")
         return True, "Command da gui"
     except Exception as e:
         print(f"MQTT PUBLISH ERROR: {e}")
@@ -654,7 +644,7 @@ def gui_lenh_che_do(room_id, mode):
             print(f"MQTT PUBLISH MODE ERROR: {result.rc}")
             return False, "Không thể gửi lệnh MQTT mode"
 
-        print(f"\n========== MQTT MODE TX ==========\nTopic: {topic}\nPayload: {payload_json}\n==================================")
+        print(f"[MQTT MODE TX] {topic} -> {payload_json}")
         return True, f"Đã chuyển sang chế độ {mode}"
     except Exception as e:
         print(f"MQTT PUBLISH ERROR: {e}")
@@ -667,7 +657,7 @@ def gui_lenh_buzzer(room_id, beeps=1, alarm=False):
     payload_json = json.dumps({"room_id": room_id, "beeps": beeps, "alarm": alarm})
     try:
         client.publish(topic, payload_json, qos=1)
-        print(f"\n========== BUZZER CMD ==========\nTopic: {topic}\nPayload: {payload_json}\n===============================")
+        print(f"[BUZZER CMD] {topic} -> {payload_json}")
         return True, "Buzzer command da gui"
     except Exception as e:
         print(f"BUZZER ERROR: {e}")

@@ -9,9 +9,7 @@
 #include <BH1750.h>
 #include <time.h>
 
-// =====================================================
 // 1. WIFI & MQTT CONFIGURATION
-// =====================================================
 const char* WIFI_SSID = "P1001A";
 const char* WIFI_PASS = "123123123";
 
@@ -20,10 +18,7 @@ const int MQTT_PORT = 1883;
 
 #define ROOM_ID "room01"
 
-
-// =====================================================
 // 2. GPIO PIN DEFINITIONS
-// =====================================================
 
 // DHT11
 #define DHTPIN        4
@@ -52,10 +47,7 @@ const int MQTT_PORT = 1883;
 #define RELAY_ON      LOW
 #define RELAY_OFF     HIGH
 
-// =====================================================
 // 3. OBJECTS & STATE VARIABLES
-// =====================================================
-
 DHT dht(DHTPIN, DHTTYPE);
 MFRC522 rfid(RFID_SS_PIN, RFID_RST_PIN);
 BH1750 lightMeter;
@@ -114,9 +106,7 @@ String currentRFID = "";
 unsigned long lastRFIDScan = 0;
 bool rfidCardLocked = false;
 
-// =====================================================
 // 4. MQTT TOPICS
-// =====================================================
 String topicSensorPrefix;        // classroom/room01/sensor/
 String topicDevicePrefix;        // classroom/room01/device/
 String topicSetWildcard;         // classroom/room01/device/+/set
@@ -126,10 +116,7 @@ String topicAttendanceFeedback;  // classroom/room01/attendance/feedback
 String topicAlert;               // classroom/room01/alert
 String topicStatus;              // classroom/room01/status (LWT)
 
-// =====================================================
 // 5. HELPER FUNCTIONS
-// =====================================================
-
 String getCurrentTime() {
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo)) return "N/A";
@@ -197,10 +184,7 @@ void xuLyAlarm() {
   }
 }
 
-// =====================================================
 // 6. PUBLISH TO MQTT
-// =====================================================
-
 void publishSensor(const char* sensorName, float value, const char* unit) {
   JsonDocument doc;
   doc["room_id"] = ROOM_ID;
@@ -215,7 +199,6 @@ void publishSensor(const char* sensorName, float value, const char* unit) {
   if (mqtt.connected()) {
     mqtt.publish(topic.c_str(), buf);
   }
-  Serial.printf("[SENSOR] %s -> %s\n", topic.c_str(), buf);
 }
 
 void publishAirQuality(int rawValue, const char* level) {
@@ -233,7 +216,6 @@ void publishAirQuality(int rawValue, const char* level) {
   if (mqtt.connected()) {
     mqtt.publish(topic.c_str(), buf);
   }
-  Serial.printf("[AQ] %s -> %s\n", topic.c_str(), buf);
 }
 
 void publishDeviceStatus(const String& devName, const char* state) {
@@ -254,10 +236,7 @@ void publishDeviceStatus(const String& devName, const char* state) {
   Serial.printf("[STATUS] %s -> %s\n", devName.c_str(), state);
 }
 
-// =====================================================
 // 7. HARDWARE ACTUATION (RELAY CONTROLS)
-// =====================================================
-
 void applyLight1(bool turnOn) {
   light1IsOn = turnOn;
   digitalWrite(RELAY_LIGHT1, turnOn ? RELAY_ON : RELAY_OFF);
@@ -282,10 +261,7 @@ void applyAc(bool turnOn) {
   publishDeviceStatus("ac", turnOn ? "ON" : "OFF");
 }
 
-// =====================================================
-// 8. XỬ LÝ LỆNH MQTT TỪ RASPBERRY PI 5
-// =====================================================
-
+// 8. XỬ LÝ LỆNH MQTT
 void xuLyMQTT(char* topic, byte* payload, unsigned int length) {
   String topicStr = String(topic);
   String data = "";
@@ -361,10 +337,7 @@ void xuLyMQTT(char* topic, byte* payload, unsigned int length) {
   }
 }
 
-// =====================================================
 // 9. KẾT NỐI WIFI & MQTT
-// =====================================================
-
 void ketNoiWiFi() {
   if (WiFi.status() == WL_CONNECTED) return;
 
@@ -432,10 +405,7 @@ void ketNoiMQTT() {
   }
 }
 
-// =====================================================
-// 10. ĐỌC CẢM BIẾN (THIN SENSOR NODE CÓ MQ-135)
-// =====================================================
-
+// 10. ĐỌC CẢM BIẾN
 void docCamBien() {
   unsigned long now = millis();
   if (now - lastSensorRead < SENSOR_INTERVAL) return;
@@ -495,10 +465,7 @@ void docCamBien() {
   }
 }
 
-// =====================================================
 // 11. XỬ LÝ QUẸT THẺ RFID
-// =====================================================
-
 void xuLyRFID() {
   unsigned long now = millis();
 
@@ -554,17 +521,11 @@ void xuLyRFID() {
   rfid.PCD_StopCrypto1();
 }
 
-// =====================================================
 // 12. SETUP & LOOP
-// =====================================================
-
 void setup() {
   Serial.begin(115200);
   delay(500);
-
-  Serial.println("\n====================================");
-  Serial.println(" ESP32_01 SMART CLASSROOM (THIN GATEWAY + MQ-135)");
-  Serial.println("====================================");
+  Serial.println("[SYSTEM] ESP32_01 Starting...");
 
   // GPIO
   pinMode(AQ_PIN, INPUT);
@@ -632,8 +593,7 @@ void setup() {
   configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER);
 
   startBuzzer(1);
-  Serial.println("[SYSTEM] ESP32 Ready as Thin I/O Gateway.");
-  Serial.println("====================================");
+  Serial.println("[SYSTEM] Ready.");
 }
 
 void loop() {

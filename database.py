@@ -1486,19 +1486,3 @@ def lay_diem_danh_buoi_hoc(session_id):
         return {"records": rows, "summary": summary}
     except mariadb.Error as e:
         print(f"DB ERROR lay_diem_danh_buoi_hoc: {e}"); conn.close(); return None
-
-
-if __name__ == "__main__":
-    conn = ket_noi()
-    if conn is None:
-        print("MariaDB ERROR")
-        raise SystemExit(1)
-    print("MariaDB OK")
-    conn.close()
-
-    sid = tim_sensor_id("room01", "temperature")
-    print(f"Sensor temperature: {'OK -> ID ' + str(sid) if sid else 'NOT FOUND'}")
-
-    did = tim_device_id("room01", "light1")
-    print(f"Device light1: {'OK -> ID ' + str(did) if did else 'NOT FOUND'}")
-    print("================================\n       TEST HOAN TAT\n================================")
