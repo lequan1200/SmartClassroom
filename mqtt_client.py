@@ -88,10 +88,6 @@ def lay_trang_thai_phong(room_id):
     return "OFFLINE"
 
 
-def lay_tat_ca_trang_thai_phong():
-    return {rid: lay_trang_thai_phong(rid) for rid in set(trang_thai_phong) | set(thoi_gian_nhan_tin_cuoi)}
-
-
 def phan_tich_topic(topic):
     parts = topic.split("/")
     if len(parts) < 3 or parts[0] != "classroom":

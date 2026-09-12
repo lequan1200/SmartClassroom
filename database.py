@@ -24,8 +24,16 @@ def _lay_sensor_alias(sensor_name):
     if not sensor_name:
         return None
     s = sensor_name.lower().strip()
-    if s in ["aq", "airquality"]:
+    if s in ["aq", "airquality", "air_quality"]:
+        return "gas"
+    if s == "gas":
         return "air_quality"
+    if s == "temp":
+        return "temperature"
+    if s == "hum":
+        return "humidity"
+    if s in ["lux", "ldr"]:
+        return "light"
     return None
 
 
@@ -777,35 +785,6 @@ def xoa_lop(class_id):
         print(f"DB ERROR xoa_lop: {e}"); conn.rollback(); conn.close(); return False
 
 
-def lay_danh_sach_mon_hoc():
-    conn = ket_noi()
-    if not conn:
-        return None
-    try:
-        cur = conn.cursor()
-        cur.execute("SELECT id, subject_code, subject_name, description, is_active FROM subjects ORDER BY subject_code")
-        rows = _rows_as_dicts(cur.fetchall(), ["id", "subject_code", "subject_name", "description", "is_active"])
-        cur.close(); conn.close()
-        return rows
-    except mariadb.Error as e:
-        print(f"DB ERROR lay_danh_sach_mon_hoc: {e}"); conn.close(); return None
-
-
-def tao_mon_hoc(subject_code, subject_name, description=None):
-    conn = ket_noi()
-    if not conn:
-        return None
-    try:
-        cur = conn.cursor()
-        cur.execute("INSERT INTO subjects (subject_code, subject_name, description) VALUES (?, ?, ?)",
-                    (subject_code, subject_name, description))
-        conn.commit(); result = cur.lastrowid
-        cur.close(); conn.close()
-        return result
-    except mariadb.Error as e:
-        print(f"DB ERROR tao_mon_hoc: {e}"); conn.rollback(); conn.close(); return None
-
-
 def lay_hoc_vien_theo_phong(room_id, search=None):
     """Lấy danh sách học sinh CHỈ THUỘC PHÒNG HỌC NÀY (quản lý trực tiếp theo phòng)."""
     conn = ket_noi()
@@ -877,39 +856,6 @@ def lay_hoc_vien_theo_lop(class_id, search=None):
         print(f"DB ERROR lay_hoc_vien_theo_lop: {e}"); conn.close(); return None
 
 
-def lay_hoc_vien_cua_lop(class_id):
-    """Alias tương thích cho lay_hoc_vien_theo_lop."""
-    return lay_hoc_vien_theo_lop(class_id)
-
-
-def lay_chi_tiet_hoc_vien(student_id):
-    """Lấy thông tin chi tiết một học sinh theo id."""
-    conn = ket_noi()
-    if not conn:
-        return None
-    try:
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT st.id, st.student_code, st.full_name, st.card_uid,
-                   st.class_id, c.class_code, c.class_name,
-                   st.email, st.phone, st.created_at
-            FROM students st
-            LEFT JOIN classes c ON c.id = st.class_id
-            WHERE st.id = ?
-        """, (student_id,))
-        row = cur.fetchone()
-        cur.close(); conn.close()
-        if not row:
-            return None
-        columns = ["id", "student_code", "full_name", "card_uid", "class_id", "class_code", "class_name", "email", "phone", "created_at"]
-        d = dict(zip(columns, row))
-        d["rfid_uid"] = d["card_uid"]
-        if d["created_at"] and hasattr(d["created_at"], "isoformat"):
-            d["created_at"] = d["created_at"].isoformat()
-        return d
-    except mariadb.Error as e:
-        print(f"DB ERROR lay_chi_tiet_hoc_vien: {e}"); conn.close(); return None
-
 
 def them_hoc_vien_vao_phong(room_id, student_code, full_name, card_uid=None, email=None, phone=None):
     """Thêm học sinh mới trực tiếp vào phòng học đã chọn."""
@@ -964,61 +910,6 @@ def them_hoc_vien_vao_phong(room_id, student_code, full_name, card_uid=None, ema
         return {"success": True, "id": new_id, "message": f"Đã thêm học sinh vào phòng {r_row[2]} thành công"}
     except mariadb.Error as e:
         print(f"DB ERROR them_hoc_vien_vao_phong: {e}")
-        conn.rollback(); conn.close()
-        return {"success": False, "error": str(e)}
-
-
-def them_hoc_vien_vao_lop(class_id, student_code, full_name, card_uid=None, email=None, phone=None):
-    """Thêm học sinh mới trực tiếp vào lớp đã chọn."""
-    conn = ket_noi()
-    if not conn:
-        return {"success": False, "error": "Không thể kết nối MariaDB"}
-    try:
-        cur = conn.cursor()
-        student_code = student_code.strip()
-        full_name = full_name.strip()
-        card_uid = card_uid.strip().upper() if card_uid and card_uid.strip() else None
-        email = email.strip() if email and email.strip() else None
-        phone = phone.strip() if phone and phone.strip() else None
-
-        # Kiểm tra lớp tồn tại
-        cur.execute("SELECT id, class_code, class_name FROM classes WHERE id = ?", (class_id,))
-        cls_row = cur.fetchone()
-        if not cls_row:
-            cur.close(); conn.close()
-            return {"success": False, "error": "Lớp học không tồn tại"}
-
-        # Kiểm tra trùng thẻ RFID
-        if card_uid:
-            cur.execute("SELECT id, student_code, full_name FROM students WHERE UPPER(card_uid) = ?", (card_uid,))
-            dup_card = cur.fetchone()
-            if dup_card:
-                cur.close(); conn.close()
-                return {"success": False, "error": f"Mã thẻ RFID {card_uid} đã được gán cho học sinh {dup_card[2]} ({dup_card[1]})!"}
-
-        # Kiểm tra trùng mã sinh viên
-        cur.execute("SELECT id, full_name, class_id FROM students WHERE student_code = ?", (student_code,))
-        existing = cur.fetchone()
-        if existing:
-            # Nếu học sinh đã tồn tại nhưng chưa có lớp, cho phép gán vào lớp
-            if existing[2] is None:
-                cur.execute("UPDATE students SET class_id = ?, full_name = ?, card_uid = COALESCE(?, card_uid), email = COALESCE(?, email), phone = COALESCE(?, phone) WHERE id = ?",
-                            (class_id, full_name, card_uid, email, phone, existing[0]))
-                conn.commit()
-                cur.close(); conn.close()
-                return {"success": True, "id": existing[0], "message": f"Đã gán học sinh {student_code} vào lớp"}
-            cur.close(); conn.close()
-            return {"success": False, "error": f"Mã học sinh {student_code} đã tồn tại trong hệ thống!"}
-
-        cur.execute("""INSERT INTO students (student_code, full_name, card_uid, class_id, email, phone)
-                       VALUES (?, ?, ?, ?, ?, ?)""",
-                    (student_code, full_name, card_uid, class_id, email, phone))
-        conn.commit()
-        new_id = cur.lastrowid
-        cur.close(); conn.close()
-        return {"success": True, "id": new_id, "message": "Đã thêm học sinh vào lớp thành công"}
-    except mariadb.Error as e:
-        print(f"DB ERROR them_hoc_vien_vao_lop: {e}")
         conn.rollback(); conn.close()
         return {"success": False, "error": str(e)}
 
@@ -1097,33 +988,6 @@ def xoa_hoc_vien(student_id):
         conn.rollback(); conn.close(); return False
 
 
-def chuyen_lop_hoc_vien(student_id, target_class_id):
-    """Chuyển hẳn học sinh từ lớp này sang lớp đích (rời lớp cũ hoàn toàn)."""
-    conn = ket_noi()
-    if not conn:
-        return {"success": False, "error": "Không thể kết nối MariaDB"}
-    try:
-        cur = conn.cursor()
-        cur.execute("SELECT id, class_code, class_name FROM classes WHERE id = ?", (target_class_id,))
-        target_cls = cur.fetchone()
-        if not target_cls:
-            cur.close(); conn.close()
-            return {"success": False, "error": "Lớp đích không tồn tại"}
-
-        cur.execute("UPDATE students SET class_id = ? WHERE id = ?", (target_class_id, student_id))
-        conn.commit()
-        affected = cur.rowcount
-        cur.close(); conn.close()
-        if affected > 0:
-            return {"success": True, "target_class_code": target_cls[1], "target_class_name": target_cls[2],
-                    "message": f"Đã chuyển học sinh sang lớp {target_cls[2]} ({target_cls[1]})"}
-        return {"success": False, "error": "Không tìm thấy học sinh để chuyển lớp"}
-    except mariadb.Error as e:
-        print(f"DB ERROR chuyen_lop_hoc_vien: {e}")
-        conn.rollback(); conn.close()
-        return {"success": False, "error": str(e)}
-
-
 def chuyen_phong_hoc_vien(student_id, target_room_id):
     """Chuyển học sinh từ phòng hiện tại sang phòng đích."""
     conn = ket_noi()
@@ -1155,11 +1019,6 @@ def gan_the_hoc_vien(student_id, card_uid):
     """Gán/đổi mã thẻ RFID cho học sinh."""
     return sua_hoc_vien(student_id, card_uid=card_uid)
 
-
-def gan_hoc_vien_vao_lop(class_id, student_id):
-    """Gán học sinh có sẵn vào lớp (hàm tương thích)."""
-    res = chuyen_lop_hoc_vien(student_id, class_id)
-    return res.get("success", False)
 
 
 def _format_time_value(val):

@@ -1255,6 +1255,18 @@ a {
     animation: pulseDot 1.8s infinite;
 }
 
+.live-badge.offline {
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    color: #64748b;
+}
+
+.live-badge.offline span {
+    background: #94a3b8;
+    box-shadow: none;
+    animation: none;
+}
+
 /* ============================================================
    ENVIRONMENTAL TELEMETRY SENSOR CARDS
    ============================================================ */
@@ -1882,6 +1894,72 @@ a {
     align-items: center;
     justify-content: space-between;
     margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.chart-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.chart-tab-group {
+    display: inline-flex;
+    align-items: center;
+    background: #f1f5f9;
+    padding: 3px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    gap: 2px;
+}
+
+.chart-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 11px;
+    font-size: 11.5px;
+    font-weight: 600;
+    font-family: inherit;
+    color: #64748b;
+    background: transparent;
+    border: none;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+    user-select: none;
+}
+
+.chart-tab-btn:hover {
+    color: #1e293b;
+    background: rgba(255, 255, 255, 0.65);
+}
+
+.chart-tab-btn.active {
+    background: #ffffff;
+    color: #2563eb;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+    font-weight: 700;
+}
+
+.chart-tab-btn.active[data-sensor="humidity"] {
+    color: #0284c7;
+}
+
+.chart-tab-btn.active[data-sensor="light"] {
+    color: #d97706;
+}
+
+.chart-tab-btn.active[data-sensor="air_quality"] {
+    color: #059669;
+}
+
+.chart-tab-icon {
+    font-size: 13px;
+    line-height: 1;
 }
 
 .chart-unit-pill {
@@ -1890,8 +1968,10 @@ a {
     color: var(--primary);
     background: var(--primary-light);
     border: 1px solid rgba(37, 99, 235, 0.2);
-    padding: 3px 8px;
+    padding: 4px 9px;
     border-radius: 6px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
 }
 
 .chart-container {

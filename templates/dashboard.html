@@ -234,7 +234,7 @@
                             <span class="section-eyebrow">GIÁM SÁT MÔI TRƯỜNG</span>
                             <h3>Cảm Biến Thời Gian Thực</h3>
                         </div>
-                        <span class="live-badge"><span></span>TRUYỀN TRỰC TIẾP</span>
+                        <span class="live-badge" id="sensor-live-badge"><span></span>TRUYỀN TRỰC TIẾP</span>
                     </div>
 
                     <div class="sensor-grid">
@@ -505,9 +505,25 @@
                         <div class="panel-header">
                             <div>
                                 <span class="section-eyebrow">DỮ LIỆU ĐO THEO DÕI</span>
-                                <h3>Biểu Đồ Lịch Sử Nhiệt Độ</h3>
+                                <h3 id="chart-title">Biểu Đồ Lịch Sử Nhiệt Độ</h3>
                             </div>
-                            <span class="chart-unit-pill">°C THEO THỜI GIAN</span>
+                            <div class="chart-header-actions">
+                                <div class="chart-tab-group" id="chart-sensor-tabs">
+                                    <button type="button" class="chart-tab-btn active" data-sensor="temperature" onclick="switchTelemetrySensor('temperature')">
+                                        <span class="chart-tab-icon">🌡️</span> Nhiệt độ
+                                    </button>
+                                    <button type="button" class="chart-tab-btn" data-sensor="humidity" onclick="switchTelemetrySensor('humidity')">
+                                        <span class="chart-tab-icon">💧</span> Độ ẩm
+                                    </button>
+                                    <button type="button" class="chart-tab-btn" data-sensor="light" onclick="switchTelemetrySensor('light')">
+                                        <span class="chart-tab-icon">☀️</span> Ánh sáng
+                                    </button>
+                                    <button type="button" class="chart-tab-btn" data-sensor="air_quality" onclick="switchTelemetrySensor('air_quality')">
+                                        <span class="chart-tab-icon">🍃</span> Không khí
+                                    </button>
+                                </div>
+                                <span class="chart-unit-pill" id="chart-unit-pill">°C THEO THỜI GIAN</span>
+                            </div>
                         </div>
                         <div class="chart-container">
                             <canvas id="temperature-chart"></canvas>

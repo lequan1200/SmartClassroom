@@ -12,7 +12,7 @@ Quản lý toàn bộ logic tự động hóa cho các phòng học:
 import json
 import os
 import threading
-from typing import Callable, Dict, Any, Optional
+from typing import Callable, Dict, Optional
 
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), "automation_config.json")
 
@@ -156,20 +156,10 @@ class AutomationEngine:
             if dev_key in room.device_states:
                 room.device_states[dev_key] = state.upper()
 
-    def get_device_state(self, room_id: str, device_name: str) -> str:
-        with self._lock:
-            room = self._get_or_create_room(room_id)
-            return room.device_states.get(device_name.lower(), "OFF")
-
     def get_room_mode(self, room_id: str) -> str:
         with self._lock:
             room = self._get_or_create_room(room_id)
             return room.mode
-
-    def get_device_mode(self, room_id: str, device_name: str) -> str:
-        with self._lock:
-            room = self._get_or_create_room(room_id)
-            return room.device_modes.get(device_name.lower(), "MANUAL")
 
     def set_room_mode(self, room_id: str, mode: str):
         """Chuyển chế độ chung của phòng ('AUTO' hoặc 'MANUAL')."""
@@ -187,27 +177,6 @@ class AutomationEngine:
         print(f"[AUTOMATION] Phong {room_id} -> Chuyen che do sang {mode_upper}")
 
         # Nếu vừa chuyển sang AUTO, lập tức đánh giá lại theo cảm biến hiện thời
-        if mode_upper == "AUTO":
-            self.reevaluate_room(room_id)
-        return True
-
-    def set_device_mode(self, room_id: str, device_name: str, mode: str):
-        """Chuyển chế độ độc lập cho một thiết bị con."""
-        mode_upper = mode.upper()
-        if mode_upper not in ["AUTO", "MANUAL"]:
-            return False
-
-        dev_key = device_name.lower().replace("_mode", "")
-        with self._lock:
-            room = self._get_or_create_room(room_id)
-            if dev_key in room.device_modes:
-                room.device_modes[dev_key] = mode_upper
-                # Cập nhật chế độ chung nếu tất cả đều là AUTO hoặc tất cả là MANUAL
-                if all(m == "AUTO" for m in [room.device_modes["light1"], room.device_modes["light2"], room.device_modes["fan"]]):
-                    room.mode = "AUTO"
-                else:
-                    room.mode = "MANUAL"
-
         if mode_upper == "AUTO":
             self.reevaluate_room(room_id)
         return True

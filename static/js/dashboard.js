@@ -4,6 +4,7 @@
  */
 
 let currentRoom = null;
+let currentChartSensor = "temperature";
 let temperatureChart = null;
 const REFRESH_INTERVAL = 3000;
 let currentTab = "rooms";
@@ -25,7 +26,8 @@ function escapeHtml(str) {
 function formatTime(value) {
     if (!value) return "--:--:--";
     try {
-        const date = new Date(value);
+        const valStr = String(value).trim();
+        const date = new Date(valStr.includes(" ") ? valStr.replace(" ", "T") : valStr);
         if (isNaN(date.getTime())) return value;
         return date.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     } catch { return value; }
@@ -34,7 +36,8 @@ function formatTime(value) {
 function formatFullDateTime(value) {
     if (!value) return "--";
     try {
-        const date = new Date(value);
+        const valStr = String(value).trim();
+        const date = new Date(valStr.includes(" ") ? valStr.replace(" ", "T") : valStr);
         if (isNaN(date.getTime())) return value;
         return date.toLocaleString("vi-VN", {
             hour: "2-digit", minute: "2-digit", second: "2-digit",
@@ -338,7 +341,7 @@ function selectRoomAndOpenDashboard(roomId) {
     if (room.is_online) {
         showToast("Đã chọn phòng", `Đang quản lý ${room.name || roomId} (${roomId})`, true);
     } else {
-        showToast("Đã chọn phòng (Offline)", `Đang quản lý ${room.name || roomId} (${roomId}) - Thiết bị hiện Offline, bạn vẫn có thể quản lý học viên và thời khóa biểu.`, true);
+        showToast("Đã chọn phòng (Offline)", `Đang quản lý ${room.name || roomId} (${roomId}) - Thiết bị đang Offline: Hiển thị số liệu và trạng thái gần nhất khi online.`, true);
     }
 }
 
@@ -420,15 +423,14 @@ async function loadRoom() {
         console.error("LOAD ROOM ERROR:", error);
     }
 
-    if (isOnline) {
-        await Promise.all([
-            loadSensors(),
-            loadDevices(),
-            loadTemperatureHistory(),
-            loadRoomMode(),
-            loadActiveSession(currentRoom)
-        ]);
-    }
+    // Luôn tải đầy đủ số liệu cảm biến, trạng thái thiết bị, lịch sử từ DB kể cả khi phòng Offline
+    await Promise.all([
+        loadSensors(),
+        loadDevices(),
+        loadTemperatureHistory(),
+        loadRoomMode(),
+        loadActiveSession(currentRoom)
+    ]);
 }
 
 // ============================================================
@@ -452,6 +454,18 @@ async function loadSensors() {
             const time = sensor.updated_at || sensor.recorded_at || sensor.time;
             updateSensor(name, value, sensor.unit, time);
         });
+
+        // Tải mốc thời gian quẹt thẻ RFID gần nhất từ DB attendance logs
+        try {
+            const rfidRes = await fetch(`/api/rooms/${encodeURIComponent(currentRoom)}/rfid-latest`);
+            if (rfidRes.ok) {
+                const rfidData = await rfidRes.json();
+                if (rfidData?.data?.scanned_at) {
+                    const rTime = $("rfid-time");
+                    if (rTime) rTime.textContent = formatTime(rfidData.data.scanned_at);
+                }
+            }
+        } catch (_) {}
     } catch (error) {
         console.error("LOAD SENSOR ERROR:", error);
     }
@@ -463,12 +477,14 @@ function updateSensor(name, value, unit, time) {
 
     switch (name) {
         case "temperature":
+        case "temp":
             if ($("temperature-value")) $("temperature-value").textContent = numericValue.toFixed(1);
             if ($("temperature-time")) $("temperature-time").textContent = formatTime(time);
             updateTemperatureStatus(numericValue);
             break;
 
         case "humidity":
+        case "hum":
             if ($("humidity-value")) $("humidity-value").textContent = numericValue.toFixed(1);
             if ($("humidity-time")) $("humidity-time").textContent = formatTime(time);
             const humPercent = Math.max(0, Math.min(100, numericValue));
@@ -477,6 +493,7 @@ function updateSensor(name, value, unit, time) {
             break;
 
         case "light":
+        case "lux":
         case "ldr":
             const lightVal = Math.round(numericValue);
             if ($("light-value")) $("light-value").textContent = lightVal;
@@ -491,6 +508,7 @@ function updateSensor(name, value, unit, time) {
         case "air_quality":
         case "airquality":
         case "aq":
+        case "gas":
             const aqVal = Math.round(numericValue);
             if ($("air-quality-value")) $("air-quality-value").textContent = aqVal;
             if ($("air-quality-time")) $("air-quality-time").textContent = formatTime(time);
@@ -827,12 +845,98 @@ async function setRoomMode(mode) {
 }
 
 // ============================================================
-// TEMPERATURE HISTORY CHART
+// TELEMETRY HISTORY CHART (Temperature, Humidity, Light, Air Quality)
 // ============================================================
-async function loadTemperatureHistory() {
+const SENSOR_CHART_CONFIG = {
+    temperature: {
+        key: "temperature",
+        label: "Nhiệt độ",
+        unit: "°C",
+        badge: "°C THEO THỜI GIAN",
+        title: "Biểu Đồ Lịch Sử Nhiệt Độ",
+        color: "#2563eb",
+        bgGradientStart: "rgba(37, 99, 235, 0.22)",
+        pillBg: "var(--primary-light, #eff6ff)",
+        pillColor: "var(--primary, #2563eb)",
+        pillBorder: "rgba(37, 99, 235, 0.2)"
+    },
+    humidity: {
+        key: "humidity",
+        label: "Độ ẩm",
+        unit: "%",
+        badge: "% THEO THỜI GIAN",
+        title: "Biểu Đồ Lịch Sử Độ Ẩm",
+        color: "#0284c7",
+        bgGradientStart: "rgba(2, 132, 199, 0.22)",
+        pillBg: "#e0f2fe",
+        pillColor: "#0284c7",
+        pillBorder: "rgba(2, 132, 199, 0.25)"
+    },
+    light: {
+        key: "light",
+        label: "Ánh sáng",
+        unit: "lux",
+        badge: "lux THEO THỜI GIAN",
+        title: "Biểu Đồ Lịch Sử Ánh Sáng",
+        color: "#d97706",
+        bgGradientStart: "rgba(217, 119, 6, 0.22)",
+        pillBg: "#fef3c7",
+        pillColor: "#b45309",
+        pillBorder: "rgba(217, 119, 6, 0.25)"
+    },
+    air_quality: {
+        key: "air_quality",
+        label: "Chất lượng không khí",
+        unit: "raw",
+        badge: "raw (MQ-135)",
+        title: "Biểu Đồ Lịch Sử Chất Lượng Không Khí",
+        color: "#059669",
+        bgGradientStart: "rgba(5, 150, 105, 0.22)",
+        pillBg: "#d1fae5",
+        pillColor: "#047857",
+        pillBorder: "rgba(5, 150, 105, 0.25)"
+    }
+};
+
+function switchTelemetrySensor(sensorType) {
+    if (!sensorType || !SENSOR_CHART_CONFIG[sensorType]) return;
+    currentChartSensor = sensorType;
+
+    // Update tabs active state
+    const tabBtns = document.querySelectorAll(".chart-tab-btn");
+    tabBtns.forEach(btn => {
+        if (btn.getAttribute("data-sensor") === sensorType) {
+            btn.classList.add("active");
+        } else {
+            btn.classList.remove("active");
+        }
+    });
+
+    // Update chart title and unit badge
+    const config = SENSOR_CHART_CONFIG[sensorType];
+    const titleEl = $("chart-title");
+    if (titleEl) titleEl.textContent = config.title;
+
+    const unitPill = $("chart-unit-pill");
+    if (unitPill) {
+        unitPill.textContent = config.badge;
+        unitPill.style.background = config.pillBg;
+        unitPill.style.color = config.pillColor;
+        unitPill.style.borderColor = config.pillBorder;
+    }
+
+    loadTelemetryHistory(sensorType);
+}
+window.switchTelemetrySensor = switchTelemetrySensor;
+
+async function loadTelemetryHistory(sensorType) {
+    if (!currentRoom) return;
+    if (!sensorType) sensorType = currentChartSensor || "temperature";
+    currentChartSensor = sensorType;
+
     try {
-        const response = await fetch(`/api/rooms/${currentRoom}/sensors/temperature/history?limit=30`);
-        if (!response.ok) throw new Error("Không lấy được lịch sử");
+        const response = await fetch(`/api/rooms/${currentRoom}/sensors/${sensorType}/history?limit=30`);
+        if (!response.ok) throw new Error(`Không lấy được lịch sử ${sensorType}`);
         const data = await response.json();
 
         let history = [];
@@ -840,28 +944,39 @@ async function loadTemperatureHistory() {
         else if (Array.isArray(data.data)) history = data.data;
         else if (Array.isArray(data.history)) history = data.history;
 
-        drawTemperatureChart(history);
+        drawTelemetryChart(history, sensorType);
     } catch (error) {
         console.error("HISTORY ERROR:", error);
-        drawTemperatureChart([]);
+        drawTelemetryChart([], sensorType);
     }
 }
 
-function drawTemperatureChart(history) {
+// Backwards compatibility for loadRoom
+async function loadTemperatureHistory() {
+    return loadTelemetryHistory(currentChartSensor);
+}
+
+function drawTelemetryChart(history, sensorType) {
     const canvas = $("temperature-chart");
     const empty = $("chart-empty");
     if (!canvas) return;
 
+    if (!sensorType) sensorType = currentChartSensor || "temperature";
+    const config = SENSOR_CHART_CONFIG[sensorType] || SENSOR_CHART_CONFIG.temperature;
+
     if (!history || history.length === 0) {
-        if (empty) empty.style.display = "flex";
+        if (empty) {
+            empty.textContent = `Chưa có dữ liệu lịch sử ${config.label.toLowerCase()}`;
+            empty.style.display = "flex";
+        }
         if (temperatureChart) { temperatureChart.destroy(); temperatureChart = null; }
         return;
     }
 
-    if (empty) empty.style.display = "none";
-
+    // Sort chronologically (oldest to newest)
+    const rows = [...history].reverse();
     const labels = [], values = [];
-    history.forEach(item => {
+    rows.forEach(item => {
         const value = item.value ?? item.sensor_value;
         const time = item.recorded_at || item.created_at || item.time;
         if (value !== undefined && value !== null) {
@@ -870,27 +985,36 @@ function drawTemperatureChart(history) {
         }
     });
 
-    if (values.length === 0) { if (empty) empty.style.display = "flex"; return; }
+    if (values.length === 0) {
+        if (empty) {
+            empty.textContent = `Chưa có dữ liệu lịch sử ${config.label.toLowerCase()}`;
+            empty.style.display = "flex";
+        }
+        if (temperatureChart) { temperatureChart.destroy(); temperatureChart = null; }
+        return;
+    }
+
+    if (empty) empty.style.display = "none";
     if (temperatureChart) temperatureChart.destroy();
 
     const ctx = canvas.getContext("2d");
     const gradient = ctx.createLinearGradient(0, 0, 0, 240);
-    gradient.addColorStop(0, "rgba(37, 99, 235, 0.18)");
-    gradient.addColorStop(1, "rgba(37, 99, 235, 0.0)");
+    gradient.addColorStop(0, config.bgGradientStart);
+    gradient.addColorStop(1, "rgba(255, 255, 255, 0.0)");
 
     temperatureChart = new Chart(canvas, {
         type: "line",
         data: {
             labels,
             datasets: [{
-                label: "Nhiệt độ (°C)",
+                label: `${config.label} (${config.unit})`,
                 data: values,
                 tension: 0.38,
                 fill: true,
                 backgroundColor: gradient,
-                borderColor: "#2563eb",
+                borderColor: config.color,
                 borderWidth: 2.5,
-                pointBackgroundColor: "#2563eb",
+                pointBackgroundColor: config.color,
                 pointBorderColor: "#ffffff",
                 pointBorderWidth: 2,
                 pointRadius: 3.5,
@@ -905,21 +1029,34 @@ function drawTemperatureChart(history) {
                 tooltip: {
                     backgroundColor: "#0f172a",
                     titleColor: "#ffffff",
-                    bodyColor: "#60a5fa",
-                    borderColor: "rgba(37, 99, 235, 0.3)",
+                    bodyColor: config.color,
+                    borderColor: config.color,
                     borderWidth: 1,
                     padding: 10,
                     cornerRadius: 8,
                     displayColors: false,
-                    callbacks: { label: ctx => `${ctx.parsed.y} °C` }
+                    callbacks: {
+                        label: ctx => `${config.label}: ${ctx.parsed.y} ${config.unit}`
+                    }
                 }
             },
             scales: {
-                x: { ticks: { color: "#64748b", maxTicksLimit: 7, font: { size: 10, family: "Inter" } }, grid: { color: "rgba(0,0,0,0.04)" } },
-                y: { ticks: { color: "#64748b", font: { size: 10, family: "Inter" } }, grid: { color: "rgba(0,0,0,0.04)" } }
+                x: {
+                    ticks: { color: "#64748b", maxTicksLimit: 7, font: { size: 10, family: "Inter" } },
+                    grid: { color: "rgba(0,0,0,0.04)" }
+                },
+                y: {
+                    ticks: { color: "#64748b", font: { size: 10, family: "Inter" } },
+                    grid: { color: "rgba(0,0,0,0.04)" }
+                }
             }
         }
     });
+}
+
+// Backwards compatibility alias
+function drawTemperatureChart(history) {
+    drawTelemetryChart(history, "temperature");
 }
 
 
@@ -1659,6 +1796,18 @@ function updateCurrentRoomStatus() {
     const banner = $("room-offline-banner");
     if (banner) banner.style.display = isOnline ? "none" : "flex";
 
+    // --- Badge Truyền trực tiếp vs Số liệu gần nhất ---
+    const liveBadge = $("sensor-live-badge") || document.querySelector(".live-badge");
+    if (liveBadge) {
+        if (isOnline) {
+            liveBadge.className = "live-badge";
+            liveBadge.innerHTML = "<span></span>TRUYỀN TRỰC TIẾP";
+        } else {
+            liveBadge.className = "live-badge offline";
+            liveBadge.innerHTML = "<span></span>SỐ LIỆU GẦN NHẤT";
+        }
+    }
+
     // --- Khoá/mở khoá nút điều khiển thiết bị & chế độ ---
     document.querySelectorAll(".device-control-btn, .mode-btn, [data-device-btn], .device-pill-toggle").forEach(btn => {
         btn.disabled = !isOnline;
@@ -1677,24 +1826,28 @@ function startAutoRefresh() {
             updateCurrentRoomStatus();
 
             const curObj = allRooms.find(r => r.room_id === currentRoom);
-            if (curObj && curObj.is_online) {
-                if (currentTab === "dashboard") {
-                    await loadSensors();
-                    await loadDevices();
-                    await loadActiveSession(currentRoom);
-                } else if (currentTab === "rfid") {
+            if (currentTab === "dashboard") {
+                // Luôn cập nhật cảm biến và thiết bị từ DB (hiển thị số liệu gần nhất khi offline)
+                await loadSensors();
+                await loadDevices();
+                await loadActiveSession(currentRoom);
+                if (refreshTick % 5 === 0) {
+                    await loadTelemetryHistory(currentChartSensor);
+                }
+            } else if (currentTab === "rfid") {
+                if (curObj && curObj.is_online) {
                     if (activeAttendanceSubTab === "session") {
                         refreshSessionAttendance();
                     } else {
                         await loadRfidLog();
                     }
-                } else if (currentTab === "schedule") {
-                    // Kiểm tra làm mới ngầm mỗi ~12s (4 chu kỳ x 3s) và chỉ khi modal không mở
-                    const modal = $("modal-add-schedule");
-                    const isModalOpen = modal && modal.style.display !== "none";
-                    if (!isModalOpen && refreshTick % 4 === 0) {
-                        await loadRoomSchedule(currentRoom, true);
-                    }
+                }
+            } else if (currentTab === "schedule") {
+                // Kiểm tra làm mới ngầm mỗi ~12s (4 chu kỳ x 3s) và chỉ khi modal không mở
+                const modal = $("modal-add-schedule");
+                const isModalOpen = modal && modal.style.display !== "none";
+                if (!isModalOpen && refreshTick % 4 === 0) {
+                    await loadRoomSchedule(currentRoom, true);
                 }
             }
         }

@@ -15,17 +15,15 @@ from database import (
     lay_device_hien_tai, lay_device,
     lay_danh_sach_diem_danh, lay_the_rfid_vua_quet_gan_nhat,
     lay_danh_sach_lop, lay_chi_tiet_lop, tao_lop, cap_nhat_lop, xoa_lop,
-    lay_danh_sach_mon_hoc, tao_mon_hoc,
     lay_hoc_vien_theo_phong, them_hoc_vien_vao_phong, chuyen_phong_hoc_vien,
-    lay_hoc_vien_theo_lop, lay_hoc_vien_cua_lop, them_hoc_vien_vao_lop,
-    sua_hoc_vien, xoa_hoc_vien, chuyen_lop_hoc_vien, gan_the_hoc_vien, gan_hoc_vien_vao_lop,
+    sua_hoc_vien, xoa_hoc_vien, gan_the_hoc_vien,
     tao_thoi_khoa_bieu, lay_thoi_khoa_bieu, xoa_thoi_khoa_bieu,
     lay_hoac_tao_buoi_hoc_hien_tai, lay_diem_danh_buoi_hoc
 )
 from mqtt_client import (
     client, ket_noi_mqtt, gui_lenh_thiet_bi,
     lay_che_do_hien_tai, gui_lenh_che_do, lay_trang_thai_phong,
-    dong_bo_hoc_sinh_phong_mqtt, dong_bo_hoc_sinh_lop_mqtt,
+    dong_bo_hoc_sinh_phong_mqtt,
     dat_che_do_gan_the, lay_the_rfid_vua_quet
 )
 import threading
@@ -374,102 +372,6 @@ def api_class_detail(class_id):
         return jsonify({"success": True, "message": "Đã xóa lớp thành công"}), 200
 
 
-@app.route("/api/classes/<int:class_id>/students", methods=["GET", "POST"])
-def api_class_students(class_id):
-    if request.method == "GET":
-        search = request.args.get("search")
-        rows = lay_hoc_vien_theo_lop(class_id, search=search)
-        return jsonify({"success": rows is not None, "data": rows or [], "students": rows or []}), 200 if rows is not None else 500
-
-    data = request.get_json(silent=True) or {}
-    # Trường hợp 1: Có student_id -> gán học sinh có sẵn vào lớp này
-    if "student_id" in data and not data.get("student_code"):
-        try:
-            student_id = int(data["student_id"])
-        except (TypeError, ValueError):
-            return jsonify({"success": False, "message": "student_id không hợp lệ"}), 400
-        res = chuyen_lop_hoc_vien(student_id, class_id)
-        if not res.get("success"):
-            return jsonify({"success": False, "message": res.get("error", "Không thể gán học sinh")}), 400
-        return jsonify({"success": True, "message": "Đã gán học sinh vào lớp thành công"}), 200
-
-    # Trường hợp 2: Thêm mới học sinh trực tiếp vào lớp này
-    code = str(data.get("student_code", "")).strip()
-    name = str(data.get("full_name", "")).strip()
-    if not code or not name:
-        return jsonify({"success": False, "message": "Cần student_code và full_name"}), 400
-
-    card_uid = data.get("card_uid") or data.get("rfid_uid")
-    res = them_hoc_vien_vao_lop(
-        class_id=class_id,
-        student_code=code,
-        full_name=name,
-        card_uid=card_uid,
-        email=data.get("email"),
-        phone=data.get("phone")
-    )
-    if not res.get("success"):
-        return jsonify({"success": False, "message": res.get("error", "Không thể thêm học sinh")}), 400
-    return jsonify({
-        "success": True,
-        "id": res.get("id"),
-        "student_id": res.get("id"),
-        "message": res.get("message", "Thêm học sinh thành công")
-    }), 201
-
-
-@app.route("/api/classes/<int:class_id>/students/<int:student_id>", methods=["PUT", "DELETE"])
-def api_class_student_item(class_id, student_id):
-    if request.method == "PUT":
-        data = request.get_json(silent=True) or {}
-        card_uid = data.get("card_uid") or data.get("rfid_uid")
-        res = sua_hoc_vien(
-            student_id=student_id,
-            student_code=data.get("student_code"),
-            full_name=data.get("full_name"),
-            card_uid=card_uid,
-            email=data.get("email"),
-            phone=data.get("phone")
-        )
-        if not res.get("success"):
-            return jsonify({"success": False, "message": res.get("error", "Không thể sửa học sinh")}), 400
-        return jsonify({"success": True, "message": res.get("message", "Cập nhật thành công")}), 200
-
-    if request.method == "DELETE":
-        ok = xoa_hoc_vien(student_id)
-        if not ok:
-            return jsonify({"success": False, "message": "Không thể xóa học sinh"}), 400
-        return jsonify({"success": True, "message": "Đã xóa học sinh khỏi lớp thành công"}), 200
-
-
-@app.route("/api/classes/<int:class_id>/students/<int:student_id>/transfer", methods=["POST"])
-def api_transfer_student(class_id, student_id):
-    data = request.get_json(silent=True) or {}
-    target_class_id = data.get("target_class_id")
-    if not target_class_id:
-        return jsonify({"success": False, "message": "Thiếu target_class_id"}), 400
-    try:
-        target_class_id = int(target_class_id)
-    except (TypeError, ValueError):
-        return jsonify({"success": False, "message": "target_class_id không hợp lệ"}), 400
-
-    if target_class_id == class_id:
-        return jsonify({"success": False, "message": "Lớp đích phải khác lớp hiện tại"}), 400
-
-    res = chuyen_lop_hoc_vien(student_id, target_class_id)
-    if not res.get("success"):
-        return jsonify({"success": False, "message": res.get("error", "Không thể chuyển lớp")}), 400
-    return jsonify({"success": True, "message": res.get("message", "Chuyển lớp thành công")}), 200
-
-
-@app.route("/api/classes/<int:class_id>/sync-mqtt", methods=["POST"])
-def api_class_sync_mqtt(class_id):
-    data = request.get_json(silent=True) or {}
-    room_id = data.get("room_id") or "room01"
-    ok, msg = dong_bo_hoc_sinh_lop_mqtt(room_id, class_id)
-    if not ok:
-        return jsonify({"success": False, "message": msg}), 400
-    return jsonify({"success": True, "message": msg}), 200
 
 
 @app.route("/api/students/<int:student_id>/assign-card", methods=["POST"])
@@ -599,19 +501,6 @@ def api_room_students_sync_mqtt(room_id):
     }), 200 if ok else 500
 
 
-@app.route("/api/subjects", methods=["GET", "POST"])
-def api_subjects():
-    if request.method == "GET":
-        rows = lay_danh_sach_mon_hoc()
-        return jsonify({"success": rows is not None, "data": rows or []}), 200 if rows is not None else 500
-    data = request.get_json(silent=True) or {}
-    code, name = str(data.get("subject_code", "")).strip(), str(data.get("subject_name", "")).strip()
-    if not code or not name:
-        return jsonify({"success": False, "message": "Cần subject_code và subject_name"}), 400
-    subject_id = tao_mon_hoc(code, name, data.get("description"))
-    if not subject_id:
-        return jsonify({"success": False, "message": "Không thể tạo môn học; mã môn có thể đã tồn tại"}), 409
-    return jsonify({"success": True, "id": subject_id}), 201
 
 
 @app.route("/api/schedules", methods=["GET", "POST"])
