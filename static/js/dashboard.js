@@ -208,11 +208,9 @@ function updateRoomAccessState() {
         const r = allRooms.find(x => x.room_id === currentRoom);
         const displayName = r && r.name ? r.name : `Phòng ${currentRoom}`;
         const isOnline = r ? Boolean(r.is_online) : false;
-        const clsCode = r && r.class_code ? r.class_code : "";
-        const clsName = r && r.class_name ? r.class_name : "";
 
         if (classStudentsTag) {
-            classStudentsTag.textContent = clsCode || "Học viên";
+            classStudentsTag.textContent = "HV";
             classStudentsTag.className = "nav-tag";
             classStudentsTag.style.cssText = "background: rgba(37,99,235,0.15); color: var(--primary); font-weight:700;";
         }
@@ -224,11 +222,6 @@ function updateRoomAccessState() {
                         <strong style="font-size: 13px; color: var(--text-pure); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 155px;">${escapeHtml(displayName)}</strong>
                         <span class="status-indicator-dot ${isOnline ? 'online' : ''}" style="width: 8px; height: 8px; flex-shrink: 0; background: ${isOnline ? 'var(--success)' : '#94a3b8'};"></span>
                     </div>
-                    ${clsCode ? `
-                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 3px; line-height: 1.3;">
-                        Lớp: <strong style="color: var(--primary);">${escapeHtml(clsCode)}</strong> - ${escapeHtml(clsName)}
-                    </div>
-                    ` : ''}
                     <div style="font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
                         <span>Mã: <strong style="color: var(--text-dim);">${escapeHtml(currentRoom)}</strong></span>
                         <span style="font-weight: 700; color: ${isOnline ? 'var(--success)' : '#64748b'};">${isOnline ? '● Online' : '○ Offline'}</span>
@@ -241,7 +234,7 @@ function updateRoomAccessState() {
         }
 
         const barChip = $("multi-room-current-name");
-        if (barChip) barChip.textContent = `${displayName} (${currentRoom}) · Lớp: ${clsCode || '--'}`;
+        if (barChip) barChip.textContent = `${displayName} (${currentRoom})`;
 
         const rfidTagEl = $("rfid-active-room-tag");
         if (rfidTagEl) rfidTagEl.textContent = `${displayName} (${currentRoom})`;
@@ -287,15 +280,15 @@ function renderRoomsPortal(rooms) {
         const displayName = room.name || room.room_id;
         const roomId = room.room_id;
         const mode = room.control_mode === "AUTO" ? "TỰ ĐỘNG (AUTO)" : "THỦ CÔNG (MANUAL)";
-        const clsCode = room.class_code || "--";
-        const clsName = room.class_name || "Chưa gán lớp";
         const studentCount = room.student_count || 0;
 
         return `
             <div class="room-portal-card ${isOnline ? 'online' : 'offline'}" onclick="selectRoomAndOpenDashboard('${escapeHtml(roomId)}')">
                 <div class="portal-card-header">
                     <div class="portal-card-title-group">
-                        <div class="portal-room-icon">🏫</div>
+                        <div class="portal-room-icon">
+                            <img src="/static/icons/google-classroom.svg" alt="Phòng học">
+                        </div>
                         <div>
                             <h3 class="portal-room-name">${escapeHtml(displayName)}</h3>
                             <span class="portal-room-id-tag">Mã: ${escapeHtml(roomId)}</span>
@@ -307,11 +300,7 @@ function renderRoomsPortal(rooms) {
                 </div>
                 <div class="portal-card-body">
                     <div class="portal-info-row">
-                        <span>🏛️ Lớp học:</span>
-                        <strong style="color: var(--primary);">[${escapeHtml(clsCode)}] ${escapeHtml(clsName)}</strong>
-                    </div>
-                    <div class="portal-info-row">
-                        <span>👨‍🎓 Sĩ số lớp:</span>
+                        <span>👨‍🎓 Sĩ số:</span>
                         <strong>${studentCount} Học viên</strong>
                     </div>
                     <div class="portal-info-row">
@@ -324,7 +313,7 @@ function renderRoomsPortal(rooms) {
                     </div>
                 </div>
                 <button type="button" class="btn-portal-access ${isOnline ? 'online' : 'offline'}" onclick="event.stopPropagation(); selectRoomAndOpenDashboard('${escapeHtml(roomId)}')">
-                    <span>Vào phòng & Quản lý lớp</span>
+                    <span>Vào phòng học</span>
                     <span>→</span>
                 </button>
             </div>
@@ -347,7 +336,7 @@ function selectRoomAndOpenDashboard(roomId) {
     updateRoomAccessState();
     switchView("dashboard");
     if (room.is_online) {
-        showToast("Đã chọn phòng", `Đang quản lý ${room.name || roomId} (${roomId}) - Lớp [${room.class_code || '--'}]`, true);
+        showToast("Đã chọn phòng", `Đang quản lý ${room.name || roomId} (${roomId})`, true);
     } else {
         showToast("Đã chọn phòng (Offline)", `Đang quản lý ${room.name || roomId} (${roomId}) - Thiết bị hiện Offline, bạn vẫn có thể quản lý học viên và thời khóa biểu.`, true);
     }
@@ -475,14 +464,12 @@ function updateSensor(name, value, unit, time) {
     switch (name) {
         case "temperature":
             if ($("temperature-value")) $("temperature-value").textContent = numericValue.toFixed(1);
-            if ($("summary-temperature")) $("summary-temperature").textContent = `${numericValue.toFixed(1)} °C`;
             if ($("temperature-time")) $("temperature-time").textContent = formatTime(time);
             updateTemperatureStatus(numericValue);
             break;
 
         case "humidity":
             if ($("humidity-value")) $("humidity-value").textContent = numericValue.toFixed(1);
-            if ($("summary-humidity")) $("summary-humidity").textContent = `${numericValue.toFixed(1)} %`;
             if ($("humidity-time")) $("humidity-time").textContent = formatTime(time);
             const humPercent = Math.max(0, Math.min(100, numericValue));
             if ($("humidity-progress")) $("humidity-progress").style.width = `${humPercent}%`;
@@ -493,7 +480,6 @@ function updateSensor(name, value, unit, time) {
         case "ldr":
             const lightVal = Math.round(numericValue);
             if ($("light-value")) $("light-value").textContent = lightVal;
-            if ($("summary-light")) $("summary-light").textContent = `${lightVal} lux`;
             if ($("light-time")) $("light-time").textContent = formatTime(time);
             if ($("light-progress")) {
                 const lightPercent = Math.max(0, Math.min(100, (lightVal / 1000) * 100));
@@ -507,7 +493,6 @@ function updateSensor(name, value, unit, time) {
         case "aq":
             const aqVal = Math.round(numericValue);
             if ($("air-quality-value")) $("air-quality-value").textContent = aqVal;
-            if ($("summary-air-quality")) $("summary-air-quality").textContent = `${aqVal}`;
             if ($("air-quality-time")) $("air-quality-time").textContent = formatTime(time);
             updateAirQualityStatus(numericValue);
             break;
@@ -537,7 +522,6 @@ function updateHumidityStatus(value) {
 
 function updateAirQualityStatus(value) {
     const el = $("air-quality-status");
-    const summaryEl = $("summary-air-quality");
     const levelEl = $("air-quality-level");
     const progressEl = $("air-quality-progress");
 
@@ -573,9 +557,6 @@ function updateAirQualityStatus(value) {
     }
     if (levelEl) {
         levelEl.textContent = levelVi;
-    }
-    if (summaryEl) {
-        summaryEl.textContent = `${Math.round(value)} (${levelVi})`;
     }
     if (progressEl) {
         const progress = Math.max(5, Math.min(100, (value / 3000) * 100));
@@ -642,11 +623,9 @@ function updateRfidReader(isCardPresent, time) {
     const value = $("rfid-value");
     const visual = $("rfid-visual");
     const status = $("rfid-status");
-    const summary = $("summary-rfid");
     const timeEl = $("rfid-time");
     if (!value || !visual || !status) return;
 
-    if (summary) summary.textContent = isCardPresent ? "Đã quẹt thẻ" : "Sẵn sàng";
     if (timeEl) timeEl.textContent = formatTime(time);
 
     if (isCardPresent) {

@@ -1044,12 +1044,34 @@ a {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--primary-light);
-    border: 1px solid rgba(37, 99, 235, 0.2);
+    background: rgba(244, 180, 0, 0.08);
+    border: 1px solid rgba(244, 180, 0, 0.22);
     font-size: 26px;
     color: var(--primary);
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+    box-shadow: 0 4px 12px rgba(244, 180, 0, 0.08);
     flex-shrink: 0;
+}
+
+.room-hero-icon img,
+.classroom-icon-img {
+    width: 38px;
+    height: 38px;
+    object-fit: contain;
+    display: block;
+}
+
+.portal-room-icon img {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+    display: block;
+}
+
+.nav-icon img {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+    display: block;
 }
 
 .room-hero-details h2 {

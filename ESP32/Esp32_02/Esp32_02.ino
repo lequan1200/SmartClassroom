@@ -25,7 +25,7 @@ const int MQTT_PORT = 1883;
 // =====================================================
 
 // DHT11
-#define DHTPIN        2    // Chân dữ liệu DHT11
+#define DHTPIN        5  // Chân dữ liệu DHT11
 #define DHTTYPE       DHT11
 
 // MQ-135 (Cảm biến chất lượng không khí)
@@ -40,7 +40,7 @@ const int MQTT_PORT = 1883;
 #define BH1750_SCL    27
 
 // Buzzer
-#define BUZZER_PIN    15
+#define BUZZER_PIN    13
 
 // Relay - Active HIGH trên Board 02 (HIGH = BẬT, LOW = TẮT)
 #define RELAY_LIGHT1  25   // Đèn 1 (chính)

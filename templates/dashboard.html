@@ -28,7 +28,7 @@
         <span class="nav-section-label">HỆ THỐNG CHÍNH</span>
         <nav class="sidebar-nav">
             <a href="#rooms" class="nav-item active" data-tab="rooms" id="nav-rooms">
-                <span class="nav-icon">🏛️</span>
+                <span class="nav-icon"><img src="{{ url_for('static', filename='icons/google-classroom.svg') }}" alt="Phòng"></span>
                 <span class="nav-text">Danh sách phòng</span>
                 <span class="nav-tag" id="rooms-online-count-badge" style="background: rgba(16,185,129,0.15); color: var(--success); font-weight:700;">--</span>
             </a>
@@ -120,8 +120,8 @@
                     <button type="button" class="btn-back-rooms" onclick="exitRoomToPortal()" title="Quay lại danh sách các phòng để chọn phòng khác">
                         <span>←</span> Đổi phòng khác
                     </button>
-                    <span class="multi-room-bar-label" style="margin-left: 6px;">
-                        <span>🏛️</span> ĐANG QUẢN LÝ:
+                    <span class="multi-room-bar-label" style="margin-left: 6px; display: inline-flex; align-items: center; gap: 6px;">
+                        <img src="{{ url_for('static', filename='icons/google-classroom.svg') }}" alt="" style="width: 17px; height: 17px; object-fit: contain;"> ĐANG QUẢN LÝ:
                     </span>
                     <span id="multi-room-current-name" style="font-size: 13px; font-weight: 700; color: var(--primary); padding: 4px 10px; background: rgba(37,99,235,0.08); border: 1px solid rgba(37,99,235,0.18); border-radius: 8px;">--</span>
                 </div>
@@ -135,7 +135,9 @@
                 <section class="room-hero-card" style="margin-bottom: 24px;">
                     <div class="room-hero-inner">
                         <div class="room-hero-info">
-                            <div class="room-hero-icon" style="background: rgba(37,99,235,0.1); border-color: rgba(37,99,235,0.25); color: var(--primary);">🏛️</div>
+                            <div class="room-hero-icon">
+                                <img src="{{ url_for('static', filename='icons/google-classroom.svg') }}" alt="Phòng học" class="classroom-icon-img">
+                            </div>
                             <div class="room-hero-details">
                                 <h2>Cổng Quản Lý & Giám Sát Phòng Học</h2>
                                 <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
@@ -187,7 +189,9 @@
                 <section class="room-hero-card">
                     <div class="room-hero-inner">
                         <div class="room-hero-info">
-                            <div class="room-hero-icon">🏛️</div>
+                            <div class="room-hero-icon">
+                                <img src="{{ url_for('static', filename='icons/google-classroom.svg') }}" alt="Phòng học" class="classroom-icon-img">
+                            </div>
                             <div class="room-hero-details">
                                 <h2 id="room-name">Đang tải phòng học...</h2>
                                 <div class="room-meta-tags">
@@ -222,44 +226,6 @@
                     </button>
                 </div>
 
-                <!-- KPI Grid -->
-                <section class="kpi-grid">
-                    <div class="kpi-card">
-                        <div class="kpi-icon temp">🌡️</div>
-                        <div class="kpi-body">
-                            <span>Nhiệt độ hiện tại</span>
-                            <strong id="summary-temperature">-- °C</strong>
-                        </div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="kpi-icon hum">💧</div>
-                        <div class="kpi-body">
-                            <span>Độ ẩm không khí</span>
-                            <strong id="summary-humidity">-- %</strong>
-                        </div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="kpi-icon light">☀️</div>
-                        <div class="kpi-body">
-                            <span>Cường độ ánh sáng</span>
-                            <strong id="summary-light">-- lux</strong>
-                        </div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="kpi-icon air-quality" style="color: #10b981; background: rgba(16,185,129,0.1);">🍃</div>
-                        <div class="kpi-body">
-                            <span>Chất lượng không khí (MQ-135)</span>
-                            <strong id="summary-air-quality">-- (TỐT)</strong>
-                        </div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="kpi-icon card">🪪</div>
-                        <div class="kpi-body">
-                            <span>Đầu đọc RFID</span>
-                            <strong id="summary-rfid">Sẵn sàng</strong>
-                        </div>
-                    </div>
-                </section>
 
                 <!-- Sensors Section -->
                 <section class="section" id="sensors-section">
@@ -1056,7 +1022,9 @@
     <div class="modal-dialog">
         <div class="modal-top">
             <div class="modal-title-group">
-                <div class="modal-avatar-icon" style="background: rgba(37,99,235,0.12); color: var(--primary);">🏛️</div>
+                <div class="modal-avatar-icon" style="background: rgba(244,180,0,0.12); border: 1px solid rgba(244,180,0,0.25);">
+                    <img src="{{ url_for('static', filename='icons/google-classroom.svg') }}" alt="" style="width: 24px; height: 24px; object-fit: contain;">
+                </div>
                 <div>
                     <h3 id="modal-class-form-title">Tạo Lớp Học Mới</h3>
                     <p>Thiết lập thông tin lớp học độc lập</p>
